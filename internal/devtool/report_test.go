@@ -48,6 +48,18 @@ func TestWriteReportIsBoundedJSON(t *testing.T) {
 	}
 }
 
+func TestSanitizeDiagnosticRedactsLocalRoots(t *testing.T) {
+	workspace := filepath.Join(t.TempDir(), "workspace")
+	value := workspace + string(filepath.Separator) + "file.go\n" + os.TempDir() + string(filepath.Separator) + "build.log"
+	redacted := sanitizeDiagnostic(value, workspace)
+	if strings.Contains(redacted, workspace) || strings.Contains(redacted, os.TempDir()) {
+		t.Fatalf("local path remained in %q", redacted)
+	}
+	if !strings.Contains(redacted, "WORKSPACE") || !strings.Contains(redacted, "TEMP") {
+		t.Fatalf("redacted markers missing from %q", redacted)
+	}
+}
+
 func TestPreflightDoesNotReturnEnvironmentValue(t *testing.T) {
 	const name = "REPOPLANE_TEST_REQUIRED_VALUE"
 	const secret = "nonsecret-fixture-value"

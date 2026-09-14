@@ -144,6 +144,9 @@ Available flags:
 ```
 
 MCP frames are the only data written to stdout. Startup failures and diagnostics go to stderr.
+Repository verification writes a bounded report under `.tmp/reports`. On failure, the developer
+CLI emits the failing check ID, exit status, and bounded diagnostics to stderr after replacing
+workspace, temporary, and user-home paths with neutral markers for public CI logs.
 
 Typical tool inputs are intentionally small:
 

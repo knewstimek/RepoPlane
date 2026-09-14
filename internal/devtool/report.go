@@ -117,11 +117,23 @@ func WriteReport(path string, report Report) error {
 }
 
 func sanitizeDiagnostic(value, root string) string {
-	value = strings.ReplaceAll(value, root, "WORKSPACE")
-	value = strings.ReplaceAll(value, filepath.ToSlash(root), "WORKSPACE")
+	value = replaceLocalPath(value, root, "WORKSPACE")
+	value = replaceLocalPath(value, os.TempDir(), "TEMP")
+	if home, err := os.UserHomeDir(); err == nil {
+		value = replaceLocalPath(value, home, "USER_HOME")
+	}
 	value = strings.TrimSpace(value)
 	if len(value) > 8192 {
 		return value[len(value)-8192:]
 	}
+	return value
+}
+
+func replaceLocalPath(value, path, replacement string) string {
+	if path == "" {
+		return value
+	}
+	value = strings.ReplaceAll(value, filepath.Clean(path), replacement)
+	value = strings.ReplaceAll(value, filepath.ToSlash(filepath.Clean(path)), replacement)
 	return value
 }
