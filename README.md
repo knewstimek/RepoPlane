@@ -94,6 +94,24 @@ placeholder values with local paths; the state directory must be outside the wor
 }
 ```
 
+The configuration above keeps RepoPlane read-only. To expose checkpoint/memo writes and local
+verification-report import in Codex, add the opt-in flags to the user-level MCP entry and restart
+Codex:
+
+```toml
+[mcp_servers.repoplane]
+command = "repoplane"
+args = [
+  "--workspace", "WORKSPACE",
+  "--state-dir", "STATE_DIRECTORY",
+  "--enable-intention-writes",
+  "--enable-report-import",
+]
+```
+
+Enabling these flags exposes the tools; it does not invoke them automatically. Use them only for a
+trusted workspace and keep the state directory outside that workspace.
+
 Available flags:
 
 ```text
@@ -207,10 +225,11 @@ See [SECURITY.md](SECURITY.md) for vulnerability reporting and
 
 ## Roadmap
 
-The read-only MVP is complete. Adopted P1/P2 work now proceeds through bounded vertical slices,
-starting with durable records and verification; a central orchestrator and general integration
-graph are not required. See the [`full implementation roadmap`](docs/Full-Implementation-Roadmap.md),
-the [`Records specification`](docs/Records-Spec.md), and the full
+The read-only MVP and the Records/Verification and Checkpoint/Memo/Importer slices are complete.
+Adopted P1/P2 work now proceeds with Environment Preflight; a central orchestrator and general
+integration graph are not required. See the
+[`full implementation roadmap`](docs/Full-Implementation-Roadmap.md), the
+[`Records specification`](docs/Records-Spec.md), and the full
 [`design document`](docs/Project-Control-Plane-MCP-Design.md).
 
 Contributions that improve portability, database adapters, fixtures, or contract clarity are

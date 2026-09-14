@@ -42,7 +42,8 @@ artifact validity가 안정된 뒤에만 시작한다. HTTP 배포는 local stdi
 지금 유지하는 문서:
 
 - 이 문서: 채택 범위, 순서, 단계별 gate
-- [Records-Spec.md](Records-Spec.md): 다음 수직 절단의 외부·저장 계약
+- [Records-Spec.md](Records-Spec.md): 완료된 Records/Verification 및
+  Checkpoint/Memo/Importer 수직 절단의 외부·저장 계약
 - [ADR-0002](adr/0002-record-write-boundaries.md): read/write 책임과 충돌 정책
 
 다음 문서는 해당 수직 절단을 시작할 때 작성하고 승인한다.

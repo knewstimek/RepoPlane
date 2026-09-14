@@ -190,25 +190,36 @@ MVP 통합과 전체 검증이 끝난 뒤에만 수행한다. 그전에는 외�
 - public 원격의 기본 branch에서 README와 CI가 정상 표시됨
 - fresh clone의 전체 검증이 통과함
 
-## 단계 8 — 다음 수직 절단 전 결정
+## 단계 8 — MVP 종료 시 다음 수직 절단 전 결정
 
-이 결정은 [ADR-0002](adr/0002-record-write-boundaries.md)와
-[Records-Spec.md](Records-Spec.md)에서 확정했다.
+Records의 다음 결정은 이후 [ADR-0002](adr/0002-record-write-boundaries.md)와
+[Records-Spec.md](Records-Spec.md)에서 확정하고 구현했다.
 
-구현에 들어가기 전에 다음 계약을 별도 ADR로 확정한다.
+해결된 Records 결정:
 
 - `project_records`를 조회 전용으로 유지할지
 - checkpoint/memo/import를 기록하는 별도 tool 또는 명시적 mode를 둘지
 - server event와 사용자 의도 record의 revision 충돌 처리
+
+후속 수직 절단을 구현하기 전에 아직 확정할 결정:
+
 - artifact blob 보존 기간과 redaction 권한 모델
 - runner 승인 정책의 저장 위치와 호스트 연동 방식
 
 장기 설계는 `project_records`를 읽기 전용으로 설명하면서 task intention의 명시적
 저장도 요구한다. 이 write surface를 정하기 전에는 이름을 추측해 구현하지 않는다.
 
-## 보류 기능
+## MVP 종료 시 보류 기능
 
-- `project_records`, verification, checkpoint
+이 목록은 MVP 동결 시점의 상태를 기록한다. 현재 상태는
+[Full Implementation Roadmap](Full-Implementation-Roadmap.md)을 기준으로 한다.
+
+MVP 이후 완료:
+
+- `project_records`, verification, checkpoint/memo/importer
+
+현재 대기:
+
 - 실행 영수증과 artifact provenance
 - `run_prepare`, `run_execute`, `run_inspect`
 - 환경 preflight
