@@ -65,3 +65,5 @@ Notable changes to RepoPlane are documented here.
   leaving CI with only a generic failure status.
 - The combined symbol/Git adapter fixture now uses the same canonical workspace root as production,
   avoiding false workspace-escape failures under Windows runner junction paths.
+- Agent guidance now names RepoPlane MCP explicitly, and README usage clarifies Runner's bounded
+  opt-in role plus consistent encrypted backup and restore of local state.

@@ -43,10 +43,10 @@
   are complete.
 - When a full durable-record payload is unnecessary, use `payload_fields` for discovery and
   `response_view=receipt` for writes; retain the validity and evidence fields needed for decisions.
-- When RepoPlane is available, use it first for repository discovery, registered
+- When RepoPlane MCP is available, use it first for repository discovery, registered
   verification/release execution, and durable task recovery. Use direct shell tools only when no
-  matching capability exists or RepoPlane reports `unsupported`/`partial`, and state the fallback
-  reason.
+  matching capability exists or RepoPlane MCP reports `unsupported`/`partial`, and state the
+  fallback reason.
 
 ## Verification discipline
 
