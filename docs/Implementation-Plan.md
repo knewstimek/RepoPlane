@@ -1,6 +1,6 @@
 # RepoPlane 구현 계획
 
-상태: Public release in progress
+상태: Complete
 대상: [MVP 명세](MVP-Spec.md) MVP 1.0
 
 ## Goal
@@ -27,7 +27,7 @@ MVP 명세 9절의 완료 조건과 회귀 테스트를 모두 충족한다.
 | 4 | Path facts | 완료 | Windows 경로와 encoding/newline fixture |
 | 5 | Data query | 완료 | bounded range, JSONL, 큰 정수 test |
 | 6 | MVP 통합과 평가 | 완료 | MVP 명세 9절 전체 통과 |
-| 7 | 공개 릴리스 | 진행 | 공개 전 검사, README/설명 정리, public 원격 생성·push |
+| 7 | 공개 릴리스 | 완료 | 공개 전 검사, README/설명 정리, public 원격 생성·push |
 
 상태 값은 `대기`, `진행`, `완료`, `차단`만 사용한다. 선행 단계의 통과 게이트를
 충족하기 전에는 후행 단계를 완료로 표시하지 않는다. 독립적인 fixture나 문서 작업은

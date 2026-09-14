@@ -1,6 +1,6 @@
 # Public release metadata
 
-Use this metadata only after the MVP completion gates and privacy checks pass.
+Status: released publicly after the MVP completion gates and privacy checks passed.
 
 ## GitHub description
 
