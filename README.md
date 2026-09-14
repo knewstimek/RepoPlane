@@ -162,6 +162,12 @@ Typical tool inputs are intentionally small:
 These correspond to `catalog_query`, `workspace_search`, `path_explain`, `data_query`, and
 `project_records` in that order. Pass only `cursor` plus optional limits for a next-page request.
 
+For coding agents, RepoPlane is the first choice where it has a matching repository-control
+capability: structured discovery, registered verification/release execution, and durable task
+recovery. It is not a universal replacement for `rg`, `git`, or focused package tests. Use those
+direct tools when RepoPlane reports `unsupported`/`partial` or has no matching capability, and make
+the fallback reason explicit so later sessions do not repeat the same probe.
+
 With report import enabled, a local verification report can be linked to a versioned checklist:
 
 ```json
