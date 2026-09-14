@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -33,28 +32,23 @@ func authorizeInfo(info *auth.TokenInfo, tool string) error {
 	if info == nil {
 		return mcpserver.ErrAuthorizationDenied
 	}
-	required, ok := requiredScope(tool)
+	required, ok := mcpserver.RequiredScope(tool)
 	if !ok {
 		return mcpserver.ErrAuthorizationDenied
 	}
-	if !slices.Contains(info.Scopes, required) {
+	if !contains(info.Scopes, required) {
 		return mcpserver.ErrAuthorizationDenied
 	}
 	return nil
 }
 
-func requiredScope(tool string) (string, bool) {
-	switch tool {
-	case "catalog_query", "workspace_search", "path_explain", "data_query", "project_records":
-		return "repoplane.read", true
-	case "checkpoint_write", "memo_write":
-		return "repoplane.intent.write", true
-	case "check_report_import":
-		return "repoplane.report.import", true
-	case "run_prepare", "run_execute", "run_inspect":
-		return "repoplane.runner.execute", true
+func contains(values []string, wanted string) bool {
+	for _, value := range values {
+		if value == wanted {
+			return true
+		}
 	}
-	return "", false
+	return false
 }
 
 func Run(ctx context.Context, version string, options mcpserver.Options, profile Profile, verifier auth.TokenVerifier, audit store.AuditRepository, auditKey []byte) error {
@@ -108,7 +102,7 @@ func Handler(version string, options mcpserver.Options, profile Profile, verifie
 	mux := http.NewServeMux()
 	mux.Handle(profile.Endpoint, exactPath(profile.Endpoint, handler))
 	if profile.Auth.Mode == "oauth_introspection" {
-		metadata := &oauthex.ProtectedResourceMetadata{Resource: profile.ResourceURI, AuthorizationServers: profile.Auth.AuthorizationServers, ScopesSupported: []string{"repoplane.read", "repoplane.intent.write", "repoplane.report.import", "repoplane.runner.execute"}, BearerMethodsSupported: []string{"header"}, ResourceName: "RepoPlane"}
+		metadata := &oauthex.ProtectedResourceMetadata{Resource: profile.ResourceURI, AuthorizationServers: profile.Auth.AuthorizationServers, ScopesSupported: []string{mcpserver.ScopeRead, mcpserver.ScopeIntentWrite, mcpserver.ScopeReportImport, mcpserver.ScopeRunnerExecute}, BearerMethodsSupported: []string{"header"}, ResourceName: "RepoPlane"}
 		metadataHandler := auth.ProtectedResourceMetadataHandler(metadata)
 		mux.Handle("/.well-known/oauth-protected-resource", metadataHandler)
 		mux.Handle("/.well-known/oauth-protected-resource/", metadataHandler)
@@ -135,9 +129,9 @@ func protectedMetadataURL(resource string) string {
 func scopeMiddleware(next http.Handler, metadataURL string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.EqualFold(r.Header.Get("Mcp-Method"), "tools/call") && r.Header.Get("Mcp-Name") != "" {
-			required, known := requiredScope(r.Header.Get("Mcp-Name"))
+			required, known := mcpserver.RequiredScope(r.Header.Get("Mcp-Name"))
 			info := auth.TokenInfoFromContext(r.Context())
-			if !known || info == nil || !slices.Contains(info.Scopes, required) {
+			if !known || info == nil || !contains(info.Scopes, required) {
 				challenge := fmt.Sprintf(`Bearer error="insufficient_scope", scope=%q`, required)
 				if metadataURL != "" {
 					challenge += fmt.Sprintf(`, resource_metadata=%q`, metadataURL)

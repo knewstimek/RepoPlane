@@ -43,31 +43,33 @@ var (
 )
 
 type QueryRequest struct {
-	Mode         string `json:"mode,omitempty" jsonschema:"record operation: search, list, or get; omit when using cursor"`
-	ID           string `json:"id,omitempty" jsonschema:"opaque record ID; required for get"`
-	Kind         string `json:"kind,omitempty" jsonschema:"record kind filter: verification, checkpoint, memo, environment, run, or artifact"`
-	Validity     string `json:"validity,omitempty" jsonschema:"validity filter: current, stale, unknown, or superseded"`
-	Source       string `json:"source,omitempty" jsonschema:"source filter: observed, imported, user_asserted, or llm_proposed"`
-	UpdatedAfter string `json:"updated_after,omitempty" jsonschema:"RFC3339 lower bound for record update time"`
-	Cursor       string `json:"cursor,omitempty" jsonschema:"opaque cursor from an earlier project_records query"`
-	ItemLimit    uint64 `json:"item_limit,omitempty" jsonschema:"item limit; default 50, max 500"`
-	ByteLimit    uint64 `json:"byte_limit,omitempty" jsonschema:"response bytes; default 65536, max 1048576"`
-	TimeLimitMS  int64  `json:"time_limit_ms,omitempty" jsonschema:"deadline ms; default 5000, max 30000"`
+	Mode          string   `json:"mode,omitempty" jsonschema:"record operation: search, list, or get; omit when using cursor"`
+	ID            string   `json:"id,omitempty" jsonschema:"opaque record ID; required for get"`
+	Kind          string   `json:"kind,omitempty" jsonschema:"record kind filter: verification, checkpoint, memo, environment, run, or artifact"`
+	Validity      string   `json:"validity,omitempty" jsonschema:"validity filter: current, stale, unknown, or superseded"`
+	Source        string   `json:"source,omitempty" jsonschema:"source filter: observed, imported, user_asserted, or llm_proposed"`
+	UpdatedAfter  string   `json:"updated_after,omitempty" jsonschema:"RFC3339 lower bound for record update time"`
+	Cursor        string   `json:"cursor,omitempty" jsonschema:"opaque cursor from an earlier project_records query"`
+	ItemLimit     uint64   `json:"item_limit,omitempty" jsonschema:"item limit; default 50, max 500"`
+	ByteLimit     uint64   `json:"byte_limit,omitempty" jsonschema:"response bytes; default 65536, max 1048576"`
+	TimeLimitMS   int64    `json:"time_limit_ms,omitempty" jsonschema:"deadline ms; default 5000, max 30000"`
+	PayloadFields []string `json:"payload_fields,omitempty" jsonschema:"exact top-level payload fields to return; empty returns the full payload"`
 }
 
 type RecordResult struct {
-	ID            string         `json:"id"`
-	Kind          string         `json:"kind"`
-	SchemaVersion string         `json:"schema_version"`
-	Revision      uint64         `json:"revision"`
-	Source        string         `json:"source"`
-	WriterClass   string         `json:"writer_class"`
-	Validity      string         `json:"validity"`
-	CreatedAt     time.Time      `json:"created_at"`
-	UpdatedAt     time.Time      `json:"updated_at"`
-	Payload       map[string]any `json:"payload"`
-	EvidenceRefs  []string       `json:"evidence_refs"`
-	Supersedes    string         `json:"supersedes,omitempty"`
+	ID              string         `json:"id"`
+	Kind            string         `json:"kind"`
+	SchemaVersion   string         `json:"schema_version"`
+	Revision        uint64         `json:"revision"`
+	Source          string         `json:"source"`
+	WriterClass     string         `json:"writer_class"`
+	Validity        string         `json:"validity"`
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
+	Payload         map[string]any `json:"payload,omitempty"`
+	PayloadComplete bool           `json:"payload_complete"`
+	EvidenceRefs    []string       `json:"evidence_refs"`
+	Supersedes      string         `json:"supersedes,omitempty"`
 }
 
 type QueryResponse = contracts.Response[RecordResult]
@@ -84,6 +86,7 @@ type CheckpointRequest struct {
 	NextAction       string   `json:"next_action,omitempty" jsonschema:"next intended action"`
 	Risks            []string `json:"risks,omitempty" jsonschema:"known unverified risks"`
 	EvidenceRefs     []string `json:"evidence_refs,omitempty" jsonschema:"bounded evidence refs"`
+	ResponseView     string   `json:"response_view,omitempty" jsonschema:"full or receipt; default full; receipt omits the echoed payload"`
 }
 
 type MemoRequest struct {
@@ -97,6 +100,7 @@ type MemoRequest struct {
 	InvalidationCondition string   `json:"invalidation_condition,omitempty" jsonschema:"condition that makes the memo stale"`
 	Source                string   `json:"source,omitempty" jsonschema:"user_asserted or llm_proposed"`
 	EvidenceRefs          []string `json:"evidence_refs,omitempty" jsonschema:"bounded evidence refs"`
+	ResponseView          string   `json:"response_view,omitempty" jsonschema:"full or receipt; default full; receipt omits the echoed payload"`
 }
 
 type ImportRequest struct {
@@ -105,6 +109,7 @@ type ImportRequest struct {
 	Configuration string `json:"configuration" jsonschema:"declared checklist configuration being imported"`
 	ByteLimit     uint64 `json:"byte_limit,omitempty" jsonschema:"maximum report bytes; default and maximum 1048576"`
 	TimeLimitMS   int64  `json:"time_limit_ms,omitempty" jsonschema:"deadline ms; default 5000, max 30000"`
+	ResponseView  string `json:"response_view,omitempty" jsonschema:"full or receipt; default full; receipt omits the imported payload"`
 }
 
 type MutationResponse struct {
@@ -154,7 +159,7 @@ func (s *Service) Query(ctx context.Context, request QueryRequest) (QueryRespons
 		if err != nil {
 			return QueryResponse{}, err
 		}
-		result, err := s.result(record, &current)
+		result, err := s.result(record, &current, request.PayloadFields)
 		if err != nil {
 			return QueryResponse{}, err
 		}
@@ -173,7 +178,7 @@ func (s *Service) Query(ctx context.Context, request QueryRequest) (QueryRespons
 		}
 		items := make([]RecordResult, 0, len(page.Records))
 		for _, record := range page.Records {
-			result, err := s.result(record, &current)
+			result, err := s.result(record, &current, request.PayloadFields)
 			if err != nil {
 				return QueryResponse{}, err
 			}
@@ -256,7 +261,7 @@ func (s *Service) WriteCheckpoint(ctx context.Context, request CheckpointRequest
 		return MutationResponse{}, contracts.ErrLimitExceeded
 	}
 	record, err := s.mutate(ctx, "checkpoint", "checkpoint.v1", "user_asserted", request.Mode, request.ID, request.ExpectedRevision, payload, request.EvidenceRefs)
-	return s.mutationResponse(record, false, err)
+	return s.mutationResponse(record, false, request.ResponseView, err)
 }
 
 func (s *Service) WriteMemo(ctx context.Context, request MemoRequest) (MutationResponse, error) {
@@ -271,7 +276,7 @@ func (s *Service) WriteMemo(ctx context.Context, request MemoRequest) (MutationR
 		return MutationResponse{}, contracts.ErrLimitExceeded
 	}
 	record, err := s.mutate(ctx, "memo", "memo.v1", request.Source, request.Mode, request.ID, request.ExpectedRevision, payload, request.EvidenceRefs)
-	return s.mutationResponse(record, false, err)
+	return s.mutationResponse(record, false, request.ResponseView, err)
 }
 
 func (s *Service) ImportReport(ctx context.Context, request ImportRequest) (MutationResponse, error) {
@@ -284,6 +289,9 @@ func (s *Service) ImportReport(ctx context.Context, request ImportRequest) (Muta
 	}
 	if request.Path == "" || request.ChecklistPath == "" || request.Configuration == "" {
 		return MutationResponse{}, errors.New("path, checklist_path, and configuration are required")
+	}
+	if err := validateResponseView(request.ResponseView); err != nil {
+		return MutationResponse{}, err
 	}
 	if len(request.Path) > 4096 || len(request.ChecklistPath) > 4096 || len(request.Configuration) > 128 {
 		return MutationResponse{}, contracts.ErrLimitExceeded
@@ -355,7 +363,7 @@ func (s *Service) ImportReport(ctx context.Context, request ImportRequest) (Muta
 		Revision: 1, Source: "imported", WriterClass: "importer", Validity: validity, CreatedAt: now, UpdatedAt: now,
 		Payload: payload, EvidenceRefs: []string{"report:" + sourceHash},
 	}}, importIdentity, parserRevision)
-	return s.mutationResponse(record, duplicate, err)
+	return s.mutationResponse(record, duplicate, request.ResponseView, err)
 }
 
 func (s *Service) mutate(ctx context.Context, kind, schemaVersion, source, mode, id string, expected uint64, payload json.RawMessage, evidence []string) (store.Record, error) {
@@ -386,18 +394,22 @@ func (s *Service) mutate(ctx context.Context, kind, schemaVersion, source, mode,
 	}
 }
 
-func (s *Service) mutationResponse(record store.Record, duplicate bool, err error) (MutationResponse, error) {
+func (s *Service) mutationResponse(record store.Record, duplicate bool, view string, err error) (MutationResponse, error) {
 	if err != nil {
 		return MutationResponse{}, err
 	}
-	result, err := s.result(record, nil)
+	result, err := s.result(record, nil, nil)
 	if err != nil {
 		return MutationResponse{}, err
+	}
+	if view == "receipt" {
+		result.Payload = nil
+		result.PayloadComplete = false
 	}
 	return MutationResponse{Status: contracts.StatusOK, Record: result, Duplicate: duplicate, Warnings: contracts.EmptyWarnings()}, nil
 }
 
-func (s *Service) result(record store.Record, current *subjectObservation) (RecordResult, error) {
+func (s *Service) result(record store.Record, current *subjectObservation, payloadFields []string) (RecordResult, error) {
 	var payload map[string]any
 	decoder := json.NewDecoder(bytes.NewReader(record.Payload))
 	decoder.UseNumber()
@@ -408,7 +420,17 @@ func (s *Service) result(record store.Record, current *subjectObservation) (Reco
 	if record.Kind == "verification" && validity != "superseded" && current != nil {
 		validity = validityFromPayload(payload, *current)
 	}
-	return RecordResult{ID: record.ID, Kind: record.Kind, SchemaVersion: record.SchemaVersion, Revision: record.Revision, Source: record.Source, WriterClass: record.WriterClass, Validity: validity, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt, Payload: payload, EvidenceRefs: nonNil(record.EvidenceRefs), Supersedes: record.Supersedes}, nil
+	complete := len(payloadFields) == 0
+	if !complete {
+		projected := make(map[string]any, len(payloadFields))
+		for _, field := range payloadFields {
+			if value, ok := payload[field]; ok {
+				projected[field] = value
+			}
+		}
+		payload = projected
+	}
+	return RecordResult{ID: record.ID, Kind: record.Kind, SchemaVersion: record.SchemaVersion, Revision: record.Revision, Source: record.Source, WriterClass: record.WriterClass, Validity: validity, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt, Payload: payload, PayloadComplete: complete, EvidenceRefs: nonNil(record.EvidenceRefs), Supersedes: record.Supersedes}, nil
 }
 
 func validateFilters(request QueryRequest) error {
@@ -421,10 +443,16 @@ func validateFilters(request QueryRequest) error {
 	if request.Source != "" && request.Source != "observed" && request.Source != "imported" && request.Source != "user_asserted" && request.Source != "llm_proposed" {
 		return errors.New("invalid record source")
 	}
+	if err := validatePayloadFields(request.PayloadFields); err != nil {
+		return err
+	}
 	return nil
 }
 
 func validateCheckpoint(request CheckpointRequest) error {
+	if err := validateResponseView(request.ResponseView); err != nil {
+		return err
+	}
 	if request.Mode != "create" && request.Mode != "update" && request.Mode != "supersede" {
 		return errors.New("mode must be create, update, or supersede")
 	}
@@ -438,6 +466,9 @@ func validateCheckpoint(request CheckpointRequest) error {
 }
 
 func validateMemo(request MemoRequest) error {
+	if err := validateResponseView(request.ResponseView); err != nil {
+		return err
+	}
 	if request.Mode != "create" && request.Mode != "update" && request.Mode != "supersede" {
 		return errors.New("mode must be create, update, or supersede")
 	}
@@ -452,6 +483,30 @@ func validateMemo(request MemoRequest) error {
 		return errors.New("id and expected_revision are required for update or supersede")
 	}
 	return validateTextAndRefs(request.MemoKind+request.Scope+request.Configuration+request.Content+request.InvalidationCondition, request.EvidenceRefs)
+}
+
+func validateResponseView(view string) error {
+	if view != "" && view != "full" && view != "receipt" {
+		return errors.New("response_view must be full or receipt")
+	}
+	return nil
+}
+
+func validatePayloadFields(fields []string) error {
+	if len(fields) > 32 {
+		return contracts.ErrLimitExceeded
+	}
+	seen := make(map[string]struct{}, len(fields))
+	for _, field := range fields {
+		if field == "" || len(field) > 128 || strings.TrimSpace(field) != field {
+			return errors.New("payload_fields must contain non-empty top-level field names")
+		}
+		if _, exists := seen[field]; exists {
+			return errors.New("payload_fields must not contain duplicates")
+		}
+		seen[field] = struct{}{}
+	}
+	return nil
 }
 
 func validateTextAndRefs(text string, refs []string) error {

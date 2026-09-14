@@ -53,10 +53,10 @@ func New(version string, provided ...Options) *mcp.Server {
 	}
 	if options.Catalog != nil {
 		mcp.AddTool(server, &mcp.Tool{
-			Name:        "catalog_query",
+			Name:        ToolCatalogQuery,
 			Description: "Query the workspace catalog by search, get, list, audit, or status.",
 		}, func(ctx context.Context, _ *mcp.CallToolRequest, input catalog.QueryRequest) (*mcp.CallToolResult, catalog.QueryResponse, error) {
-			if err := authorize(ctx, options, "catalog_query"); err != nil {
+			if err := authorize(ctx, options, ToolCatalogQuery); err != nil {
 				return nil, catalog.QueryResponse{}, publicError(err)
 			}
 			output, err := options.Catalog.Query(ctx, input)
@@ -65,10 +65,10 @@ func New(version string, provided ...Options) *mcp.Server {
 	}
 	if options.Search != nil {
 		mcp.AddTool(server, &mcp.Tool{
-			Name:        "workspace_search",
+			Name:        ToolWorkspaceSearch,
 			Description: "Search names, text, Git history, or configured symbols with bounded evidence.",
 		}, func(ctx context.Context, _ *mcp.CallToolRequest, input search.Request) (*mcp.CallToolResult, search.Response, error) {
-			if err := authorize(ctx, options, "workspace_search"); err != nil {
+			if err := authorize(ctx, options, ToolWorkspaceSearch); err != nil {
 				return nil, search.Response{}, publicError(err)
 			}
 			output, err := options.Search.Query(ctx, input)
@@ -77,10 +77,10 @@ func New(version string, provided ...Options) *mcp.Server {
 	}
 	if options.PathFacts != nil {
 		mcp.AddTool(server, &mcp.Tool{
-			Name:        "path_explain",
+			Name:        ToolPathExplain,
 			Description: "Explain workspace, Git, link, encoding, newline, rule, and basename facts for a path.",
 		}, func(ctx context.Context, _ *mcp.CallToolRequest, input pathfacts.Request) (*mcp.CallToolResult, pathfacts.Response, error) {
-			if err := authorize(ctx, options, "path_explain"); err != nil {
+			if err := authorize(ctx, options, ToolPathExplain); err != nil {
 				return nil, pathfacts.Response{}, publicError(err)
 			}
 			output, err := options.PathFacts.Explain(ctx, input)
@@ -89,10 +89,10 @@ func New(version string, provided ...Options) *mcp.Server {
 	}
 	if options.DataQuery != nil {
 		mcp.AddTool(server, &mcp.Tool{
-			Name:        "data_query",
+			Name:        ToolDataQuery,
 			Description: "Read ranges or query JSON, JSONL, logs, CSV, and TSV with bounded precision.",
 		}, func(ctx context.Context, _ *mcp.CallToolRequest, input dataquery.Request) (*mcp.CallToolResult, dataquery.Response, error) {
-			if err := authorize(ctx, options, "data_query"); err != nil {
+			if err := authorize(ctx, options, ToolDataQuery); err != nil {
 				return nil, dataquery.Response{}, publicError(err)
 			}
 			output, err := options.DataQuery.Query(ctx, input)
@@ -100,8 +100,8 @@ func New(version string, provided ...Options) *mcp.Server {
 		})
 	}
 	if options.Records != nil {
-		mcp.AddTool(server, &mcp.Tool{Name: "project_records", Description: "Query durable verification, checkpoint, memo, environment, run, and artifact records."}, func(ctx context.Context, _ *mcp.CallToolRequest, input records.QueryRequest) (*mcp.CallToolResult, records.QueryResponse, error) {
-			if err := authorize(ctx, options, "project_records"); err != nil {
+		mcp.AddTool(server, &mcp.Tool{Name: ToolProjectRecords, Description: "Query durable verification, checkpoint, memo, environment, run, and artifact records."}, func(ctx context.Context, _ *mcp.CallToolRequest, input records.QueryRequest) (*mcp.CallToolResult, records.QueryResponse, error) {
+			if err := authorize(ctx, options, ToolProjectRecords); err != nil {
 				return nil, records.QueryResponse{}, publicError(err)
 			}
 			output, err := options.Records.Query(ctx, input)
@@ -109,8 +109,8 @@ func New(version string, provided ...Options) *mcp.Server {
 		})
 	}
 	if options.CheckpointWriter != nil {
-		mcp.AddTool(server, &mcp.Tool{Name: "checkpoint_write", Description: "Create, update, or supersede a bounded checkpoint with optimistic concurrency."}, func(ctx context.Context, _ *mcp.CallToolRequest, input records.CheckpointRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
-			if err := authorize(ctx, options, "checkpoint_write"); err != nil {
+		mcp.AddTool(server, &mcp.Tool{Name: ToolCheckpointWrite, Description: "Create, update, or supersede a bounded checkpoint with optimistic concurrency."}, func(ctx context.Context, _ *mcp.CallToolRequest, input records.CheckpointRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
+			if err := authorize(ctx, options, ToolCheckpointWrite); err != nil {
 				return nil, records.MutationResponse{}, publicError(err)
 			}
 			output, err := options.CheckpointWriter.WriteCheckpoint(ctx, input)
@@ -118,8 +118,8 @@ func New(version string, provided ...Options) *mcp.Server {
 		})
 	}
 	if options.MemoWriter != nil {
-		mcp.AddTool(server, &mcp.Tool{Name: "memo_write", Description: "Create, update, or supersede a bounded memo with optimistic concurrency."}, func(ctx context.Context, _ *mcp.CallToolRequest, input records.MemoRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
-			if err := authorize(ctx, options, "memo_write"); err != nil {
+		mcp.AddTool(server, &mcp.Tool{Name: ToolMemoWrite, Description: "Create, update, or supersede a bounded memo with optimistic concurrency."}, func(ctx context.Context, _ *mcp.CallToolRequest, input records.MemoRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
+			if err := authorize(ctx, options, ToolMemoWrite); err != nil {
 				return nil, records.MutationResponse{}, publicError(err)
 			}
 			output, err := options.MemoWriter.WriteMemo(ctx, input)
@@ -127,8 +127,8 @@ func New(version string, provided ...Options) *mcp.Server {
 		})
 	}
 	if options.ReportImporter != nil {
-		mcp.AddTool(server, &mcp.Tool{Name: "check_report_import", Description: "Import a bounded local check-report.v1 without storing raw contents."}, func(ctx context.Context, _ *mcp.CallToolRequest, input records.ImportRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
-			if err := authorize(ctx, options, "check_report_import"); err != nil {
+		mcp.AddTool(server, &mcp.Tool{Name: ToolCheckReportImport, Description: "Import a bounded local check-report.v1 without storing raw contents."}, func(ctx context.Context, _ *mcp.CallToolRequest, input records.ImportRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
+			if err := authorize(ctx, options, ToolCheckReportImport); err != nil {
 				return nil, records.MutationResponse{}, publicError(err)
 			}
 			output, err := options.ReportImporter.ImportReport(ctx, input)
@@ -138,22 +138,22 @@ func New(version string, provided ...Options) *mcp.Server {
 	if options.Runner != nil {
 		nonDestructive := false
 		destructive := true
-		mcp.AddTool(server, &mcp.Tool{Name: "run_prepare", Description: "Validate a capability and create a durable environment-bound plan.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &nonDestructive, IdempotentHint: false}}, func(ctx context.Context, _ *mcp.CallToolRequest, input runner.PrepareRequest) (*mcp.CallToolResult, runner.PrepareResponse, error) {
-			if err := authorize(ctx, options, "run_prepare"); err != nil {
+		mcp.AddTool(server, &mcp.Tool{Name: ToolRunPrepare, Description: "Validate a capability and create a durable environment-bound plan.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &nonDestructive, IdempotentHint: false}}, func(ctx context.Context, _ *mcp.CallToolRequest, input runner.PrepareRequest) (*mcp.CallToolResult, runner.PrepareResponse, error) {
+			if err := authorize(ctx, options, ToolRunPrepare); err != nil {
 				return nil, runner.PrepareResponse{}, publicError(err)
 			}
 			output, err := options.Runner.Prepare(ctx, input)
 			return nil, output, publicError(err)
 		})
-		mcp.AddTool(server, &mcp.Tool{Name: "run_execute", Description: "Execute or reuse one plan after dependency revalidation.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false}}, func(ctx context.Context, _ *mcp.CallToolRequest, input runner.ExecuteRequest) (*mcp.CallToolResult, runner.ExecuteResponse, error) {
-			if err := authorize(ctx, options, "run_execute"); err != nil {
+		mcp.AddTool(server, &mcp.Tool{Name: ToolRunExecute, Description: "Execute or reuse one plan after dependency revalidation.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false}}, func(ctx context.Context, _ *mcp.CallToolRequest, input runner.ExecuteRequest) (*mcp.CallToolResult, runner.ExecuteResponse, error) {
+			if err := authorize(ctx, options, ToolRunExecute); err != nil {
 				return nil, runner.ExecuteResponse{}, publicError(err)
 			}
 			output, err := options.Runner.Execute(ctx, input)
 			return nil, output, publicError(err)
 		})
-		mcp.AddTool(server, &mcp.Tool{Name: "run_inspect", Description: "Inspect/cancel a run or page retained streams and artifacts.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false}}, func(ctx context.Context, _ *mcp.CallToolRequest, input runner.InspectRequest) (*mcp.CallToolResult, runner.InspectResponse, error) {
-			if err := authorize(ctx, options, "run_inspect"); err != nil {
+		mcp.AddTool(server, &mcp.Tool{Name: ToolRunInspect, Description: "Inspect/cancel a run or page retained streams and artifacts.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false}}, func(ctx context.Context, _ *mcp.CallToolRequest, input runner.InspectRequest) (*mcp.CallToolResult, runner.InspectResponse, error) {
+			if err := authorize(ctx, options, ToolRunInspect); err != nil {
 				return nil, runner.InspectResponse{}, publicError(err)
 			}
 			output, err := options.Runner.Inspect(ctx, input)

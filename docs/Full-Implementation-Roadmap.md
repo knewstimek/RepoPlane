@@ -161,3 +161,19 @@ exit code만으로 verification을 passed로 만들지 않고, 요구된 check�
 
 채택된 번호 단계는 모두 완료했다. 이후 작업은 새로운 필수 기능 단계가 아니라 protocol/SDK
 호환성 유지, 실제 작업 비교 측정, 선택 adapter와 release maintenance로 관리한다.
+
+## 11. Post-roadmap context efficiency 완료
+
+이 작업은 새 numbered feature stage가 아니라 완료된 11-tool 계약의 호환형 최적화다.
+
+- 전체 schema 직렬화 byte, input 중심 비교 byte, 실제 client/model token과 작업당 비용을
+  서로 다른 측정값으로 정의했다.
+- 11개 typed tool과 안정적인 `tools/list`, host opt-in, HTTP scope/audit를 유지했다.
+- record discovery에는 exact `payload_fields`, mutation에는 opt-in `receipt`를 추가했고 기존
+  full 응답은 기본값으로 보존했다.
+- 범용 toolbox, 대화 의존적 tool 목록, search grouping과 error envelope 변경은 증거·호환
+  설계 없이 도입하지 않았다.
+- 유료 model 비교는 수행하지 않았으며 결정론적 계약 검증만 이번 완료 근거로 사용한다.
+
+현재 계약과 보류 조건은 [Context-Efficiency-Spec.md](Context-Efficiency-Spec.md), 실행 이력은
+[Context-Efficiency-Implementation-Plan.md](Context-Efficiency-Implementation-Plan.md)에 둔다.

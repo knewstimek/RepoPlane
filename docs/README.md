@@ -19,6 +19,8 @@
 | [Search-Adapters-Implementation-Plan.md](Search-Adapters-Implementation-Plan.md) | Stage 7 구현 순서와 gate | search adapter 작업이 진행되거나 재계획될 때 |
 | [HTTP-Security-Spec.md](HTTP-Security-Spec.md) | HTTP transport, auth, scope, audit와 limit 계약 | network/security 계약이 바뀔 때 |
 | [HTTP-Implementation-Plan.md](HTTP-Implementation-Plan.md) | Stage 8 구현 순서와 gate | HTTP/Auth 작업이 진행되거나 재계획될 때 |
+| [Context-Efficiency-Spec.md](Context-Efficiency-Spec.md) | MCP 노출 비용 측정과 호환형 compact 응답 계약 | tool/record 응답 또는 측정 의미가 바뀔 때 |
+| [Context-Efficiency-Implementation-Plan.md](Context-Efficiency-Implementation-Plan.md) | post-roadmap context 효율 작업과 보류 실험 | 효율 작업이 진행되거나 재계획될 때 |
 | [Storage-Design.md](Storage-Design.md) | SQLite, blob, ref, cursor 저장 계약 | 영속성 구조가 바뀔 때 |
 | [Public-Release.md](Public-Release.md) | 공개 설명, topic, 최종 공개 체크리스트 | 릴리스 준비와 공개 시점 |
 | [Verification.md](Verification.md) | 완료 조건과 실행 가능한 증거 매핑 | 완료 게이트나 검증 방식이 바뀔 때 |

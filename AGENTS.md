@@ -41,6 +41,8 @@
   contract changes.
 - Keep Runner and cache reuse out of scope until their roadmap prerequisites and specifications
   are complete.
+- When a full durable-record payload is unnecessary, use `payload_fields` for discovery and
+  `response_view=receipt` for writes; retain the validity and evidence fields needed for decisions.
 
 ## Verification discipline
 

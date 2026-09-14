@@ -36,6 +36,8 @@ reviewable.
 | Whole-root restore is staged and removes undeclared prior output | `TestIsolatedRootMaterializationReplacesWholeTree` on Windows/Linux |
 | Cache pins and expiry are bounded | `TestCachePinsAndExpiryAreBounded` and Runner retention tests |
 | MCP discovery remains bounded without output-schema removal | `TestCompactToolSchemaFootprintStaysBounded` |
+| Tool footprint bytes remain reproducible and distinct from model-token claims | `TestGeneratedFootprintIsCurrentAndSeparatesContractParts` |
+| Record compact options preserve defaults, exact fields, pagination, and receipt semantics | `TestRecordPayloadProjectionAndMutationReceipt`, `TestRecordProjectionSurvivesCursorPagination`, `TestCompactRecordOptionsRejectInvalidValues` |
 | Git history and symbol adapters preserve channel, absence, scope, and validity | search adapter backend/service tests |
 | Frontmatter and JSON/log/CSV/TSV parsing remains strict, bounded, and precise | catalog and data-query Stage 7 tests |
 | HTTP auth, audience, scope, Origin/Host, and official-client negotiation work | `internal/httptransport` profile/auth/E2E tests |

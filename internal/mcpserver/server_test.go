@@ -71,3 +71,34 @@ func TestPublicErrorUsesStableSanitizedCodes(t *testing.T) {
 		}
 	}
 }
+
+func TestRequiredScopeCoversEveryPublicTool(t *testing.T) {
+	reads, writes, imports, runners := ToolNames()
+	tests := []struct {
+		names []string
+		scope string
+	}{
+		{reads, ScopeRead},
+		{writes, ScopeIntentWrite},
+		{imports, ScopeReportImport},
+		{runners, ScopeRunnerExecute},
+	}
+	seen := map[string]bool{}
+	for _, test := range tests {
+		for _, name := range test.names {
+			if seen[name] {
+				t.Fatalf("duplicate public tool %q", name)
+			}
+			seen[name] = true
+			if got, ok := RequiredScope(name); !ok || got != test.scope {
+				t.Fatalf("RequiredScope(%q)=(%q,%v), want (%q,true)", name, got, ok, test.scope)
+			}
+		}
+	}
+	if len(seen) != 11 {
+		t.Fatalf("covered tools=%d, want 11", len(seen))
+	}
+	if _, ok := RequiredScope("unknown"); ok {
+		t.Fatal("unknown tool did not fail closed")
+	}
+}

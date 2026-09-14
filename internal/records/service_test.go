@@ -119,6 +119,93 @@ func TestMemoKindsAndSupersede(t *testing.T) {
 	}
 }
 
+func TestRecordPayloadProjectionAndMutationReceipt(t *testing.T) {
+	service, _ := testService(t)
+	created, err := service.WriteMemo(context.Background(), MemoRequest{
+		Mode: "create", MemoKind: "decision", Scope: "docs", Content: strings.Repeat("detail ", 200), ResponseView: "receipt",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.Record.Payload != nil || created.Record.PayloadComplete {
+		t.Fatalf("receipt echoed payload: %+v", created.Record)
+	}
+	encoded, _ := json.Marshal(created)
+	if strings.Contains(string(encoded), `"payload"`) {
+		t.Fatalf("receipt JSON contains payload: %s", encoded)
+	}
+	fullMutation, err := service.WriteMemo(context.Background(), MemoRequest{
+		Mode: "create", MemoKind: "decision", Scope: "docs", Content: strings.Repeat("detail ", 200),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fullMutationJSON, _ := json.Marshal(fullMutation)
+	if len(encoded)*2 >= len(fullMutationJSON) {
+		t.Fatalf("receipt did not materially reduce echoed content: receipt=%d full=%d", len(encoded), len(fullMutationJSON))
+	}
+
+	projected, err := service.Query(context.Background(), QueryRequest{
+		Mode: "get", ID: created.Record.ID, PayloadFields: []string{"memo_kind", "scope"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := projected.Items[0]
+	if item.PayloadComplete || len(item.Payload) != 2 || item.Payload["memo_kind"] != "decision" || item.Payload["scope"] != "docs" {
+		t.Fatalf("projected record=%+v", item)
+	}
+	if _, exists := item.Payload["content"]; exists {
+		t.Fatal("projection returned an unrequested payload field")
+	}
+
+	full, err := service.Query(context.Background(), QueryRequest{Mode: "get", ID: created.Record.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !full.Items[0].PayloadComplete || full.Items[0].Payload["content"] == "" {
+		t.Fatalf("full record=%+v", full.Items[0])
+	}
+	projectedJSON, _ := json.Marshal(projected)
+	fullJSON, _ := json.Marshal(full)
+	if len(projectedJSON)*2 >= len(fullJSON) {
+		t.Fatalf("projection did not materially reduce record content: projected=%d full=%d", len(projectedJSON), len(fullJSON))
+	}
+}
+
+func TestRecordProjectionSurvivesCursorPagination(t *testing.T) {
+	service, _ := testService(t)
+	for _, content := range []string{"one", "two"} {
+		if _, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "create", MemoKind: "limitation", Scope: "resume", Content: content}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	first, err := service.Query(context.Background(), QueryRequest{Mode: "list", ItemLimit: 1, PayloadFields: []string{"memo_kind", "scope"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.NextCursor == nil || first.Items[0].PayloadComplete || len(first.Items[0].Payload) != 2 {
+		t.Fatalf("first projection=%+v", first)
+	}
+	second, err := service.Query(context.Background(), QueryRequest{Cursor: *first.NextCursor, ItemLimit: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.Items[0].PayloadComplete || len(second.Items[0].Payload) != 2 {
+		t.Fatalf("cursor projection=%+v", second)
+	}
+}
+
+func TestCompactRecordOptionsRejectInvalidValues(t *testing.T) {
+	service, _ := testService(t)
+	if _, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "create", MemoKind: "decision", Content: "x", ResponseView: "tiny"}); err == nil {
+		t.Fatal("invalid response_view was accepted")
+	}
+	if _, err := service.Query(context.Background(), QueryRequest{Mode: "list", PayloadFields: []string{"content", "content"}}); err == nil {
+		t.Fatal("duplicate payload_fields were accepted")
+	}
+}
+
 func TestImportReportIsIdempotentAndBecomesStale(t *testing.T) {
 	service, root := testService(t)
 	commit := strings.TrimSpace(runGit(t, root, "rev-parse", "HEAD"))

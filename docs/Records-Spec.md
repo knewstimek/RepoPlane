@@ -82,6 +82,15 @@ payload, evidence_refs[], supersedes?, validity
 - current, stale, unknown, superseded, redacted, source_missing을 구분한다.
 - 조회가 freshness 계산을 위해 외부 command나 network probe를 실행하지 않는다.
 
+호출자가 전체 본문을 필요로 하지 않으면 `payload_fields`로 정확한 최상위 payload field를
+최대 32개까지 선택할 수 있다. 생략하거나 빈 배열이면 기존처럼 전체 payload를 반환한다.
+투영은 요약이 아니며 저장 값을 바꾸지 않는다. `payload_complete`는 전체 payload일 때만
+true다. 첫 page의 투영은 고정 result set에 저장되어 cursor-only 다음 page에서도 유지된다.
+
+Checkpoint, memo와 report import는 `response_view=receipt`로 방금 보낸 payload의 응답
+반복을 생략할 수 있다. 기본값 `full`은 기존 계약을 유지한다. receipt도 ID, revision,
+validity, evidence, duplicate와 warning을 유지하며 `payload_complete=false`를 명시한다.
+
 ## 5. Optimistic concurrency
 
 수정과 supersede 요청은 읽은 record의 `expected_revision`을 반드시 보낸다. 저장소는

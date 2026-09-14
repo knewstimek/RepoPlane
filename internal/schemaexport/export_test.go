@@ -23,6 +23,37 @@ func TestGeneratedToolSchemasAreCurrent(t *testing.T) {
 	}
 }
 
+func TestGeneratedFootprintIsCurrentAndSeparatesMeasurements(t *testing.T) {
+	generated, err := Generate(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	footprint, err := GenerateFootprint(generated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	committed, err := os.ReadFile(filepath.Join("..", "..", "schemas", "tool-footprint.v1.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(footprint, committed) {
+		t.Fatal("schemas/tool-footprint.v1.json is stale; run go generate ./internal/mcpserver")
+	}
+	var report footprintDocument
+	if err := json.Unmarshal(footprint, &report); err != nil {
+		t.Fatal(err)
+	}
+	wantCounts := map[string]int{"read": 5, "writes": 3, "runner": 3, "all": 11}
+	for _, set := range report.Sets {
+		if set.ToolCount != wantCounts[set.Name] {
+			t.Fatalf("%s tool_count=%d, want %d", set.Name, set.ToolCount, wantCounts[set.Name])
+		}
+		if set.NameDescriptionInputBytes >= set.CompleteContractBytes {
+			t.Fatalf("%s does not separate candidate exposure from the complete contract: %+v", set.Name, set)
+		}
+	}
+}
+
 func TestCursorCapableToolSchemasAllowCursorOnlyRequests(t *testing.T) {
 	generated, err := Generate(context.Background())
 	if err != nil {

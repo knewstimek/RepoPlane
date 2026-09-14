@@ -27,6 +27,9 @@ Notable changes to RepoPlane are documented here.
 - Opt-in stateless Streamable HTTP with local bearer or external OAuth introspection.
 - Per-tool HTTP scopes, audience/expiry, Origin/Host/TLS, rate/concurrency, and cancellation gates.
 - A separate bounded, redacted HTTP admission/completion audit store.
+- A deterministic MCP contract-footprint report that separates full, input, output, and
+  name/description/input serialized bytes without presenting them as model-token measurements.
+- Optional exact `project_records.payload_fields` projection and compact write/import receipts.
 
 ### Changed
 
@@ -51,3 +54,7 @@ Notable changes to RepoPlane are documented here.
   optional adapters, and release maintenance.
 - README, security, storage, and verification documentation describe the Records capabilities and
   their opt-in write boundaries.
+- The 11 standard typed tools remain stable while tool names and HTTP scope requirements now share
+  one fail-closed source; generic toolbox routing and conversation-dependent tool lists remain out.
+- Record responses remain full by default; callers can explicitly remove repeated payload bytes
+  without losing revision, validity, evidence, pagination, duplicate, or warning semantics.
