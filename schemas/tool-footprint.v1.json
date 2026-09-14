@@ -1,0 +1,39 @@
+{
+  "schema_version": "tool-footprint.v1",
+  "source_schema": "schemas/tools.v1.json",
+  "measurement": "compact serialized JSON bytes; not observed model tokens or client exposure",
+  "sets": [
+    {
+      "name": "read",
+      "tool_count": 5,
+      "complete_contract_bytes": 19718,
+      "name_description_input_bytes": 6958,
+      "input_schema_bytes": 6282,
+      "output_schema_bytes": 12675
+    },
+    {
+      "name": "writes",
+      "tool_count": 3,
+      "complete_contract_bytes": 6730,
+      "name_description_input_bytes": 3406,
+      "input_schema_bytes": 3011,
+      "output_schema_bytes": 3273
+    },
+    {
+      "name": "runner",
+      "tool_count": 3,
+      "complete_contract_bytes": 5198,
+      "name_description_input_bytes": 1929,
+      "input_schema_bytes": 1582,
+      "output_schema_bytes": 3218
+    },
+    {
+      "name": "all",
+      "tool_count": 11,
+      "complete_contract_bytes": 31646,
+      "name_description_input_bytes": 12293,
+      "input_schema_bytes": 10875,
+      "output_schema_bytes": 19166
+    }
+  ]
+}

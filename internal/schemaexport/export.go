@@ -31,6 +31,28 @@ type toolSchema struct {
 	OutputSchema any    `json:"output_schema"`
 }
 
+type footprintDocument struct {
+	SchemaVersion string         `json:"schema_version"`
+	SourceSchema  string         `json:"source_schema"`
+	Measurement   string         `json:"measurement"`
+	Sets          []footprintSet `json:"sets"`
+}
+
+type footprintSet struct {
+	Name                      string `json:"name"`
+	ToolCount                 int    `json:"tool_count"`
+	CompleteContractBytes     int    `json:"complete_contract_bytes"`
+	NameDescriptionInputBytes int    `json:"name_description_input_bytes"`
+	InputSchemaBytes          int    `json:"input_schema_bytes"`
+	OutputSchemaBytes         int    `json:"output_schema_bytes"`
+}
+
+type exposureCandidate struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	InputSchema any    `json:"input_schema"`
+}
+
 func Generate(ctx context.Context) ([]byte, error) {
 	server := mcpserver.New("schema-export", mcpserver.Options{
 		Catalog: &catalog.Service{}, Search: &search.Service{},
@@ -67,6 +89,75 @@ func Generate(ctx context.Context) ([]byte, error) {
 	}
 	sort.Slice(document.Tools, func(i, j int) bool { return document.Tools[i].Name < document.Tools[j].Name })
 	encoded, err := json.MarshalIndent(document, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return append(encoded, '\n'), nil
+}
+
+// GenerateFootprint reports serialized contract bytes without claiming that a
+// particular client, tokenizer, model, or code path exposes those bytes.
+func GenerateFootprint(toolDocument []byte) ([]byte, error) {
+	var parsed document
+	if err := json.Unmarshal(toolDocument, &parsed); err != nil {
+		return nil, fmt.Errorf("decode tool schema document: %w", err)
+	}
+	groups := map[string]map[string]bool{
+		"read":   {},
+		"writes": {},
+		"runner": {},
+		"all":    {},
+	}
+	reads, writes, imports, runners := mcpserver.ToolNames()
+	for _, name := range reads {
+		groups["read"][name] = true
+	}
+	for _, name := range append(writes, imports...) {
+		groups["writes"][name] = true
+	}
+	for _, name := range runners {
+		groups["runner"][name] = true
+	}
+	for _, tool := range parsed.Tools {
+		groups["all"][tool.Name] = true
+	}
+	report := footprintDocument{
+		SchemaVersion: "tool-footprint.v1",
+		SourceSchema:  "schemas/tools.v1.json",
+		Measurement:   "compact serialized JSON bytes; not observed model tokens or client exposure",
+		Sets:          make([]footprintSet, 0, 4),
+	}
+	for _, group := range []string{"read", "writes", "runner", "all"} {
+		set := footprintSet{Name: group}
+		for _, tool := range parsed.Tools {
+			if !groups[group][tool.Name] {
+				continue
+			}
+			set.ToolCount++
+			complete, err := json.Marshal(tool)
+			if err != nil {
+				return nil, err
+			}
+			candidate, err := json.Marshal(exposureCandidate{Name: tool.Name, Description: tool.Description, InputSchema: tool.InputSchema})
+			if err != nil {
+				return nil, err
+			}
+			input, err := json.Marshal(tool.InputSchema)
+			if err != nil {
+				return nil, err
+			}
+			output, err := json.Marshal(tool.OutputSchema)
+			if err != nil {
+				return nil, err
+			}
+			set.CompleteContractBytes += len(complete)
+			set.NameDescriptionInputBytes += len(candidate)
+			set.InputSchemaBytes += len(input)
+			set.OutputSchemaBytes += len(output)
+		}
+		report.Sets = append(report.Sets, set)
+	}
+	encoded, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
 		return nil, err
 	}

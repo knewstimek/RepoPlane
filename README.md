@@ -156,7 +156,7 @@ Typical tool inputs are intentionally small:
 {"mode":"jsonl","ref":"source:mutable:reports/events.jsonl","fields":["id","status"]}
 {"mode":"log","dialect":"regex","pattern":"error|panic","ref":"source:mutable:logs/app.log"}
 {"mode":"json","dialect":"json-pointer","pointer":"/items","ref":"source:mutable:reports/data.json","fields":["id","status"]}
-{"mode":"list","kind":"verification","validity":"current"}
+{"mode":"list","kind":"verification","validity":"current","payload_fields":["check_id","status","configuration"]}
 ```
 
 These correspond to `catalog_query`, `workspace_search`, `path_explain`, `data_query`, and
@@ -169,6 +169,17 @@ With report import enabled, a local verification report can be linked to a versi
 ```
 
 The importer stores a hash and bounded normalized summary, not raw report diagnostics.
+
+Record reads return the full payload by default. For discovery, `payload_fields` selects exact
+top-level fields without replacing stored values with a summary; `payload_complete` tells whether
+the full payload was returned. Checkpoint, memo, and report-import writes also preserve their full
+response by default. Pass `"response_view":"receipt"` when the caller only needs the record ID,
+revision, validity, evidence, duplicate state, and warnings and does not need its submitted payload
+echoed back:
+
+```json
+{"mode":"create","goal":"verify the release","status":"incomplete","next_action":"run the release gate","response_view":"receipt"}
+```
 
 ## Add a catalog entry
 
@@ -305,6 +316,12 @@ Public JSON Schemas are committed under [`schemas/`](schemas/). Run
 The compact MCP schema set has a regression budget (32 KiB overall and 5,500 bytes for the three
 Runner tools). Its wording is deduplicated without dropping response fields, limits, defaults, or
 state semantics; cross-tool references are avoided because each MCP tool schema must stand alone.
+The generated [`tool-footprint.v1.json`](schemas/tool-footprint.v1.json) separates complete-contract
+bytes from a name/description/input-only comparison. These are deterministic serialized byte
+counts—not observed model tokens or proof of what a particular MCP client exposes. RepoPlane keeps
+all 11 typed tools and stable discovery; clients may defer model exposure natively without changing
+the server contract. See the
+[`context-efficiency specification`](docs/Context-Efficiency-Spec.md).
 
 ## Security model and limitations
 
