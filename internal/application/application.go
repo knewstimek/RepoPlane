@@ -11,10 +11,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/modelcontextprotocol/go-sdk/auth"
+
 	"repoplane/internal/catalog"
 	"repoplane/internal/config"
 	"repoplane/internal/cursor"
 	"repoplane/internal/dataquery"
+	"repoplane/internal/httptransport"
 	"repoplane/internal/mcpserver"
 	"repoplane/internal/pathfacts"
 	"repoplane/internal/records"
@@ -40,6 +43,11 @@ type Application struct {
 	enableIntentionWrites bool
 	enableReportImport    bool
 	enableRunner          bool
+	transport             string
+	httpProfile           *httptransport.Profile
+	httpVerifier          auth.TokenVerifier
+	auditRepository       store.AuditRepository
+	auditKey              []byte
 }
 
 func Open(ctx context.Context, settings config.Settings, version string) (*Application, error) {
@@ -101,7 +109,8 @@ func Open(ctx context.Context, settings config.Settings, version string) (*Appli
 	if err != nil {
 		return fail(err)
 	}
-	searchService := search.NewService(root, repository, codec, searchBackend)
+	adapterBackend := search.NewAdapterBackend(ctx, searchBackend, root.Resolved(), settings.SymbolIndexes)
+	searchService := search.NewService(root, repository, codec, adapterBackend)
 	pathService := pathfacts.NewService(root, searchBackend, settings.RuleFiles)
 	dataService := dataquery.NewService(root, repository, codec)
 	recordService := records.NewService(root, recordRepository, repository, codec)
@@ -120,11 +129,38 @@ func Open(ctx context.Context, settings config.Settings, version string) (*Appli
 			return fail(err)
 		}
 	}
+	var httpProfile *httptransport.Profile
+	var httpVerifier auth.TokenVerifier
+	var auditRepository store.AuditRepository
+	var auditKey []byte
+	if settings.Transport == "http" {
+		profile, err := httptransport.LoadProfile(settings.HTTPProfile)
+		if err != nil {
+			return fail(err)
+		}
+		verifier, err := httptransport.TokenVerifier(profile)
+		if err != nil {
+			return fail(err)
+		}
+		auditRepository, err = storesqlite.OpenAudit(ctx, filepath.Join(settings.StateDir, "audit.db"))
+		if err != nil {
+			return fail(err)
+		}
+		auditKey, err = loadOrCreateKey(filepath.Join(settings.StateDir, "audit.key"))
+		if err != nil {
+			_ = auditRepository.Close()
+			return fail(err)
+		}
+		_, _ = auditRepository.DeleteExpiredAudit(ctx, time.Now().UTC().AddDate(0, 0, -profile.Audit.RetentionDays), 256)
+		httpProfile, httpVerifier = &profile, verifier
+	}
 	return &Application{
 		version: version, repository: repository, recordRepository: recordRepository, catalog: service,
 		search: searchService, pathFacts: pathService, dataQuery: dataService, records: recordService,
 		runner: runnerService, enableIntentionWrites: settings.EnableIntentionWrites,
 		enableReportImport: settings.EnableReportImport, enableRunner: settings.EnableRunner,
+		transport: settings.Transport, httpProfile: httpProfile, httpVerifier: httpVerifier,
+		auditRepository: auditRepository, auditKey: auditKey,
 	}, nil
 }
 
@@ -150,6 +186,9 @@ func pathInside(root, candidate string) (bool, error) {
 }
 
 func (a *Application) Run(ctx context.Context) error {
+	if a.transport == "http" {
+		return httptransport.Run(ctx, a.version, a.MCPOptions(), *a.httpProfile, a.httpVerifier, a.auditRepository, a.auditKey)
+	}
 	return mcpserver.RunStdio(ctx, a.version, a.MCPOptions())
 }
 
@@ -176,7 +215,11 @@ func (a *Application) Close() error {
 	if a.runner != nil {
 		runnerErr = a.runner.Close()
 	}
-	return errors.Join(runnerErr, a.repository.Close(), a.recordRepository.Close())
+	var auditErr error
+	if a.auditRepository != nil {
+		auditErr = a.auditRepository.Close()
+	}
+	return errors.Join(runnerErr, auditErr, a.repository.Close(), a.recordRepository.Close())
 }
 
 func loadOrCreateKey(path string) ([]byte, error) {

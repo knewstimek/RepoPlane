@@ -18,11 +18,22 @@ after a fix is available.
 
 ## Security boundaries
 
-RepoPlane is a local stdio MCP server. It does not authenticate clients or provide a network
-listener. The host is responsible for choosing which local MCP client may start it and which
-workspace it may inspect. Checkpoint/memo mutation, local report import, and registered-capability
-execution and cache reuse are disabled by default and must be enabled explicitly. Record IDs and workspace read
-access do not grant mutation or execution capability.
+RepoPlane defaults to a local stdio MCP server, where the host chooses which client starts it and
+which workspace it may inspect. Opt-in Streamable HTTP serves exactly one configured workspace and
+requires bearer authentication. Local-token mode is loopback-only; remote deployments use direct
+TLS or a loopback reverse proxy and an external OAuth Authorization Server. OAuth tokens must be
+active, unexpired, audience-bound to the configured resource, and carry the operation scope.
+RepoPlane does not issue, exchange, forward, or log tokens.
+
+HTTP validates Host and browser Origin, limits body/header/rate/concurrency, propagates disconnect
+cancellation, and records admitted requests in a separate bounded `audit.db`. Audit identities are
+host-keyed pseudonyms and events exclude arguments, results, tokens, network addresses, and local
+paths. Admission fails closed if its audit event cannot be stored. Forwarded headers are not an
+authorization input; a reverse proxy must preserve the configured Host.
+
+Checkpoint/memo mutation, local report import, and registered-capability execution and cache reuse
+remain disabled by default and must be enabled explicitly. HTTP token scopes are an additional
+gate; record IDs and workspace read access do not grant mutation or execution capability.
 
 Runner accepts only a registered capability ID, its current revision, and manifest-declared typed
 arguments. It does not accept request-supplied executables, argv arrays, or shell strings. Enabling

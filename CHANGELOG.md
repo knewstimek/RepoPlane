@@ -22,6 +22,11 @@ Notable changes to RepoPlane are documented here.
 - Opt-in Runner cache observation and verified reuse with HMAC keys, current verification
   qualification, false-hit quarantine, safe materialization, and cache-aware run receipts.
 - A regenerable SQLite cache-entry index with bounded expiry and active artifact-blob pins.
+- Evidence-separated Git-history and configured symbol-index search adapters.
+- Strict Markdown frontmatter catalogs and bounded JSON Pointer, log, CSV, and TSV queries.
+- Opt-in stateless Streamable HTTP with local bearer or external OAuth introspection.
+- Per-tool HTTP scopes, audience/expiry, Origin/Host/TLS, rate/concurrency, and cancellation gates.
+- A separate bounded, redacted HTTP admission/completion audit store.
 
 ### Changed
 
@@ -40,5 +45,9 @@ Notable changes to RepoPlane are documented here.
   source provenance without claiming a subprocess ran.
 - The registered verification capability scopes Go inputs to source directories instead of
   hashing ignored temporary clones into execution plans.
+- The compact MCP schema budget is 32 KiB after adding Stage 7 fields; no gateway or new tool was
+  added, and stdio remains the default transport.
+- The adopted numbered roadmap is complete; ongoing work is compatibility, dogfooding measurement,
+  optional adapters, and release maintenance.
 - README, security, storage, and verification documentation describe the Records capabilities and
   their opt-in write boundaries.

@@ -1,0 +1,19 @@
+listen: 127.0.0.1:8080
+endpoint: /mcp
+resource_uri: https://mcp.example.invalid/mcp
+allowed_hosts: [mcp.example.invalid]
+allowed_origins: [https://client.example.invalid]
+auth:
+  mode: oauth_introspection
+  introspection_url: https://auth.example.invalid/oauth2/introspect
+  client_id_env: REPOPLANE_OAUTH_CLIENT_ID
+  client_secret_env: REPOPLANE_OAUTH_CLIENT_SECRET
+  authorization_servers: [https://auth.example.invalid]
+  audience: https://mcp.example.invalid/mcp
+limits:
+  body_bytes: 1048576
+  concurrent_requests: 32
+  per_principal: 4
+  requests_per_minute: 120
+audit:
+  retention_days: 30

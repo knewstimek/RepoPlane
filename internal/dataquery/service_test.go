@@ -120,6 +120,46 @@ func TestJSONLPreservesLargeIntegerProjectionAndPagination(t *testing.T) {
 	}
 }
 
+func TestJSONPointerPreservesInteger(t *testing.T) {
+	service, root := newDataService(t)
+	if err := os.WriteFile(filepath.Join(root, "data.json"), []byte(`{"items":[{"id":9007199254740993,"state":"failed"}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	response, err := service.Query(context.Background(), Request{Mode: "json", Dialect: "json-pointer", Pointer: "/items", Ref: "source:mutable:data.json", Fields: []string{"id"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, _ := json.Marshal(response.Items)
+	if len(response.Items) != 1 || !strings.Contains(string(encoded), "9007199254740993") {
+		t.Fatalf("items=%s", encoded)
+	}
+}
+
+func TestDelimitedQuotedNewlineAndLogEncoding(t *testing.T) {
+	service, root := newDataService(t)
+	if err := os.WriteFile(filepath.Join(root, "data.csv"), []byte("id,message\n1,\"two\nlines\"\n2,ok\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	response, err := service.Query(context.Background(), Request{Mode: "delimited", Dialect: "csv", Ref: "source:mutable:data.csv", Filters: []Filter{{Field: "id", ValueType: "string", Value: "1"}}, Fields: []string{"message"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(response.Items) != 1 || response.Items[0].Record["message"] != "two\nlines" {
+		t.Fatalf("response=%+v", response)
+	}
+	encoded, err := textcodec.Encode("cp949", "정보 시작\n오류 발생\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "app.log"), encoded, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	logs, err := service.Query(context.Background(), Request{Mode: "log", Dialect: "exact", Pattern: "오류", Ref: "source:mutable:app.log", Encoding: "cp949"})
+	if err != nil || len(logs.Items) != 1 || logs.Items[0].Line != 2 {
+		t.Fatalf("logs=%+v err=%v", logs, err)
+	}
+}
+
 func TestJSONLMalformedSkipIsPartialLowerBound(t *testing.T) {
 	service, root := newDataService(t)
 	data := "{\"id\":1}\nnot-json\n{\"id\":2}\n"

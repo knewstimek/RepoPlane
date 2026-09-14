@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -23,8 +24,8 @@ const resultTTL = 30 * time.Minute
 var ErrResponseTooLarge = errors.New("search: response cannot fit byte_limit")
 
 type Request struct {
-	Mode          string   `json:"mode,omitempty" jsonschema:"search mode: filename, exact, or regex; omit when using cursor"`
-	Pattern       string   `json:"pattern,omitempty" jsonschema:"filename substring, exact text, or regular expression; omit when using cursor"`
+	Mode          string   `json:"mode,omitempty" jsonschema:"filename, exact, regex, git_history, or symbol; omit with cursor"`
+	Pattern       string   `json:"pattern,omitempty" jsonschema:"name/text/Git/symbol pattern; omit with cursor"`
 	Root          string   `json:"root,omitempty" jsonschema:"workspace-relative search root; defaults to ."`
 	Include       []string `json:"include,omitempty" jsonschema:"ripgrep glob patterns to include"`
 	Exclude       []string `json:"exclude,omitempty" jsonschema:"ripgrep glob patterns to exclude"`
@@ -38,6 +39,13 @@ type Request struct {
 	ItemLimit     uint64   `json:"item_limit,omitempty" jsonschema:"item limit; default 50, max 500"`
 	ByteLimit     uint64   `json:"byte_limit,omitempty" jsonschema:"response bytes; default 65536, max 1048576"`
 	TimeLimitMS   int64    `json:"time_limit_ms,omitempty" jsonschema:"deadline ms; default 5000, max 30000"`
+	MatchKind     string   `json:"match_kind,omitempty" jsonschema:"Git channel: all, commit, path, or diff"`
+	Revision      string   `json:"revision,omitempty" jsonschema:"Git revision; default HEAD"`
+	Since         string   `json:"since,omitempty" jsonschema:"optional Git date lower bound"`
+	Until         string   `json:"until,omitempty" jsonschema:"optional Git date upper bound"`
+	SymbolKind    string   `json:"symbol_kind,omitempty" jsonschema:"optional exact symbol kind"`
+	Language      string   `json:"language,omitempty" jsonschema:"optional exact symbol language"`
+	PatternSyntax string   `json:"pattern_syntax,omitempty" jsonschema:"Git pattern: exact or regex; default exact"`
 }
 
 type Result struct {
@@ -46,6 +54,9 @@ type Result struct {
 	Text      string `json:"text,omitempty"`
 	SourceRef string `json:"source_ref"`
 	Basis     string `json:"basis"`
+	Channel   string `json:"channel,omitempty"`
+	Revision  string `json:"revision,omitempty"`
+	Validity  string `json:"validity,omitempty"`
 }
 
 type Scope struct {
@@ -58,12 +69,16 @@ type Scope struct {
 	Vendor        string   `json:"vendor"`
 	Encoding      string   `json:"encoding"`
 	CaseSensitive bool     `json:"case_sensitive"`
+	Revision      string   `json:"revision,omitempty"`
+	Since         string   `json:"since,omitempty"`
+	Until         string   `json:"until,omitempty"`
 }
 
 type Metadata struct {
-	Engine string `json:"engine"`
-	Mode   string `json:"mode"`
-	Scope  Scope  `json:"scope"`
+	Engine   string `json:"engine"`
+	Mode     string `json:"mode"`
+	Scope    Scope  `json:"scope"`
+	Validity string `json:"validity,omitempty"`
 }
 
 type Response struct {
@@ -123,6 +138,7 @@ func (s *Service) Query(ctx context.Context, request Request) (Response, error) 
 		Root: filepath.ToSlash(filepath.Clean(request.Root)), Include: nonNil(request.Include), Exclude: nonNil(request.Exclude),
 		Hidden: request.Hidden, Ignored: request.Ignored, Generated: request.Generated,
 		Vendor: request.Vendor, Encoding: request.Encoding, CaseSensitive: request.CaseSensitive,
+		Revision: request.Revision, Since: request.Since, Until: request.Until,
 	}
 	scopeJSON, _ := json.Marshal(scope)
 	scopeHash := sha256.Sum256(scopeJSON)
@@ -134,6 +150,9 @@ func (s *Service) Query(ctx context.Context, request Request) (Response, error) 
 		Includes: request.Include, Excludes: request.Exclude, Hidden: request.Hidden,
 		Ignored: request.Ignored, Generated: request.Generated, Vendor: request.Vendor,
 		CaseSensitive: request.CaseSensitive, Encoding: request.Encoding,
+		MatchKind: request.MatchKind, Revision: request.Revision, Since: request.Since, Until: request.Until,
+		SymbolKind: request.SymbolKind, Language: request.Language,
+		PatternSyntax: request.PatternSyntax,
 	})
 	cancel()
 	if err != nil {
@@ -142,16 +161,24 @@ func (s *Service) Query(ctx context.Context, request Request) (Response, error) 
 	status := contracts.StatusOK
 	relation := contracts.CountExact
 	scanState := contracts.ScanComplete
-	if !outcome.Complete {
+	if outcome.Unsupported {
+		status = contracts.StatusUnsupported
+		relation = contracts.CountUnknown
+		scanState = contracts.ScanNotApplicable
+	} else if !outcome.Complete {
 		status = contracts.StatusPartial
 		relation = contracts.CountLowerBound
 		scanState = contracts.ScanPartial
 	}
 	warnings := make([]contracts.Warning, 0, len(outcome.Warnings)+1)
 	for _, message := range outcome.Warnings {
-		warnings = append(warnings, contracts.Warning{Code: "backend_warning", Message: message})
+		code := "backend_warning"
+		if outcome.Unsupported {
+			code = "adapter_unavailable"
+		}
+		warnings = append(warnings, contracts.Warning{Code: code, Message: message})
 	}
-	metadata := Metadata{Engine: outcome.Engine, Mode: request.Mode, Scope: scope}
+	metadata := Metadata{Engine: outcome.Engine, Mode: request.Mode, Scope: scope, Validity: outcome.Validity}
 	persisted := persistedMetadata{
 		Status: status, Relation: relation, Scan: contracts.Scan{State: scanState, ScopeRef: &scopeRef},
 		Warnings: warnings, Metadata: metadata,
@@ -180,12 +207,12 @@ func normalizeRequest(request Request) Request {
 
 func validateRequest(request Request) error {
 	switch request.Mode {
-	case "filename", "exact", "regex":
+	case "filename", "exact", "regex", "git_history", "symbol":
 	default:
 		return fmt.Errorf("unsupported search mode %q", request.Mode)
 	}
 	if request.Pattern == "" && request.Mode != "filename" {
-		return errors.New("pattern is required for exact and regex search")
+		return errors.New("pattern is required for text, Git, and symbol search")
 	}
 	for name, value := range map[string]string{
 		"ignored": request.Ignored, "generated": request.Generated, "vendor": request.Vendor,
@@ -194,8 +221,19 @@ func validateRequest(request Request) error {
 			return fmt.Errorf("%s must be exclude or include", name)
 		}
 	}
-	if request.Mode != "filename" && request.Encoding != "utf-8" && request.Encoding != "cp949" && request.Encoding != "euc-kr" {
+	if request.Mode != "filename" && request.Mode != "git_history" && request.Mode != "symbol" && request.Encoding != "utf-8" && request.Encoding != "cp949" && request.Encoding != "euc-kr" {
 		return fmt.Errorf("encoding %q is not supported for text search", request.Encoding)
+	}
+	if request.Mode == "git_history" && request.MatchKind != "" && request.MatchKind != "all" && request.MatchKind != "commit" && request.MatchKind != "path" && request.MatchKind != "diff" {
+		return errors.New("match_kind must be all, commit, path, or diff")
+	}
+	if request.Mode == "git_history" && request.PatternSyntax != "" && request.PatternSyntax != "exact" && request.PatternSyntax != "regex" {
+		return errors.New("pattern_syntax must be exact or regex")
+	}
+	if request.Mode == "git_history" && request.PatternSyntax == "regex" {
+		if _, err := regexp.Compile(request.Pattern); err != nil {
+			return fmt.Errorf("invalid Git regular expression: %w", err)
+		}
 	}
 	return nil
 }
@@ -230,12 +268,19 @@ func (s *Service) persist(ctx context.Context, request Request, matches []Match,
 		Metadata: metaJSON, Items: make([]store.ResultItem, 0, len(matches)),
 	}
 	for index, match := range matches {
-		workspacePath := filepath.ToSlash(filepath.Clean(filepath.Join(filepath.FromSlash(request.Root), filepath.FromSlash(match.Path))))
-		workspacePath = strings.TrimPrefix(workspacePath, "./")
-		result := Result{
-			Path: workspacePath, Line: match.Line, Text: match.Text,
-			SourceRef: "source:mutable:" + workspacePath, Basis: string(contracts.BasisObserved),
+		workspacePath := ""
+		if match.Path != "" {
+			workspacePath = filepath.ToSlash(filepath.Clean(filepath.Join(filepath.FromSlash(request.Root), filepath.FromSlash(match.Path))))
+			workspacePath = strings.TrimPrefix(workspacePath, "./")
 		}
+		ref, basis := match.SourceRef, match.Basis
+		if ref == "" {
+			ref = "source:mutable:" + workspacePath
+		}
+		if basis == "" {
+			basis = string(contracts.BasisObserved)
+		}
+		result := Result{Path: workspacePath, Line: match.Line, Text: match.Text, SourceRef: ref, Basis: basis, Channel: match.Channel, Revision: match.Revision, Validity: match.Validity}
 		payload, _ := json.Marshal(result)
 		hash := sha256.Sum256(payload)
 		set.Items = append(set.Items, store.ResultItem{
@@ -297,10 +342,14 @@ func (s *Service) readPage(ctx context.Context, setID string, from, itemLimit, b
 			truncated = &value
 		}
 		snapshot := "snapshot:" + setID
-		matched := page.Total
+		var matched *uint64
+		if metadata.Relation != contracts.CountUnknown {
+			value := page.Total
+			matched = &value
+		}
 		response := Response{
 			Status: metadata.Status, Items: items[:returned],
-			Counts: contracts.Counts{Matched: &matched, Relation: metadata.Relation, Returned: uint64(returned)},
+			Counts: contracts.Counts{Matched: matched, Relation: metadata.Relation, Returned: uint64(returned)},
 			Scan:   metadata.Scan, Truncated: truncated, NextCursor: nextCursor, SnapshotRef: &snapshot,
 			Warnings: metadata.Warnings, Metadata: metadata.Metadata,
 		}

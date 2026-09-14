@@ -11,11 +11,14 @@ import (
 )
 
 type Settings struct {
+	Transport             string
+	HTTPProfile           string
 	Workspace             string
 	StateDir              string
 	CatalogRoots          []string
 	CandidateRoots        []string
 	RuleFiles             []string
+	SymbolIndexes         []string
 	EnableIntentionWrites bool
 	EnableReportImport    bool
 	EnableRunner          bool
@@ -50,13 +53,17 @@ func Parse(args []string, output io.Writer) (Settings, error) {
 	var roots stringList
 	var candidates stringList
 	var ruleFiles stringList
+	var symbolIndexes stringList
 	flags := flag.NewFlagSet("repoplane", flag.ContinueOnError)
 	flags.SetOutput(output)
 	flags.StringVar(&settings.Workspace, "workspace", settings.Workspace, "trusted workspace root")
+	flags.StringVar(&settings.Transport, "transport", "stdio", "MCP transport: stdio or http")
+	flags.StringVar(&settings.HTTPProfile, "http-profile", "", "ignored local HTTP profile path")
 	flags.StringVar(&settings.StateDir, "state-dir", settings.StateDir, "local database and secret directory")
 	flags.Var(&roots, "catalog-root", "workspace-relative catalog file or directory; repeatable")
 	flags.Var(&candidates, "candidate-root", "workspace-relative executable candidate directory; repeatable")
 	flags.Var(&ruleFiles, "rule-file", "rule filename discovered from workspace root to target; repeatable")
+	flags.Var(&symbolIndexes, "symbol-index", "workspace-relative symbol-index.v1 or ctags JSONL; repeatable")
 	flags.BoolVar(&settings.EnableIntentionWrites, "enable-intention-writes", false, "expose checkpoint and memo mutation tools")
 	flags.BoolVar(&settings.EnableReportImport, "enable-report-import", false, "expose the local check-report importer")
 	flags.BoolVar(&settings.EnableRunner, "enable-runner", false, "expose registered-capability prepare, execute, and inspect tools")
@@ -70,6 +77,15 @@ func Parse(args []string, output io.Writer) (Settings, error) {
 	if settings.EnableCache && !settings.EnableRunner {
 		return Settings{}, fmt.Errorf("--enable-cache requires --enable-runner")
 	}
+	if settings.Transport != "stdio" && settings.Transport != "http" {
+		return Settings{}, fmt.Errorf("--transport must be stdio or http")
+	}
+	if settings.Transport == "http" && strings.TrimSpace(settings.HTTPProfile) == "" {
+		return Settings{}, fmt.Errorf("--http-profile is required for HTTP transport")
+	}
+	if settings.Transport == "stdio" && settings.HTTPProfile != "" {
+		return Settings{}, fmt.Errorf("--http-profile requires --transport=http")
+	}
 	if len(roots) == 0 {
 		roots = append(roots, "catalog")
 	}
@@ -82,5 +98,6 @@ func Parse(args []string, output io.Writer) (Settings, error) {
 		ruleFiles = append(ruleFiles, "AGENTS.md")
 	}
 	settings.RuleFiles = append([]string(nil), ruleFiles...)
+	settings.SymbolIndexes = append([]string(nil), symbolIndexes...)
 	return settings, nil
 }

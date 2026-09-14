@@ -1,0 +1,16 @@
+listen: 127.0.0.1:8080
+endpoint: /mcp
+resource_uri: http://127.0.0.1:8080/mcp
+allowed_hosts: [127.0.0.1:8080]
+allowed_origins: []
+auth:
+  mode: local_token
+  token_file: repoplane.token
+  scopes: [repoplane.read]
+limits:
+  body_bytes: 1048576
+  concurrent_requests: 16
+  per_principal: 4
+  requests_per_minute: 120
+audit:
+  retention_days: 30

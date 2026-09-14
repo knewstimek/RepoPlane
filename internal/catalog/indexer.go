@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -391,6 +392,9 @@ func (i *Indexer) manifestPaths(ctx context.Context) ([]string, error) {
 		}
 		if !info.IsDir() {
 			if supportedManifestPath(configured) {
+				if strings.EqualFold(filepath.Ext(configured), ".md") && !markdownCatalogCandidate(absolute) {
+					continue
+				}
 				relative, err := filepath.Rel(i.root.Resolved(), absolute)
 				if err != nil {
 					return nil, err
@@ -407,6 +411,9 @@ func (i *Indexer) manifestPaths(ctx context.Context) ([]string, error) {
 				return err
 			}
 			if entry.IsDir() || !supportedManifestPath(entry.Name()) {
+				return nil
+			}
+			if strings.EqualFold(filepath.Ext(entry.Name()), ".md") && !markdownCatalogCandidate(path) {
 				return nil
 			}
 			relative, err := filepath.Rel(i.root.Resolved(), path)
@@ -432,16 +439,28 @@ func (i *Indexer) manifestPaths(ctx context.Context) ([]string, error) {
 
 func supportedManifestPath(path string) bool {
 	switch strings.ToLower(filepath.Ext(path)) {
-	case ".yaml", ".yml", ".json":
+	case ".yaml", ".yml", ".json", ".md":
 		return true
 	default:
 		return false
 	}
 }
 
+func markdownCatalogCandidate(path string) bool {
+	file, err := os.Open(path)
+	if err != nil {
+		return true
+	}
+	defer file.Close()
+	prefix := make([]byte, 7)
+	n, _ := file.Read(prefix)
+	prefix = bytes.TrimPrefix(prefix[:n], []byte("\xef\xbb\xbf"))
+	return bytes.HasPrefix(prefix, []byte("---\n")) || bytes.HasPrefix(prefix, []byte("---\r\n"))
+}
+
 func manifestLikeButUnsupported(path string) bool {
 	switch strings.ToLower(filepath.Ext(path)) {
-	case ".md", ".toml":
+	case ".toml":
 		return true
 	default:
 		return false

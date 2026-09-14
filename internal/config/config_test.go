@@ -52,3 +52,16 @@ func TestParseRejectsCacheWithoutRunner(t *testing.T) {
 		t.Fatal("cache enabled without Runner")
 	}
 }
+
+func TestHTTPTransportRequiresProfile(t *testing.T) {
+	if _, err := Parse([]string{"--transport", "http"}, io.Discard); err == nil {
+		t.Fatal("HTTP without profile succeeded")
+	}
+	settings, err := Parse([]string{"--transport", "http", "--http-profile", "host.yaml"}, io.Discard)
+	if err != nil || settings.Transport != "http" || settings.HTTPProfile != "host.yaml" {
+		t.Fatalf("settings=%+v err=%v", settings, err)
+	}
+	if _, err := Parse([]string{"--http-profile", "host.yaml"}, io.Discard); err == nil {
+		t.Fatal("stdio accepted HTTP profile")
+	}
+}

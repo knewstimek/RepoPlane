@@ -818,7 +818,7 @@
     },
     {
       "name": "data_query",
-      "description": "Read bounded text ranges or filter/project JSONL without integer loss.",
+      "description": "Read ranges or query JSON, JSONL, logs, CSV, and TSV with bounded precision.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -842,12 +842,16 @@
               "integer"
             ]
           },
+          "case_sensitive": {
+            "description": "case-sensitive log matching",
+            "type": "boolean"
+          },
           "cursor": {
             "description": "opaque cursor returned by an earlier data_query",
             "type": "string"
           },
           "dialect": {
-            "description": "jsonl-simple for JSONL mode",
+            "description": "jsonl-simple, json-pointer, csv, tsv, exact, or regex",
             "type": "string"
           },
           "encoding": {
@@ -918,7 +922,15 @@
             "type": "string"
           },
           "mode": {
-            "description": "text_range or jsonl; omit when using cursor",
+            "description": "text_range, jsonl, json, delimited, or log; omit with cursor",
+            "type": "string"
+          },
+          "pattern": {
+            "description": "exact text or RE2 pattern for log mode",
+            "type": "string"
+          },
+          "pointer": {
+            "description": "RFC 6901 pointer for json mode; default root",
             "type": "string"
           },
           "ref": {
@@ -984,6 +996,10 @@
                 "record": {
                   "additionalProperties": true,
                   "type": "object"
+                },
+                "record_index": {
+                  "minimum": 0,
+                  "type": "integer"
                 },
                 "source_ref": {
                   "type": "string"
@@ -2358,7 +2374,7 @@
     },
     {
       "name": "workspace_search",
-      "description": "Search names or UTF-8, CP949, or EUC-KR text with bounded scope and coverage.",
+      "description": "Search names, text, Git history, or configured symbols with bounded evidence.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -2416,21 +2432,49 @@
             "minimum": 0,
             "type": "integer"
           },
+          "language": {
+            "description": "optional exact symbol language",
+            "type": "string"
+          },
+          "match_kind": {
+            "description": "Git channel: all, commit, path, or diff",
+            "type": "string"
+          },
           "mode": {
-            "description": "search mode: filename, exact, or regex; omit when using cursor",
+            "description": "filename, exact, regex, git_history, or symbol; omit with cursor",
             "type": "string"
           },
           "pattern": {
-            "description": "filename substring, exact text, or regular expression; omit when using cursor",
+            "description": "name/text/Git/symbol pattern; omit with cursor",
+            "type": "string"
+          },
+          "pattern_syntax": {
+            "description": "Git pattern: exact or regex; default exact",
+            "type": "string"
+          },
+          "revision": {
+            "description": "Git revision; default HEAD",
             "type": "string"
           },
           "root": {
             "description": "workspace-relative search root; defaults to .",
             "type": "string"
           },
+          "since": {
+            "description": "optional Git date lower bound",
+            "type": "string"
+          },
+          "symbol_kind": {
+            "description": "optional exact symbol kind",
+            "type": "string"
+          },
           "time_limit_ms": {
             "description": "deadline ms; default 5000, max 30000",
             "type": "integer"
+          },
+          "until": {
+            "description": "optional Git date upper bound",
+            "type": "string"
           },
           "vendor": {
             "description": "vendor path policy: exclude or include",
@@ -2474,6 +2518,9 @@
                 "basis": {
                   "type": "string"
                 },
+                "channel": {
+                  "type": "string"
+                },
                 "line": {
                   "minimum": 0,
                   "type": "integer"
@@ -2481,10 +2528,16 @@
                 "path": {
                   "type": "string"
                 },
+                "revision": {
+                  "type": "string"
+                },
                 "source_ref": {
                   "type": "string"
                 },
                 "text": {
+                  "type": "string"
+                },
+                "validity": {
                   "type": "string"
                 }
               },
@@ -2545,7 +2598,16 @@
                       "array"
                     ]
                   },
+                  "revision": {
+                    "type": "string"
+                  },
                   "root": {
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "string"
+                  },
+                  "until": {
                     "type": "string"
                   },
                   "vendor": {
@@ -2564,6 +2626,9 @@
                   "case_sensitive"
                 ],
                 "type": "object"
+              },
+              "validity": {
+                "type": "string"
               }
             },
             "required": [
