@@ -1,0 +1,1358 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://repoplane.local/schemas/tools.v1.json",
+  "tools": [
+    {
+      "name": "catalog_query",
+      "description": "Search, inspect, enumerate, audit, or report status for the workspace tool catalog.",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "byte_limit": {
+            "description": "maximum response bytes; default 65536, maximum 1048576",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "cursor": {
+            "description": "opaque cursor returned by an earlier list or search",
+            "type": "string"
+          },
+          "id": {
+            "description": "catalog item ID; required for get",
+            "type": "string"
+          },
+          "item_limit": {
+            "description": "maximum returned items; default 50, maximum 500",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "mode": {
+            "description": "catalog operation: search, get, list, audit, or status; omit when using cursor",
+            "type": "string"
+          },
+          "query": {
+            "description": "lexical search text; required for search",
+            "type": "string"
+          },
+          "time_limit_ms": {
+            "description": "operation deadline in milliseconds; default 5000, maximum 30000",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "counts": {
+            "additionalProperties": false,
+            "properties": {
+              "matched": {
+                "minimum": 0,
+                "type": [
+                  "null",
+                  "integer"
+                ]
+              },
+              "relation": {
+                "type": "string"
+              },
+              "returned": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "matched",
+              "relation",
+              "returned"
+            ],
+            "type": "object"
+          },
+          "items": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "detail": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "execution_available": {
+                  "type": "boolean"
+                },
+                "generation_id": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "issue_code": {
+                  "type": "string"
+                },
+                "issue_count": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "manifest": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "aliases": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    },
+                    "arguments": {
+                      "additionalProperties": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "default": true,
+                          "description": {
+                            "type": "string"
+                          },
+                          "required": {
+                            "type": "boolean"
+                          },
+                          "type": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "object"
+                    },
+                    "cache_policy": {
+                      "type": "string"
+                    },
+                    "checks": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    },
+                    "docs": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    },
+                    "execution": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "argv_template": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": [
+                            "null",
+                            "array"
+                          ]
+                        },
+                        "cwd": {
+                          "type": "string"
+                        },
+                        "executable_ref": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string"
+                        },
+                        "trusted_for_run": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "executable_ref",
+                        "cwd",
+                        "argv_template",
+                        "trusted_for_run"
+                      ],
+                      "type": [
+                        "null",
+                        "object"
+                      ]
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "inputs": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    },
+                    "outputs": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    },
+                    "revision": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "summary": {
+                      "type": "string"
+                    },
+                    "tags": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    },
+                    "use_when": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "revision",
+                    "summary"
+                  ],
+                  "type": [
+                    "null",
+                    "object"
+                  ]
+                },
+                "match_reason": {
+                  "type": "string"
+                },
+                "revision": {
+                  "type": "string"
+                },
+                "source_fingerprint": {
+                  "type": "string"
+                },
+                "source_ref": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "execution_available"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "next_cursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "scan": {
+            "additionalProperties": false,
+            "properties": {
+              "scope_ref": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "state": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "state",
+              "scope_ref"
+            ],
+            "type": "object"
+          },
+          "snapshot_ref": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "warnings": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "required": [
+                "code",
+                "message",
+                "ref"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "items",
+          "counts",
+          "scan",
+          "truncated",
+          "next_cursor",
+          "snapshot_ref",
+          "warnings"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "data_query",
+      "description": "Read bounded text line/byte ranges or filter and project JSONL records without losing integer precision.",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "byte_end": {
+            "description": "zero-based exclusive byte end",
+            "minimum": 0,
+            "type": [
+              "null",
+              "integer"
+            ]
+          },
+          "byte_limit": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "byte_start": {
+            "description": "zero-based inclusive byte start",
+            "minimum": 0,
+            "type": [
+              "null",
+              "integer"
+            ]
+          },
+          "cursor": {
+            "description": "opaque cursor returned by an earlier data_query",
+            "type": "string"
+          },
+          "dialect": {
+            "description": "jsonl-simple for JSONL mode",
+            "type": "string"
+          },
+          "encoding": {
+            "description": "utf-8, cp949, or euc-kr; defaults to utf-8",
+            "type": "string"
+          },
+          "fields": {
+            "description": "top-level fields to project; empty returns all fields",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "filters": {
+            "description": "top-level equality filters",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "field": {
+                  "description": "top-level field name",
+                  "type": "string"
+                },
+                "value": {
+                  "description": "value text; integers remain decimal strings",
+                  "type": "string"
+                },
+                "value_type": {
+                  "description": "string, boolean, null, or integer",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "field",
+                "value_type"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "item_limit": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "line_end": {
+            "description": "one-based inclusive line end",
+            "minimum": 0,
+            "type": [
+              "null",
+              "integer"
+            ]
+          },
+          "line_start": {
+            "description": "one-based inclusive line start",
+            "minimum": 0,
+            "type": [
+              "null",
+              "integer"
+            ]
+          },
+          "malformed_policy": {
+            "description": "fail or skip_with_warning",
+            "type": "string"
+          },
+          "mode": {
+            "description": "text_range or jsonl; omit when using cursor",
+            "type": "string"
+          },
+          "ref": {
+            "description": "source ref returned by another RepoPlane tool",
+            "type": "string"
+          },
+          "time_limit_ms": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "counts": {
+            "additionalProperties": false,
+            "properties": {
+              "matched": {
+                "minimum": 0,
+                "type": [
+                  "null",
+                  "integer"
+                ]
+              },
+              "relation": {
+                "type": "string"
+              },
+              "returned": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "matched",
+              "relation",
+              "returned"
+            ],
+            "type": "object"
+          },
+          "items": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "byte_end": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "byte_start": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "bytes_base64": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "line": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "record": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "source_ref": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "source_ref"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "metadata": {
+            "additionalProperties": false,
+            "properties": {
+              "dialect": {
+                "type": "string"
+              },
+              "encoding": {
+                "type": "string"
+              },
+              "missing_field_policy": {
+                "type": "string"
+              },
+              "mode": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "mode",
+              "encoding"
+            ],
+            "type": "object"
+          },
+          "next_cursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "scan": {
+            "additionalProperties": false,
+            "properties": {
+              "scope_ref": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "state": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "state",
+              "scope_ref"
+            ],
+            "type": "object"
+          },
+          "snapshot_ref": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "warnings": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "required": [
+                "code",
+                "message",
+                "ref"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "items",
+          "counts",
+          "scan",
+          "truncated",
+          "next_cursor",
+          "snapshot_ref",
+          "warnings",
+          "metadata"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "path_explain",
+      "description": "Explain observable workspace, Git, link, encoding, newline, rule-scope, and basename facts for a path.",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "description": "intended action such as read or edit",
+            "type": "string"
+          },
+          "byte_limit": {
+            "description": "maximum structured response bytes",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "encoding": {
+            "description": "explicit codec to test: utf-8, cp949, or euc-kr",
+            "type": "string"
+          },
+          "path": {
+            "description": "workspace-relative path to explain",
+            "type": "string"
+          },
+          "time_limit_ms": {
+            "description": "operation deadline in milliseconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "counts": {
+            "additionalProperties": false,
+            "properties": {
+              "matched": {
+                "minimum": 0,
+                "type": [
+                  "null",
+                  "integer"
+                ]
+              },
+              "relation": {
+                "type": "string"
+              },
+              "returned": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "matched",
+              "relation",
+              "returned"
+            ],
+            "type": "object"
+          },
+          "items": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "action": {
+                  "type": "string"
+                },
+                "basename_candidates": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": [
+                    "null",
+                    "array"
+                  ]
+                },
+                "content_hash": {
+                  "type": "string"
+                },
+                "declared_roles": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": [
+                    "null",
+                    "array"
+                  ]
+                },
+                "encoding": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "bom": {
+                      "type": "string"
+                    },
+                    "byte_round_trip": {
+                      "type": [
+                        "null",
+                        "boolean"
+                      ]
+                    },
+                    "candidates": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    },
+                    "decode_success": {
+                      "type": [
+                        "null",
+                        "boolean"
+                      ]
+                    },
+                    "observation_partial": {
+                      "type": "boolean"
+                    },
+                    "requested": {
+                      "type": "string"
+                    },
+                    "utf8_valid": {
+                      "type": [
+                        "null",
+                        "boolean"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "bom",
+                    "utf8_valid",
+                    "candidates",
+                    "decode_success",
+                    "byte_round_trip",
+                    "observation_partial"
+                  ],
+                  "type": "object"
+                },
+                "exists": {
+                  "type": "boolean"
+                },
+                "git": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "ignored": {
+                      "type": [
+                        "null",
+                        "boolean"
+                      ]
+                    },
+                    "repository_root": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string"
+                    },
+                    "tracked": {
+                      "type": [
+                        "null",
+                        "boolean"
+                      ]
+                    },
+                    "untracked": {
+                      "type": [
+                        "null",
+                        "boolean"
+                      ]
+                    },
+                    "worktree_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "state",
+                    "tracked",
+                    "ignored",
+                    "untracked"
+                  ],
+                  "type": "object"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "links": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "hardlink_count": {
+                      "minimum": 0,
+                      "type": [
+                        "null",
+                        "integer"
+                      ]
+                    },
+                    "junction": {
+                      "type": [
+                        "null",
+                        "boolean"
+                      ]
+                    },
+                    "reparse_point": {
+                      "type": [
+                        "null",
+                        "boolean"
+                      ]
+                    },
+                    "symlink": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "symlink",
+                    "reparse_point",
+                    "junction",
+                    "hardlink_count"
+                  ],
+                  "type": "object"
+                },
+                "newlines": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "cr": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "crlf": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "final_newline": {
+                      "type": [
+                        "null",
+                        "boolean"
+                      ]
+                    },
+                    "lf": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "partial": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "crlf",
+                    "lf",
+                    "cr",
+                    "final_newline",
+                    "partial"
+                  ],
+                  "type": "object"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "resolved_kind": {
+                  "type": "string"
+                },
+                "resolved_path": {
+                  "type": "string"
+                },
+                "rules": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "scope_root": {
+                        "type": "string"
+                      },
+                      "source_ref": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "scope_root",
+                      "source_ref"
+                    ],
+                    "type": "object"
+                  },
+                  "type": [
+                    "null",
+                    "array"
+                  ]
+                },
+                "size": {
+                  "type": [
+                    "null",
+                    "integer"
+                  ]
+                },
+                "workspace_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "workspace_id",
+                "path",
+                "resolved_path",
+                "exists",
+                "kind",
+                "resolved_kind",
+                "size",
+                "links",
+                "git",
+                "encoding",
+                "newlines",
+                "rules",
+                "basename_candidates",
+                "declared_roles"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "next_cursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "scan": {
+            "additionalProperties": false,
+            "properties": {
+              "scope_ref": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "state": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "state",
+              "scope_ref"
+            ],
+            "type": "object"
+          },
+          "snapshot_ref": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "warnings": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "required": [
+                "code",
+                "message",
+                "ref"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "items",
+          "counts",
+          "scan",
+          "truncated",
+          "next_cursor",
+          "snapshot_ref",
+          "warnings"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "workspace_search",
+      "description": "Search workspace filenames or UTF-8, CP949, or EUC-KR text with explicit scope, coverage, and bounded results.",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "byte_limit": {
+            "description": "maximum structured response bytes; default 65536, maximum 1048576",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "case_sensitive": {
+            "description": "perform case-sensitive matching",
+            "type": "boolean"
+          },
+          "cursor": {
+            "description": "opaque cursor from an earlier workspace_search",
+            "type": "string"
+          },
+          "encoding": {
+            "description": "text encoding: utf-8, cp949, or euc-kr",
+            "type": "string"
+          },
+          "exclude": {
+            "description": "ripgrep glob patterns to exclude",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "generated": {
+            "description": "generated path policy: exclude or include",
+            "type": "string"
+          },
+          "hidden": {
+            "description": "include hidden paths",
+            "type": "boolean"
+          },
+          "ignored": {
+            "description": "ignored path policy: exclude or include",
+            "type": "string"
+          },
+          "include": {
+            "description": "ripgrep glob patterns to include",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "item_limit": {
+            "description": "maximum returned items; default 50, maximum 500",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "mode": {
+            "description": "search mode: filename, exact, or regex; omit when using cursor",
+            "type": "string"
+          },
+          "pattern": {
+            "description": "filename substring, exact text, or regular expression; omit when using cursor",
+            "type": "string"
+          },
+          "root": {
+            "description": "workspace-relative search root; defaults to .",
+            "type": "string"
+          },
+          "time_limit_ms": {
+            "description": "search deadline in milliseconds; default 5000, maximum 30000",
+            "type": "integer"
+          },
+          "vendor": {
+            "description": "vendor path policy: exclude or include",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "counts": {
+            "additionalProperties": false,
+            "properties": {
+              "matched": {
+                "minimum": 0,
+                "type": [
+                  "null",
+                  "integer"
+                ]
+              },
+              "relation": {
+                "type": "string"
+              },
+              "returned": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "matched",
+              "relation",
+              "returned"
+            ],
+            "type": "object"
+          },
+          "items": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "basis": {
+                  "type": "string"
+                },
+                "line": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "source_ref": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "source_ref",
+                "basis"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "metadata": {
+            "additionalProperties": false,
+            "properties": {
+              "engine": {
+                "type": "string"
+              },
+              "mode": {
+                "type": "string"
+              },
+              "scope": {
+                "additionalProperties": false,
+                "properties": {
+                  "case_sensitive": {
+                    "type": "boolean"
+                  },
+                  "encoding": {
+                    "type": "string"
+                  },
+                  "exclude": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": [
+                      "null",
+                      "array"
+                    ]
+                  },
+                  "generated": {
+                    "type": "string"
+                  },
+                  "hidden": {
+                    "type": "boolean"
+                  },
+                  "ignored": {
+                    "type": "string"
+                  },
+                  "include": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": [
+                      "null",
+                      "array"
+                    ]
+                  },
+                  "root": {
+                    "type": "string"
+                  },
+                  "vendor": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "root",
+                  "include",
+                  "exclude",
+                  "hidden",
+                  "ignored",
+                  "generated",
+                  "vendor",
+                  "encoding",
+                  "case_sensitive"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "engine",
+              "mode",
+              "scope"
+            ],
+            "type": "object"
+          },
+          "next_cursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "scan": {
+            "additionalProperties": false,
+            "properties": {
+              "scope_ref": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "state": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "state",
+              "scope_ref"
+            ],
+            "type": "object"
+          },
+          "snapshot_ref": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "warnings": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "required": [
+                "code",
+                "message",
+                "ref"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "items",
+          "counts",
+          "scan",
+          "truncated",
+          "next_cursor",
+          "snapshot_ref",
+          "warnings",
+          "metadata"
+        ],
+        "type": "object"
+      }
+    }
+  ]
+}

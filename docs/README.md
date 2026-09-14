@@ -1,0 +1,27 @@
+# RepoPlane 문서 안내
+
+문서마다 역할을 분리한다. 아키텍처 문서에 진행 상황이나 임시 구현 세부사항을
+누적하지 않는다.
+
+| 문서 | 역할 | 변경 시점 |
+|---|---|---|
+| [Project-Control-Plane-MCP-Design.md](Project-Control-Plane-MCP-Design.md) | 목표, 원칙, 장기 범위, 설계 근거 | 제품 방향이나 원칙이 바뀔 때 |
+| [MVP-Spec.md](MVP-Spec.md) | 첫 구현의 지원 범위와 외부 계약 | 동작 계약이 바뀔 때 |
+| [Implementation-Plan.md](Implementation-Plan.md) | 구현 순서, 완료 조건, 보류 항목 | 작업 단계가 진행되거나 재계획될 때 |
+| [Storage-Design.md](Storage-Design.md) | SQLite, blob, ref, cursor 저장 계약 | 영속성 구조가 바뀔 때 |
+| [Public-Release.md](Public-Release.md) | 공개 설명, topic, 최종 공개 체크리스트 | 릴리스 준비와 공개 시점 |
+| [Verification.md](Verification.md) | MVP 완료 조건과 실행 가능한 증거 매핑 | 완료 게이트나 검증 방식이 바뀔 때 |
+| [adr/0001-use-go.md](adr/0001-use-go.md) | Go 선택 결정과 결과 | 결정을 뒤집거나 보완할 때 |
+
+## 문서 우선순위
+
+서로 충돌하면 다음 순서로 판단한다.
+
+1. 버전이 명시된 machine-readable schema와 회귀 테스트
+2. `MVP-Spec.md`
+3. 승인된 ADR
+4. 장기 설계문서
+5. `Implementation-Plan.md`의 진행 메모
+
+구현 중 발견한 계약 변경은 코드에만 반영하지 않는다. 먼저 MVP 명세 또는 ADR을
+갱신하고, 공개 schema와 테스트를 같은 변경에 포함한다.
