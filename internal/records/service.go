@@ -301,7 +301,7 @@ func (s *Service) ImportReport(ctx context.Context, request ImportRequest) (Muta
 	}
 	ctx, cancel := context.WithTimeout(ctx, limits.TimeLimit)
 	defer cancel()
-	path, err := s.root.ResolveExisting(filepath.FromSlash(request.Path))
+	path, err := s.root.ResolvePrimaryExisting(filepath.FromSlash(request.Path))
 	if err != nil {
 		return MutationResponse{}, err
 	}
@@ -635,7 +635,7 @@ type verificationChecklist struct {
 }
 
 func (s *Service) readChecklist(ctx context.Context, relative, configuration string) (verificationChecklist, string, error) {
-	path, err := s.root.ResolveExisting(filepath.FromSlash(relative))
+	path, err := s.root.ResolvePrimaryExisting(filepath.FromSlash(relative))
 	if err != nil {
 		return verificationChecklist{}, "", err
 	}

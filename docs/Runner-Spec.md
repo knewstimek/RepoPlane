@@ -1,14 +1,15 @@
 # RepoPlane Runner Specification
 
-상태: Accepted 1.1
+상태: Accepted 1.2
 
 ## 1. 범위와 권한
 
 Runner는 catalog에 등록되고 `execution.trusted_for_run=true`인 capability만 실행한다.
-임의 executable, argv 배열, shell 문자열을 MCP 입력으로 받지 않는다. 실행 계층은
-`--enable-runner`를 명시한 host에서만 `run_prepare`, `run_execute`, `run_inspect` 세
-tool을 노출한다. 이 host opt-in과 MCP client의 tool 승인이 실행 권한이며 서버 내부의
-중복 승인 token은 요구하지 않는다.
+임의 executable, argv 배열, shell 문자열을 MCP 입력으로 받지 않는다. 세 실행 tool은
+안정적으로 노출하며 local stdio에서는 첫 사용 시 MCP elicitation으로 runtime 승인을
+받는다. `--enable-runner`는 prompt 없는 host 사전 승인으로 남는다. HTTP에서는 기존 host
+opt-in과 token scope를 모두 요구한다. 상세 lease 계약은
+[Runtime-Access-Spec.md](Runtime-Access-Spec.md)를 따른다.
 
 ## 2. Prepare → Execute → Inspect
 
@@ -48,8 +49,8 @@ failure로 처리하고 CPU/memory/network 격리를 제공했다고 추측하�
 
 ## 4. 완료 조건
 
-- 기존 다섯 조회 tool과 opt-in record writer의 이름·schema·기본 노출이 유지된다.
-- Runner를 켰을 때만 정확히 세 실행 tool이 추가된다.
+- 현재 13개 typed tool의 이름·schema·안정적 노출이 유지된다.
+- 승인되지 않은 Runner 호출은 실행 전에 input-required 상태가 된다.
 - 기존 catalog manifest와 records DB가 migration 없이 계속 읽힌다.
 - Windows/Linux에서 공백·Unicode, quoting, exit code, timeout, cancel, child cleanup을
   실제 subprocess test로 고정한다.

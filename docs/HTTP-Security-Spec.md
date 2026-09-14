@@ -52,6 +52,7 @@ resource/audience 검증은 process의 public MCP resource URI에 결합한다. 
 - checkpoint/memo: `repoplane.intent.write`
 - report import: `repoplane.report.import`
 - Runner 3개와 cache reuse: `repoplane.runner.execute`
+- portable memory export: `repoplane.state.export` (HTTP runtime grant는 지원하지 않음)
 
 host opt-in flag와 token scope를 모두 만족해야 한다. broader scope implication은 profile에
 명시하고 임의 문자열 prefix로 추론하지 않는다. 인증은 tool 목록 노출 여부와 별개이며 실제

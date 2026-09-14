@@ -5,7 +5,8 @@
 RepoPlane is a read-first [Model Context Protocol](https://modelcontextprotocol.io/) server that
 helps coding agents discover repository tools, inspect path facts, search source, query large
 files, and recover durable verification and task records without pulling an entire workspace into
-context. Mutation capabilities are disabled unless the host explicitly enables them.
+context. Local stdio sessions request explicit user approval at runtime before mutation, execution,
+cache reuse, or reading a path outside the primary workspace.
 
 It is built around a simple rule: **return bounded evidence and say exactly what was not
 observed**. Every search reports its scope, count semantics, truncation state, warnings, and a
@@ -14,7 +15,8 @@ fixed snapshot cursor.
 ## Why RepoPlane?
 
 Repositories already contain useful scripts, manifests, rules, and data, but agents often have to
-guess where they are or read far too much to find them. RepoPlane provides five small read tools:
+guess where they are or read far too much to find them. RepoPlane provides focused typed tools for
+repository evidence, runtime access, and portable memory:
 
 | Tool | What it answers |
 |---|---|
@@ -23,17 +25,21 @@ guess where they are or read far too much to find them. RepoPlane provides five 
 | `path_explain` | What is this path really, and what Git, link, encoding, newline, and rule facts apply? |
 | `data_query` | Can I range-read or safely query JSON/JSONL/log/CSV/TSV data? |
 | `project_records` | Which verification, checkpoint, memo, environment, run, and artifact records exist? |
+| `runtime_access` | Which ephemeral grants are active, and should one be approved or revoked? |
+| `memory_backup` | Can durable records and retained Runner evidence be exported portably now? |
 
-RepoPlane does not execute catalog entries by default. Hosts may separately opt into
-`checkpoint_write`/`memo_write`, `check_report_import`, and the registered-capability Runner. The
-Runner adds exactly `run_prepare`, `run_execute`, and `run_inspect`; arbitrary commands remain out
-of scope. A separate host opt-in enables qualified cache observation and reuse inside those same
-three tools without adding a gateway or another MCP tool.
+RepoPlane does not execute catalog entries without authorization. Local stdio calls request user
+approval when they first need `checkpoint_write`/`memo_write`, `check_report_import`, the
+registered-capability Runner, cache reuse, an external read path, or a memory-backup destination.
+Grants last only for the MCP process and can be revoked through `runtime_access`; arbitrary commands
+remain out of scope. HTTP
+deployments retain host opt-in plus bearer/OAuth scopes and do not use local runtime grants.
 
 ## Highlights
 
 - Official MCP Go SDK with default stdio and opt-in authenticated Streamable HTTP
 - Workspace boundary checks against lexical and symlink/junction escapes
+- In-call MCP approval and retry for ephemeral external reads, writes, Runner, and cache access
 - Fixed, HMAC-authenticated pagination cursors with a 30-minute TTL
 - Deterministic YAML/JSON/Markdown-frontmatter catalogs and bounded executable-candidate audits
 - Ripgrep-backed filename, exact-text, and regex search with explicit scope policies
@@ -46,6 +52,7 @@ three tools without adding a gateway or another MCP tool.
 - Optimistic concurrency for checkpoint and memo updates
 - Capability-scoped environment preflight with secret values withheld
 - Durable run receipts and bounded stdout, stderr, and captured-artifact inspection
+- Portable runtime memory export and identity-rebinding restore across machine/path resets
 - Prepare/execute revalidation that ignores unrelated worktree changes
 - HMAC-keyed, qualification-gated cache reuse with observe, bypass, conflict, corruption, and
   false-hit quarantine states
@@ -93,8 +100,16 @@ exited.
 
 ## Configure an MCP client
 
-Build the binary, place it on `PATH`, then add a stdio server entry to your MCP client. Replace the
-placeholder values with local paths; the state directory must be outside the workspace.
+Build the binary and place it on `PATH`. Codex users can register RepoPlane once without manually
+editing TOML:
+
+```text
+codex mcp add repoplane -- repoplane
+```
+
+With no arguments, RepoPlane uses the MCP process working directory as the primary workspace and
+the user cache directory for private state. A generic MCP client entry can also specify fixed paths;
+the state directory must be outside the primary workspace.
 
 ```json
 {
@@ -110,26 +125,22 @@ placeholder values with local paths; the state directory must be outside the wor
 }
 ```
 
-The configuration above keeps RepoPlane read-only. To expose checkpoint/memo writes, local
-verification-report import, and registered capability execution in Codex, add the independent
-opt-in flags to the user-level MCP entry and restart Codex:
+No later TOML edit or RepoPlane restart is required to use checkpoint/memo writes, local report
+import, Runner, cache, or a required parent file. The attempted tool call requests user approval and
+continues after acceptance. External paths are read-only and only the requested existing file or
+directory is added. Inspect or revoke grants explicitly when needed:
 
-```toml
-[mcp_servers.repoplane]
-command = "repoplane"
-args = [
-  "--workspace", "WORKSPACE",
-  "--state-dir", "STATE_DIRECTORY",
-  "--enable-intention-writes",
-  "--enable-report-import",
-  "--enable-runner",
-  "--enable-cache",
-]
+```json
+{"action":"status"}
+{"action":"grant","kind":"read_path","path":"../shared-context.txt"}
+{"action":"grant","kind":"cache_reuse"}
+{"action":"grant","kind":"memory_export","path":"BACKUP_DIRECTORY"}
+{"action":"revoke","grant_id":"GRANT_ID"}
 ```
 
-Enabling these flags exposes the tools; it does not invoke them automatically. Runner execution
-still requires the MCP client's tool approval and a catalog entry with `trusted_for_run: true`.
-Use them only for a trusted workspace and keep the state directory outside that workspace.
+The legacy enable flags remain useful for unattended trusted stdio hosts: they pre-authorize the
+named capability and suppress its runtime prompt. They do not invoke a tool automatically. Runner
+still requires a catalog entry with `trusted_for_run: true`.
 
 Available flags:
 
@@ -142,10 +153,10 @@ Available flags:
 --symbol-index PATH     workspace-relative symbol-index.v1 or ctags JSONL; repeatable
 --transport MODE        stdio (default) or http
 --http-profile PATH     ignored local HTTP YAML profile; required for HTTP
---enable-intention-writes  expose checkpoint_write and memo_write; default: false
---enable-report-import     expose check_report_import; default: false
---enable-runner          expose run_prepare, run_execute, and run_inspect; default: false
---enable-cache           allow qualified Runner cache observation and reuse; requires Runner
+--enable-intention-writes  pre-authorize checkpoint_write and memo_write prompts
+--enable-report-import     pre-authorize check_report_import prompts
+--enable-runner          pre-authorize run_prepare, run_execute, and run_inspect prompts
+--enable-cache           pre-authorize qualified cache reuse; requires Runner
 ```
 
 MCP frames are the only data written to stdout. Startup failures and diagnostics go to stderr.
@@ -218,16 +229,16 @@ without frontmatter is ignored rather than reported as a broken manifest.
 
 ### What Runner is
 
-Runner is RepoPlane MCP's opt-in executor for pre-registered capabilities. It is not a general
+Runner is RepoPlane MCP's approval-gated executor for pre-registered capabilities. It is not a general
 shell and does not accept an executable, argv array, or shell command from an MCP request. A catalog
 entry must define the executable, argument template, working directory, inputs, outputs, limits,
-and `trusted_for_run: true`; the host must also start RepoPlane with `--enable-runner` and the MCP
-client must approve the tool call. Runner then uses `prepare → execute → inspect` to validate the
+and `trusted_for_run: true`; local stdio requests user approval on first use unless the host
+pre-authorized it with `--enable-runner`. Runner then uses `prepare → execute → inspect` to validate the
 environment, execute at most one prepared plan, and retain bounded status, stream, and artifact
 evidence. Leave Runner disabled when repository discovery and records are all that is needed.
 
 An optional `execution` block describes such a registered CLI capability. It remains
-documentation-only unless the host enables Runner and the entry explicitly sets
+documentation-only unless the user or host authorizes Runner and the entry explicitly sets
 `trusted_for_run: true`:
 
 ```yaml
@@ -330,8 +341,8 @@ To uninstall, remove the client configuration entry and binary. After no RepoPla
 using it, delete the configured state directory to remove the local index and invalidate cursors.
 That deletion also permanently removes checkpoints, memos, imported verification records, run
 receipts, streams, captured artifacts, and HTTP audit events;
-back up `records.db` first when those records must be retained. No workspace source files need
-cleanup.
+export portable memory first when those durable records and Runner evidence must be retained. HTTP
+audit events are deliberately outside the portable archive. No workspace source files need cleanup.
 
 ### Back up and restore local state
 
@@ -340,13 +351,26 @@ make a machine reset recoverable by itself. Git-tracked catalogs, rules, and doc
 with the repository, but checkpoints, memos, imported verification results, run receipts, retained
 streams/artifacts, audit data, and local keys are lost if `--state-dir` is not backed up.
 
-For a consistent backup, stop Codex and every RepoPlane MCP server using the state directory, then
-copy the **entire** state directory to encrypted storage. Back up ignored host profiles and secrets
-separately in a password manager or other encrypted store; never commit either backup. Temporary
-workspace output under `.tmp/` does not need preservation. Restore the complete state directory
-before starting RepoPlane MCP and, where possible, restore the repository at the same absolute
-workspace path so its workspace identity still matches the records. A `records.db`-only copy keeps
-semantic records but may omit retained Runner streams, artifacts, keys, cache, and audit state.
+Use the typed `memory_backup` tool to export durable records, their complete revision/import history,
+and retained Runner streams/artifacts while the local stdio server stays running. The first export to
+an absolute destination directory asks for explicit runtime approval. It returns only a compact
+archive receipt (name, byte count, SHA-256, and item counts). Active Runner processes block the
+snapshot, and the destination must be outside both the workspace and state directory.
+
+The same operation is available directly, and restore is a one-shot command before starting MCP:
+
+```powershell
+repoplane memory export --destination BACKUP_DIRECTORY --workspace WORKSPACE --state-dir STATE_DIRECTORY
+repoplane memory restore --archive BACKUP_ARCHIVE --workspace RESTORED_WORKSPACE --state-dir NEW_STATE_DIRECTORY
+```
+
+Restore requires an empty durable-record/file target and rebases ownership to the current workspace
+identity, so the repository may live at a different absolute path after a machine reset. The portable
+archive intentionally excludes regenerable indexes/cache, cursor/cache/audit keys, `audit.db`, Codex
+TOML, HTTP profiles, and tokens. Re-register MCP with `codex mcp add repoplane -- repoplane`; keep
+ignored host profiles and their secrets separately in a password manager or other encrypted store.
+The archive itself can contain sensitive record or Runner output, so store it encrypted and never
+commit it. See the [portable memory backup specification](docs/Memory-Backup-Spec.md).
 
 ## Architecture
 
@@ -356,13 +380,13 @@ and durable records use separate database files and domain interfaces.
 
 Public JSON Schemas are committed under [`schemas/`](schemas/). Run
 `go generate ./internal/mcpserver` after changing a tool contract; tests reject schema drift.
-The compact MCP schema set has a regression budget (32 KiB overall and 5,500 bytes for the three
+The compact MCP schema set has a regression budget (34 KiB overall and 5,500 bytes for the three
 Runner tools). Its wording is deduplicated without dropping response fields, limits, defaults, or
 state semantics; cross-tool references are avoided because each MCP tool schema must stand alone.
 The generated [`tool-footprint.v1.json`](schemas/tool-footprint.v1.json) separates complete-contract
 bytes from a name/description/input-only comparison. These are deterministic serialized byte
 counts—not observed model tokens or proof of what a particular MCP client exposes. RepoPlane keeps
-all 11 typed tools and stable discovery; clients may defer model exposure natively without changing
+all 13 typed tools and stable discovery; clients may defer model exposure natively without changing
 the server contract. See the
 [`context-efficiency specification`](docs/Context-Efficiency-Spec.md).
 
@@ -372,12 +396,13 @@ the server contract. See the
 - Requests cannot escape the resolved workspace through `..`, symlinks, or junctions.
 - RepoPlane controls ripgrep arguments and never builds a shell command from a query.
 - Reads, process output, result counts, response bytes, record sizes, and deadlines are bounded.
-- Record mutation, report import, and Runner tools are hidden unless explicitly enabled by the host.
+- Local record mutation, report import, Runner, cache, and external reads require a host pre-grant
+  or an explicit ephemeral user approval; HTTP retains host opt-in and token scopes.
 - Runner accepts registered capability IDs and typed arguments, never request-supplied executables,
   argv arrays, or shell strings. It records environment-variable presence without values.
 - Captured output is raw trusted-tool output and is not content-redacted automatically; use
   `metadata` mode for sensitive outputs and never pass credentials as catalog arguments.
-- Cache is disabled by default and requires host opt-in, a cache manifest, captured outputs, stable
+- Cache is disabled by default and requires runtime or host authorization, a cache manifest, captured outputs, stable
   runtime identities, purity assumptions, and—before reuse—current qualification evidence.
 - Cache materialization never overwrites a differing file. Whole-root replacement is limited to an
   untracked, input-disjoint directory explicitly owned by the capability.
@@ -395,8 +420,9 @@ See [SECURITY.md](SECURITY.md) for vulnerability reporting and
 
 ## Roadmap
 
-The read-only MVP and all adopted roadmap slices through Search Adapters and HTTP/Auth are
-complete. Ongoing work is compatibility, measured dogfooding, and release maintenance. See the
+The read-only MVP, all adopted roadmap slices through Search Adapters and HTTP/Auth, runtime access,
+and portable memory backup are complete. Ongoing work is compatibility, measured dogfooding, and
+release maintenance. See the
 [`full implementation roadmap`](docs/Full-Implementation-Roadmap.md), the
 [`Records specification`](docs/Records-Spec.md), and the full
 [`design document`](docs/Project-Control-Plane-MCP-Design.md).

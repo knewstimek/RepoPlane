@@ -1,13 +1,14 @@
 # RepoPlane Conservative Cache Specification
 
-상태: Accepted 1.0
+상태: Accepted 1.1
 
 ## 1. 범위와 기본값
 
-Cache는 Runner가 이미 검증한 등록 capability의 결과만 재사용한다. 새 MCP tool을 추가하지
-않고 `run_prepare`, `run_execute`, `run_inspect`에 cache 결정을 포함한다. host가
-`--enable-cache`를 지정하지 않으면 cache는 완전히 비활성화되며, manifest 기본값도
-`cache_policy: disabled`다.
+Cache는 Runner가 이미 검증한 등록 capability의 결과만 재사용한다. cache 결정은 계속
+`run_prepare`, `run_execute`, `run_inspect`에 포함되며 `runtime_access`는 결과가 아니라
+승인만 관리한다. local stdio는 `cache_reuse` runtime grant 또는 `--enable-cache` host
+사전 승인을 요구한다. 둘 다 없으면 `runtime_cache_not_approved`이고 manifest 기본값도
+`cache_policy: disabled`다. HTTP는 기존 host opt-in과 scope를 유지한다.
 
 지원 policy는 다음과 같다.
 

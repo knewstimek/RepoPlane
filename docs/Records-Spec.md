@@ -1,6 +1,6 @@
 # RepoPlane Records and Verification Specification
 
-상태: Implemented 1.0
+상태: Implemented 1.1
 대상 수직 절단: Records/Verification → Checkpoint/Memo/Importer
 
 ## 1. 목적과 범위
@@ -43,11 +43,12 @@ verification 유효성, CI report import 계약을 정의한다. 현재 read-onl
 | server/runner writer | 서버가 직접 관찰한 environment/run/artifact event | 사용자 목표·실패 원인 작성 |
 | intention writer | checkpoint·memo 생성/수정/supersede | run/check 관찰값 위조 |
 
-Record 외부 tool은 조회 전용 `project_records`, opt-in `checkpoint_write`, `memo_write`,
+Record 외부 tool은 조회 전용 `project_records`, approval-gated `checkpoint_write`, `memo_write`,
 `check_report_import`로 고정한다. Runner가 활성화되면 별도 실행 계약의 세 tool이 server
 관찰 record를 만들지만 하나의 범용 `record_write(kind, payload)`는 제공하지 않는다.
-`--enable-intention-writes`, `--enable-report-import`, `--enable-runner`는 서로 독립적이며
-기본값은 비활성화다.
+local stdio의 intention write와 report import는 첫 호출에서 독립적인 runtime 승인을
+요구한다. 기존 `--enable-intention-writes`, `--enable-report-import`, `--enable-runner`는
+prompt 없는 host 사전 승인으로 유지한다. HTTP에서는 기존 host opt-in과 scope가 필요하다.
 
 ## 3. 공통 record 계약
 

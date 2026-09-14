@@ -90,6 +90,20 @@ func TestVerifiedCacheMissThenReuseAndConflict(t *testing.T) {
 	}
 }
 
+func TestRuntimeCacheAuthorizationFailsClosed(t *testing.T) {
+	manifest := cacheTestManifest("observe")
+	service, cleanup := newCacheTestService(t, manifest, fixedQualifications{current: true})
+	defer cleanup()
+	service.SetCacheEnabled(func() bool { return false })
+	prepared, err := service.Prepare(context.Background(), PrepareRequest{CapabilityID: manifest.ID, CapabilityRevision: "1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prepared.Plan.Cache.Eligible || prepared.Plan.Cache.Reason != "runtime_cache_not_approved" {
+		t.Fatalf("cache decision=%+v", prepared.Plan.Cache)
+	}
+}
+
 func TestCacheBypassAndQualificationFailureStillExecute(t *testing.T) {
 	manifest := cacheTestManifest("verified")
 	service, cleanup := newCacheTestService(t, manifest, fixedQualifications{current: false})

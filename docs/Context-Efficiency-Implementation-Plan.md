@@ -1,5 +1,10 @@
 # RepoPlane MCP Context Efficiency Implementation Plan
 
+이 계획은 11-tool 1.0 기준선으로 완료·동결됐다. 이후 runtime 승인과 portable memory tool을
+포함한 현재 계약과 예산은 [Runtime Access 구현 계획](Runtime-Access-Implementation-Plan.md),
+[Memory Backup 명세](Memory-Backup-Spec.md), [Context Efficiency 명세](Context-Efficiency-Spec.md)
+1.1을 따른다.
+
 상태: Complete
 대상: [Context Efficiency Specification](Context-Efficiency-Spec.md)
 

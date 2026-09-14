@@ -1,6 +1,6 @@
 # RepoPlane MCP Context Efficiency Specification
 
-상태: Accepted 1.0  
+상태: Accepted 1.1
 대상: MCP tool discovery, record 응답, 작업당 context 비용
 
 ## 1. 목표
@@ -15,7 +15,7 @@ RepoPlane은 정확성·권한·호환성 계약을 줄이지 않고 모델이 �
 
 | 측정값 | 의미 |
 |---|---|
-| complete contract bytes | 11개 tool의 이름·설명·input/output schema를 compact JSON으로 직렬화한 크기 |
+| complete contract bytes | 13개 tool의 이름·설명·input/output schema를 compact JSON으로 직렬화한 크기 |
 | exposure candidate bytes | 이름·설명·input schema처럼 특정 client 경로가 노출할 수 있는 부분의 직렬화 크기 |
 | observed model input tokens | 실제 client가 특정 model 요청에 넣은 정의와 instruction의 token 수 |
 | successful-task cost | 작업 완료까지의 전체 token, model step, tool call, 지연과 실패 수 |
@@ -26,13 +26,16 @@ byte 수를 token 수나 고정 시작 비용으로 표현하지 않는다.
 
 ## 3. 도구 노출 계약
 
-- 11개 표준 typed tool과 안정적인 `tools/list`를 유지한다.
-- 쓰기·report import·Runner의 host opt-in과 HTTP scope는 서로 독립적으로 유지한다.
+- 13개 표준 typed tool과 안정적인 `tools/list`를 유지한다. `runtime_access`는 별도
+  toolbox gateway가 아니라 승인 상태만 관리하는 typed tool이다.
+- local stdio runtime grant, 기존 host pre-authorization과 HTTP scope는 서로 독립적이다.
 - 대화에서 어떤 tool을 호출했는지에 따라 서버 tool 목록을 바꾸지 않는다.
 - 범용 `toolbox(operation, arguments)` gateway는 기본 구조로 사용하지 않는다. 도구별 client
   승인, server scope, audit, SDK 입력 검증과 오류 복구가 동등하다는 별도 증거가 필요하다.
 - native deferred exposure/tool search는 client 기능이다. 지원 client는 이를 사용할 수 있지만,
   RepoPlane schema에 비표준 힌트를 넣지 않으며 미지원 client는 직접 tool 계약으로 동작한다.
+- 13-tool compact complete-contract 회귀 예산은 34 KiB이고 Runner 세 tool 예산은 5,500
+  bytes다.
 - schema identity나 handle은 계약 버전만 식별한다. 압축 뒤 model 문맥에서 사라진 계약 내용을
   복구했다거나 현재 권한을 증명하지 않는다.
 
@@ -60,7 +63,7 @@ cursor-only 다음 페이지는 첫 요청에서 고정된 payload projection을
 - snapshot pagination, cursor-only 요청, source 변경·만료 오류와 결과 순서를 보존한다.
 - 큰 정수, encoding, 행의 양 끝 포함 범위와 byte의 끝 제외 범위를 보존한다.
 - revision 충돌, import idempotency, Runner prepare/execute/revalidation/cache 적격성을 보존한다.
-- HTTP auth, scope, host opt-in, workspace 경계와 audit fail-closed 검사를 실제 operation마다 한다.
+- HTTP auth, scope, host opt-in, stdio runtime grant, workspace 경계와 audit fail-closed 검사를 실제 operation마다 한다.
 
 ## 6. 이번 버전에서 채택하지 않은 변경
 
@@ -83,4 +86,3 @@ cursor-only 다음 페이지는 첫 요청에서 고정된 payload projection을
 - compact record 옵션의 기본 호환성, projection pagination, 유효하지 않은 값과 실질적인
   반복 payload 감소가 test로 고정된다.
 - Stage 7/8 의미·권한 회귀와 전체 repository verification/public-release gate가 통과한다.
-

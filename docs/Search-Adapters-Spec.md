@@ -1,5 +1,8 @@
 # RepoPlane Search Adapters Specification
 
+이 문서의 11-tool 수치는 1.0 기준선이다. runtime read grant로 추가된 12번째 control
+tool과 외부 read scope는 [Runtime Access 명세](Runtime-Access-Spec.md)를 따른다.
+
 상태: Accepted 1.0
 
 ## 1. 범위

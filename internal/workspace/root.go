@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 )
 
 var (
@@ -23,6 +24,28 @@ type Root struct {
 	id       string
 	lexical  string
 	resolved string
+	grantsMu sync.RWMutex
+	grants   map[string]readGrant
+}
+
+type readGrant struct {
+	resolved  string
+	directory bool
+}
+
+// ReadGrant is a session-local, read-only exception to the primary workspace
+// boundary. Paths remain relative to the primary workspace so host absolute
+// paths never become part of the public MCP contract.
+type ReadGrant struct {
+	ID   string `json:"id"`
+	Path string `json:"path"`
+}
+
+// ReadGrantPlan binds approval to the canonical target observed before the
+// user prompt. Its resolved path remains private to this package.
+type ReadGrantPlan struct {
+	grant     ReadGrant
+	candidate readGrant
 }
 
 // Open verifies and resolves a workspace directory.
@@ -51,6 +74,7 @@ func Open(path string) (*Root, error) {
 		id:       identity(resolved),
 		lexical:  filepath.Clean(abs),
 		resolved: resolved,
+		grants:   make(map[string]readGrant),
 	}, nil
 }
 
@@ -65,9 +89,6 @@ func (r *Root) ResolveExisting(relative string) (string, error) {
 		return "", ErrAbsolute
 	}
 	lexical := filepath.Join(r.lexical, filepath.Clean(relative))
-	if !within(r.lexical, lexical) {
-		return "", ErrEscape
-	}
 	resolved, err := realPath(lexical)
 	if err != nil {
 		return "", err
@@ -77,7 +98,7 @@ func (r *Root) ResolveExisting(relative string) (string, error) {
 		return "", err
 	}
 	resolved = filepath.Clean(resolved)
-	if !within(r.resolved, resolved) {
+	if !r.readAllowed(resolved) {
 		return "", ErrEscape
 	}
 	return resolved, nil
@@ -91,9 +112,6 @@ func (r *Root) ResolveForLookup(relative string) (resolved string, exists bool, 
 		return "", false, ErrAbsolute
 	}
 	lexical := filepath.Join(r.lexical, filepath.Clean(relative))
-	if !within(r.lexical, lexical) {
-		return "", false, ErrEscape
-	}
 	if _, statErr := os.Lstat(lexical); statErr == nil {
 		resolved, err := r.ResolveExisting(relative)
 		return resolved, true, err
@@ -120,7 +138,7 @@ func (r *Root) ResolveForLookup(relative string) (resolved string, exists bool, 
 	if err != nil {
 		return "", false, err
 	}
-	if !within(r.resolved, resolvedParent) {
+	if !r.readAllowed(resolvedParent) {
 		return "", false, ErrEscape
 	}
 	resolved = resolvedParent
@@ -128,10 +146,128 @@ func (r *Root) ResolveForLookup(relative string) (resolved string, exists bool, 
 		resolved = filepath.Join(resolved, missing[index])
 	}
 	resolved = filepath.Clean(resolved)
-	if !within(r.resolved, resolved) {
+	if !r.readAllowed(resolved) {
 		return "", false, ErrEscape
 	}
 	return resolved, false, nil
+}
+
+// ResolvePrimaryExisting resolves an existing path only within the immutable
+// primary workspace. Mutation, catalog execution, and Runner code use this
+// method so runtime read grants never enlarge their authority.
+func (r *Root) ResolvePrimaryExisting(relative string) (string, error) {
+	if filepath.IsAbs(relative) {
+		return "", ErrAbsolute
+	}
+	lexical := filepath.Join(r.lexical, filepath.Clean(relative))
+	if !within(r.lexical, lexical) {
+		return "", ErrEscape
+	}
+	resolved, err := realPath(lexical)
+	if err != nil {
+		return "", err
+	}
+	resolved, err = filepath.Abs(resolved)
+	if err != nil {
+		return "", err
+	}
+	resolved = filepath.Clean(resolved)
+	if !within(r.resolved, resolved) {
+		return "", ErrEscape
+	}
+	return resolved, nil
+}
+
+// GrantRead adds one existing file or directory to the current process's
+// ephemeral read boundary. The grant is deliberately not persisted.
+func (r *Root) GrantRead(relative string) (ReadGrant, error) {
+	plan, err := r.PrepareReadGrant(relative)
+	if err != nil {
+		return ReadGrant{}, err
+	}
+	return r.ApplyReadGrant(plan), nil
+}
+
+// PrepareReadGrant resolves a proposed grant without changing authority.
+func (r *Root) PrepareReadGrant(relative string) (ReadGrantPlan, error) {
+	grant, candidate, err := r.readGrantCandidate(relative)
+	if err != nil {
+		return ReadGrantPlan{}, err
+	}
+	return ReadGrantPlan{grant: grant, candidate: candidate}, nil
+}
+
+// ApplyReadGrant activates the exact canonical target captured before user
+// approval. If the relative path is retargeted meanwhile, later reads fail
+// closed because they no longer resolve within this target.
+func (r *Root) ApplyReadGrant(plan ReadGrantPlan) ReadGrant {
+	r.grantsMu.Lock()
+	r.grants[plan.grant.ID] = plan.candidate
+	r.grantsMu.Unlock()
+	return plan.grant
+}
+
+// ValidateReadGrant verifies a proposed read grant without changing authority.
+func (r *Root) ValidateReadGrant(relative string) (ReadGrant, error) {
+	plan, err := r.PrepareReadGrant(relative)
+	return plan.grant, err
+}
+
+func (r *Root) readGrantCandidate(relative string) (ReadGrant, readGrant, error) {
+	if filepath.IsAbs(relative) {
+		return ReadGrant{}, readGrant{}, ErrAbsolute
+	}
+	clean := filepath.Clean(relative)
+	if clean == "." || strings.TrimSpace(relative) == "" {
+		return ReadGrant{}, readGrant{}, errors.New("workspace: read grant path is required")
+	}
+	resolved, err := realPath(filepath.Join(r.lexical, clean))
+	if err != nil {
+		return ReadGrant{}, readGrant{}, err
+	}
+	resolved, err = filepath.Abs(resolved)
+	if err != nil {
+		return ReadGrant{}, readGrant{}, err
+	}
+	resolved = filepath.Clean(resolved)
+	info, err := os.Stat(resolved)
+	if err != nil {
+		return ReadGrant{}, readGrant{}, err
+	}
+	id := grantIdentity(resolved)
+	return ReadGrant{ID: id, Path: filepath.ToSlash(clean)}, readGrant{resolved: resolved, directory: info.IsDir()}, nil
+}
+
+// RevokeRead removes a previously granted read boundary.
+func (r *Root) RevokeRead(id string) bool {
+	r.grantsMu.Lock()
+	defer r.grantsMu.Unlock()
+	if _, ok := r.grants[id]; !ok {
+		return false
+	}
+	delete(r.grants, id)
+	return true
+}
+
+func (r *Root) readAllowed(candidate string) bool {
+	if within(r.resolved, candidate) {
+		return true
+	}
+	r.grantsMu.RLock()
+	defer r.grantsMu.RUnlock()
+	for _, grant := range r.grants {
+		if (!grant.directory && samePath(grant.resolved, candidate)) || (grant.directory && within(grant.resolved, candidate)) {
+			return true
+		}
+	}
+	return false
+}
+
+func samePath(left, right string) bool {
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(filepath.Clean(left), filepath.Clean(right))
+	}
+	return filepath.Clean(left) == filepath.Clean(right)
 }
 
 func within(root, candidate string) bool {
@@ -149,4 +285,13 @@ func identity(resolved string) string {
 	}
 	sum := sha256.Sum256([]byte("repoplane-workspace-v1\x00" + canonical))
 	return "ws_" + base64.RawURLEncoding.EncodeToString(sum[:18])
+}
+
+func grantIdentity(resolved string) string {
+	canonical := filepath.Clean(resolved)
+	if runtime.GOOS == "windows" {
+		canonical = strings.ToLower(canonical)
+	}
+	sum := sha256.Sum256([]byte("repoplane-read-grant-v1\x00" + canonical))
+	return "rg_" + base64.RawURLEncoding.EncodeToString(sum[:18])
 }

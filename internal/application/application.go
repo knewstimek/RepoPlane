@@ -19,9 +19,11 @@ import (
 	"repoplane/internal/dataquery"
 	"repoplane/internal/httptransport"
 	"repoplane/internal/mcpserver"
+	"repoplane/internal/memorybackup"
 	"repoplane/internal/pathfacts"
 	"repoplane/internal/records"
 	"repoplane/internal/runner"
+	"repoplane/internal/runtimeaccess"
 	"repoplane/internal/search"
 	"repoplane/internal/store"
 	storesqlite "repoplane/internal/store/sqlite"
@@ -31,23 +33,22 @@ import (
 const cursorKeyBytes = 32
 
 type Application struct {
-	version               string
-	repository            store.Repository
-	recordRepository      store.RecordRepository
-	catalog               *catalog.Service
-	search                *search.Service
-	pathFacts             *pathfacts.Service
-	dataQuery             *dataquery.Service
-	records               *records.Service
-	runner                *runner.Service
-	enableIntentionWrites bool
-	enableReportImport    bool
-	enableRunner          bool
-	transport             string
-	httpProfile           *httptransport.Profile
-	httpVerifier          auth.TokenVerifier
-	auditRepository       store.AuditRepository
-	auditKey              []byte
+	version          string
+	repository       store.Repository
+	recordRepository store.RecordRepository
+	catalog          *catalog.Service
+	search           *search.Service
+	pathFacts        *pathfacts.Service
+	dataQuery        *dataquery.Service
+	records          *records.Service
+	runner           *runner.Service
+	runtimeAccess    *runtimeaccess.Service
+	memoryBackup     *memorybackup.Service
+	transport        string
+	httpProfile      *httptransport.Profile
+	httpVerifier     auth.TokenVerifier
+	auditRepository  store.AuditRepository
+	auditKey         []byte
 }
 
 func Open(ctx context.Context, settings config.Settings, version string) (*Application, error) {
@@ -114,20 +115,19 @@ func Open(ctx context.Context, settings config.Settings, version string) (*Appli
 	pathService := pathfacts.NewService(root, searchBackend, settings.RuleFiles)
 	dataService := dataquery.NewService(root, repository, codec)
 	recordService := records.NewService(root, recordRepository, repository, codec)
-	var runnerService *runner.Service
-	if settings.EnableRunner {
-		service.EnableExecution()
-		var cacheKey []byte
-		if settings.EnableCache {
-			cacheKey, err = loadOrCreateKey(filepath.Join(settings.StateDir, "cache.key"))
-			if err != nil {
-				return fail(err)
-			}
-		}
-		runnerService = runner.NewService(root, service, recordRepository, repository, recordService, settings.StateDir, cacheKey)
-		if err := runnerService.Recover(ctx); err != nil {
-			return fail(err)
-		}
+	runtimeAccess := runtimeaccess.New(root, settings.Transport != "http", runtimeaccess.Initial{
+		IntentWrite: settings.EnableIntentionWrites, ReportImport: settings.EnableReportImport,
+		Runner: settings.EnableRunner, Cache: settings.EnableCache,
+	})
+	service.EnableExecution()
+	cacheKey, err := loadOrCreateKey(filepath.Join(settings.StateDir, "cache.key"))
+	if err != nil {
+		return fail(err)
+	}
+	runnerService := runner.NewService(root, service, recordRepository, repository, recordService, settings.StateDir, cacheKey)
+	runnerService.SetCacheEnabled(func() bool { return runtimeAccess.Enabled(runtimeaccess.KindCache) })
+	if err := runnerService.Recover(ctx); err != nil {
+		return fail(err)
 	}
 	var httpProfile *httptransport.Profile
 	var httpVerifier auth.TokenVerifier
@@ -154,11 +154,11 @@ func Open(ctx context.Context, settings config.Settings, version string) (*Appli
 		_, _ = auditRepository.DeleteExpiredAudit(ctx, time.Now().UTC().AddDate(0, 0, -profile.Audit.RetentionDays), 256)
 		httpProfile, httpVerifier = &profile, verifier
 	}
+	memoryService := memorybackup.New(root, recordRepository, runnerService, settings.StateDir)
 	return &Application{
 		version: version, repository: repository, recordRepository: recordRepository, catalog: service,
 		search: searchService, pathFacts: pathService, dataQuery: dataService, records: recordService,
-		runner: runnerService, enableIntentionWrites: settings.EnableIntentionWrites,
-		enableReportImport: settings.EnableReportImport, enableRunner: settings.EnableRunner,
+		runner: runnerService, runtimeAccess: runtimeAccess, memoryBackup: memoryService,
 		transport: settings.Transport, httpProfile: httpProfile, httpVerifier: httpVerifier,
 		auditRepository: auditRepository, auditKey: auditKey,
 	}, nil
@@ -195,19 +195,18 @@ func (a *Application) Run(ctx context.Context) error {
 func (a *Application) MCPOptions() mcpserver.Options {
 	options := mcpserver.Options{
 		Catalog: a.catalog, Search: a.search, PathFacts: a.pathFacts, DataQuery: a.dataQuery,
-		Records: a.records,
-	}
-	if a.enableIntentionWrites {
-		options.CheckpointWriter = a.records
-		options.MemoWriter = a.records
-	}
-	if a.enableReportImport {
-		options.ReportImporter = a.records
-	}
-	if a.enableRunner {
-		options.Runner = a.runner
+		Records: a.records, CheckpointWriter: a.records, MemoWriter: a.records, ReportImporter: a.records,
+		Runner: a.runner, RuntimeAccess: a.runtimeAccess, MemoryBackup: a.memoryBackup,
 	}
 	return options
+}
+
+func (a *Application) ExportMemory(ctx context.Context, request memorybackup.Request) (memorybackup.Response, error) {
+	return a.memoryBackup.Export(ctx, request)
+}
+
+func (a *Application) RestoreMemory(ctx context.Context, archive string, byteLimit uint64) (memorybackup.Response, error) {
+	return a.memoryBackup.Restore(ctx, archive, byteLimit)
 }
 
 func (a *Application) Close() error {

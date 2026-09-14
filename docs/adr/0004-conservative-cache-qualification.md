@@ -1,5 +1,9 @@
 # ADR-0004: Cache reuse requires host opt-in and current qualification
 
+이 결정의 host opt-in은 1.0 기준선이다. local stdio에서는
+[ADR-0007](0007-runtime-access-leases.md)의 runtime `cache_reuse` lease도 같은
+qualification 경계 안에서 승인할 수 있다.
+
 상태: Accepted
 
 ## Context
@@ -24,4 +28,3 @@ cache 대상 작성자는 inputs, outputs, runtime identity와 purity assumption
 한다. 일반 build cache가 더 정확하면 그것을 우선한다. index 삭제는 hit율만 낮추며 durable
 record를 손상하지 않는다. false-hit는 entry quarantine과 contract revision 변경 및 재검증을
 요구하므로 조용히 계속 재사용되지 않는다.
-

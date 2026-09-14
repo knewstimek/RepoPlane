@@ -7,7 +7,7 @@ reviewable.
 
 | Completion condition | Evidence |
 |---|---|
-| Four tools negotiate and run over stdio | `TestStdioNegotiationHasNoOutputPollution`, `TestApplicationExposesCatalogQuery` |
+| Stable typed tools negotiate and run over stdio | `TestStdioNegotiationHasNoOutputPollution`, `TestApplicationExposesCatalogQuery` |
 | Empty catalog and search are exact empty results | `TestEmptyCatalogAndSearchReturnExactEmptyResults`, `TestIndexerMissingDefaultRootProducesEmptyCatalog` |
 | Broken, duplicate, unsupported, missing, changed, and unregistered catalog sources are distinct | catalog manifest, indexer, and audit tests, including `TestIndexerFlagsExecutableChangeWithoutRevisionChange` |
 | Partial scope and lower-bound counts survive pagination | `TestServicePaginationPreservesPartialMetadata`, `TestServiceDeadlinePreservesObservedLowerBound`, CP949/EUC-KR backend test |
@@ -16,7 +16,7 @@ reviewable.
 | UTF-8, BOM, CP949, EUC-KR, and mixed newlines preserve stated semantics | textcodec tests and path-facts encoding/newline tests |
 | Large JSON integers retain precision | `TestJSONLPreservesLargeIntegerProjectionAndPagination` |
 | Oversized and malformed JSONL records follow explicit policies | `TestJSONLOversizedRecordHasExplicitPolicy`, malformed skip/fail tests |
-| Lexical, symlink, and junction workspace escapes are rejected | workspace root tests, including the Windows junction test; application tests also cover an external state directory on another Windows volume |
+| Lexical, symlink, and junction escapes fail closed unless an exact runtime read path is approved | workspace root/grant tests, including the Windows junction test; application tests also cover an external state directory on another Windows volume |
 | Link facts remain observations | path-facts symlink, junction, and hardlink tests |
 | MCP stdout contains protocol frames only | child-process stdio test |
 | Public schemas match the registered tools | schema generation drift and cursor-only contract tests |
@@ -27,8 +27,9 @@ reviewable.
 | Concurrent record updates use optimistic concurrency | checkpoint CAS/history and concurrent-CAS tests |
 | Report import is bounded, idempotent, and omits raw diagnostics | records importer idempotency, oversized, and sensitive-diagnostic tests |
 | Verification validity becomes stale after workspace change | `TestImportReportIsIdempotentAndBecomesStale` |
-| Mutation tools require host opt-in | application default and opt-in record writer tests |
-| Cache opt-in does not add tools and creates a private host key | config and `TestApplicationExposesExactlyThreeOptInRunnerTools` |
+| Mutation and external read tools require a host pre-grant or one-time user-approved runtime lease | `TestApplicationGrantsExternalReadAndWriteAtRuntime`, runtimeaccess decline/expiry/revoke tests |
+| Portable memory survives a changed absolute workspace path without exporting secrets | `TestPortableMemoryExportRestoreRebindsAndExcludesSecrets`, `TestRecordRepositoryTransferPreservesHistoryAndRebindsWorkspace`, `TestApplicationExportsPortableMemoryAtRuntime` |
+| Cache authorization is runtime-gated and keeps a private host key | config, `TestApplicationPreservesHostGrantedRunnerAndCache`, and `TestRuntimeCacheAuthorizationFailsClosed` |
 | Cache keys preserve argv/config/input/runtime distinctions | `TestCacheKeyPreservesArgvOrderAndConfiguration` |
 | Cache qualification follows dynamic verification validity | `TestImportReportIsIdempotentAndBecomesStale` qualification assertions |
 | Verified miss, reuse, conflict, bypass, corruption and output bytes are explicit | Runner cache integration tests |

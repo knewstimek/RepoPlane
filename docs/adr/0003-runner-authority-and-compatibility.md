@@ -1,5 +1,8 @@
 # ADR-0003: 등록 capability를 실용적인 기본값으로 실행한다
 
+이 결정의 시작 시점 전용 local opt-in은 1.0 기준선이다. local stdio의 현재 runtime
+승인 계약은 [ADR-0007](0007-runtime-access-leases.md)이 보완하며 HTTP 경계는 유지된다.
+
 - 상태: Accepted
 - 날짜: 2026-09-15
 

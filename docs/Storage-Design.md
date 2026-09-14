@@ -45,7 +45,9 @@ MVP interface는 세 경계로 나눈다.
 
 각 서비스는 가능한 한 좁은 interface만 주입받는다. 전체 `Repository`는 조립 지점에서만
 사용한다. durable record 저장소도 기존 interface에 메서드를 계속 붙이지 않고
-별도 `RecordReader`, `CheckpointWriter`, `MemoWriter`, `ReportImporter`로 제공한다.
+별도 `RecordReader`, `CheckpointWriter`, `MemoWriter`, `ReportImporter`로 제공한다. portable
+memory transfer는 current record만 복사하지 않고 revision/import receipt 전체를 다루는
+`RecordTransfer` domain operation으로 분리한다.
 
 ## 3. Identity
 

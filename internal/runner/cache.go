@@ -34,6 +34,10 @@ func (s *Service) prepareCache(ctx context.Context, capability catalog.Capabilit
 		decision.Status = "disabled"
 		return decision, map[string]string{}, nil
 	}
+	if s.cacheEnabled != nil && !s.cacheEnabled() {
+		decision.Reason = "runtime_cache_not_approved"
+		return decision, map[string]string{}, nil
+	}
 	if s.cache == nil || len(s.cacheKey) != 32 {
 		decision.Reason = "host_cache_disabled"
 		return decision, map[string]string{}, nil
