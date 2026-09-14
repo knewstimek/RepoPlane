@@ -1,0 +1,11 @@
+schema_version: verification-check.v1
+id: repository.verify
+revision: 1
+applies_to:
+  paths: ["**"]
+required: true
+capability: dev.verify
+configurations: [default]
+success:
+  report_required: true
+  minimum_executed_checks: 5

@@ -3,6 +3,9 @@
 상태: Complete
 대상: [MVP 명세](MVP-Spec.md) MVP 1.0
 
+이 문서는 완료된 MVP 1.0의 실행 기록으로 동결한다. 이후 채택된 P1/P2 구현은
+[Full-Implementation-Roadmap.md](Full-Implementation-Roadmap.md)에서 추적한다.
+
 ## Goal
 
 Go로 조회 전용 RepoPlane MCP MVP를 구현한다. 공식 MCP Go SDK와 stdio transport를
@@ -188,6 +191,9 @@ MVP 통합과 전체 검증이 끝난 뒤에만 수행한다. 그전에는 외�
 - fresh clone의 전체 검증이 통과함
 
 ## 단계 8 — 다음 수직 절단 전 결정
+
+이 결정은 [ADR-0002](adr/0002-record-write-boundaries.md)와
+[Records-Spec.md](Records-Spec.md)에서 확정했다.
 
 구현에 들어가기 전에 다음 계약을 별도 ADR로 확정한다.
 

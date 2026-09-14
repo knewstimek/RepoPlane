@@ -13,6 +13,7 @@ import (
 	"repoplane/internal/dataquery"
 	"repoplane/internal/mcpserver"
 	"repoplane/internal/pathfacts"
+	"repoplane/internal/records"
 	"repoplane/internal/search"
 )
 
@@ -32,7 +33,8 @@ type toolSchema struct {
 func Generate(ctx context.Context) ([]byte, error) {
 	server := mcpserver.New("schema-export", mcpserver.Options{
 		Catalog: &catalog.Service{}, Search: &search.Service{},
-		PathFacts: &pathfacts.Service{}, DataQuery: &dataquery.Service{},
+		PathFacts: &pathfacts.Service{}, DataQuery: &dataquery.Service{}, Records: &records.Service{},
+		CheckpointWriter: &records.Service{}, MemoWriter: &records.Service{}, ReportImporter: &records.Service{},
 	})
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
@@ -50,7 +52,7 @@ func Generate(ctx context.Context) ([]byte, error) {
 	document := document{
 		Schema: "https://json-schema.org/draft/2020-12/schema",
 		ID:     "https://repoplane.local/schemas/tools.v1.json",
-		Tools:  make([]toolSchema, 0, 4),
+		Tools:  make([]toolSchema, 0, 8),
 	}
 	for tool, err := range session.Tools(ctx, nil) {
 		if err != nil {

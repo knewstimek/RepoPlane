@@ -1,8 +1,9 @@
 # MVP verification matrix
 
 This matrix maps the completion conditions in [`MVP-Spec.md`](MVP-Spec.md) to executable
-evidence. The authoritative check is `go test -count=1 ./...`; individual tests are named here so
-the scope of each claim remains reviewable.
+evidence. The developer entry point is `go run ./cmd/repoplane-dev verify`; its `test.all` check
+runs `go test -count=1 ./...`. Individual tests are named here so the scope of each claim remains
+reviewable.
 
 | Completion condition | Evidence |
 |---|---|
@@ -22,23 +23,30 @@ the scope of each claim remains reviewable.
 | Public errors do not expose internal diagnostics | `TestPublicErrorUsesStableSanitizedCodes` |
 | Public tree excludes common local-identity and secret patterns | `TestPublicTreeHasNoLocalIdentityOrSecretMaterial` |
 | SQLite is replaceable behind domain interfaces and migrates explicitly | compile-time repository assertion plus SQLite atomicity, migration, ordering, pagination, and expiry tests |
+| Durable records survive cache deletion | `TestRecordDatabaseIsIndependentFromCacheDatabase` |
+| Concurrent record updates use optimistic concurrency | checkpoint CAS/history and concurrent-CAS tests |
+| Report import is bounded, idempotent, and omits raw diagnostics | records importer idempotency, oversized, and sensitive-diagnostic tests |
+| Verification validity becomes stale after workspace change | `TestImportReportIsIdempotentAndBecomesStale` |
+| Mutation tools require host opt-in | application default and opt-in record writer tests |
 
 ## Release commands
 
 ```text
-go generate ./internal/mcpserver
-go test -count=1 ./...
-go vet ./...
-go build -trimpath ./cmd/repoplane
+go run ./cmd/repoplane-dev preflight
+go run ./cmd/repoplane-dev verify
+go run ./cmd/repoplane-dev public-release-check
 ```
 
-CI runs these checks on Windows and Linux and runs `go test -race ./...` on Linux. Cross-compiled
-Windows and Linux amd64 binaries are also built during the local release audit. A Windows race
-run is not a release gate because its availability depends on the installed C toolchain and race
-runtime; race correctness is gated by the Linux CI job.
+The first two commands write bounded `check-report.v1` files under `.tmp/reports`. The public
+release check additionally requires a clean worktree and scans both the tracked tree and reachable
+Git history. CI runs preflight and verify on Windows and Linux and runs `go test -race ./...` on
+Linux. A Windows race run is not a release gate because its availability depends on the installed C
+toolchain and race runtime; race correctness is gated by the Linux CI job.
 
 ## Deliberate MVP limits
 
-RepoPlane refuses sources larger than its documented bounded-read limits instead of silently
-streaming an unbounded fallback. It does not execute tools, write project records, expose a network
-transport, authenticate users, or claim semantic/symbol/Git-history coverage.
+The frozen MVP refuses sources larger than its documented bounded-read limits instead of silently
+streaming an unbounded fallback. It did not execute tools or write project records. The subsequent
+Records slice adds host-opt-in checkpoint/memo/import writes but still does not execute catalog
+entries, expose a network transport, authenticate users, or claim semantic/symbol/Git-history
+coverage.

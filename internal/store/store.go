@@ -18,6 +18,83 @@ var (
 	ErrGenerationChanged = errors.New("store: generation changed")
 )
 
+// RecordRepository is the complete durable-record adapter. Feature services
+// depend on the narrower interfaces below; this aggregate is only for wiring.
+type RecordRepository interface {
+	RecordReader
+	CheckpointWriter
+	MemoWriter
+	ReportImporter
+	Close() error
+}
+
+type RecordReader interface {
+	GetRecord(ctx context.Context, projectID, workspaceID, id string) (Record, error)
+	QueryRecords(ctx context.Context, query RecordQuery) (RecordPage, error)
+}
+
+type CheckpointWriter interface {
+	CreateCheckpoint(ctx context.Context, create RecordCreate) (Record, error)
+	UpdateCheckpoint(ctx context.Context, update RecordUpdate) (Record, error)
+}
+
+type MemoWriter interface {
+	CreateMemo(ctx context.Context, create RecordCreate) (Record, error)
+	UpdateMemo(ctx context.Context, update RecordUpdate) (Record, error)
+}
+
+type ReportImporter interface {
+	ImportVerification(ctx context.Context, create RecordCreate, sourceHash, parserRevision string) (record Record, duplicate bool, err error)
+}
+
+type Record struct {
+	ID            string
+	Kind          string
+	SchemaVersion string
+	ProjectID     string
+	WorkspaceID   string
+	Revision      uint64
+	Source        string
+	WriterClass   string
+	Validity      string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	Payload       json.RawMessage
+	EvidenceRefs  []string
+	Supersedes    string
+}
+
+type RecordCreate struct {
+	Record Record
+}
+
+type RecordUpdate struct {
+	ProjectID        string
+	WorkspaceID      string
+	ID               string
+	ExpectedRevision uint64
+	Payload          json.RawMessage
+	EvidenceRefs     []string
+	Validity         string
+	Supersedes       string
+}
+
+type RecordQuery struct {
+	ProjectID    string
+	WorkspaceID  string
+	Kind         string
+	Validity     string
+	Source       string
+	UpdatedAfter time.Time
+	Limit        uint64
+}
+
+type RecordPage struct {
+	Records  []Record
+	Matched  uint64
+	Complete bool
+}
+
 // Repository is the complete persistence dependency used by RepoPlane's
 // read-only MVP. Feature services should depend on the narrower embedded
 // interfaces whenever possible.

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://repoplane.local/schemas/verification-check.v1.schema.json",
+  "title": "RepoPlane verification checklist",
+  "type": "object",
+  "required": ["schema_version", "id", "revision", "applies_to", "required", "capability", "configurations", "success"],
+  "properties": {
+    "schema_version": { "const": "verification-check.v1" },
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$" },
+    "revision": { "type": "integer", "minimum": 1 },
+    "applies_to": {
+      "type": "object",
+      "required": ["paths"],
+      "properties": {
+        "paths": { "type": "array", "minItems": 1, "maxItems": 128, "items": { "type": "string", "minLength": 1, "maxLength": 1024 } }
+      },
+      "additionalProperties": false
+    },
+    "required": { "type": "boolean" },
+    "capability": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "configurations": { "type": "array", "minItems": 1, "maxItems": 64, "items": { "type": "string", "minLength": 1, "maxLength": 128 } },
+    "success": {
+      "type": "object",
+      "required": ["report_required", "minimum_executed_checks"],
+      "properties": {
+        "report_required": { "type": "boolean" },
+        "minimum_executed_checks": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

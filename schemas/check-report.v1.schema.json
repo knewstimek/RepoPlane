@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://repoplane.local/schemas/check-report.v1.schema.json",
+  "title": "RepoPlane bounded developer check report",
+  "type": "object",
+  "required": ["schema_version", "operation", "status", "started_at", "finished_at", "subject", "checks", "counts", "truncated"],
+  "properties": {
+    "schema_version": { "const": "check-report.v1" },
+    "operation": { "enum": ["verify", "preflight", "public-release-check"] },
+    "status": { "enum": ["passed", "failed", "partial"] },
+    "started_at": { "type": "string", "format": "date-time" },
+    "finished_at": { "type": "string", "format": "date-time" },
+    "subject": {
+      "type": "object",
+      "properties": {
+        "git_commit": { "type": "string", "pattern": "^[0-9a-f]{40,64}$" },
+        "dirty": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "checks": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "required": ["id", "status", "duration_ms"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "status": { "enum": ["passed", "failed", "unknown"] },
+          "exit_code": { "type": "integer" },
+          "duration_ms": { "type": "integer", "minimum": 0 },
+          "summary": { "type": "string", "maxLength": 8192 },
+          "diagnostics": { "type": "string", "maxLength": 8192 },
+          "truncated": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "counts": {
+      "type": "object",
+      "required": ["passed", "failed", "unknown"],
+      "properties": {
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "unknown": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "truncated": { "type": "boolean" }
+  },
+  "additionalProperties": false
+}

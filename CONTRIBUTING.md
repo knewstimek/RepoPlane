@@ -4,9 +4,10 @@ Thanks for helping make repository tooling easier for agents to inspect safely.
 
 ## Before opening a change
 
-1. Check existing issues and the MVP scope in [`docs/MVP-Spec.md`](docs/MVP-Spec.md).
-2. Keep the current server read-only. Runner, cache reuse, and record writes need a separate design
-   decision before implementation.
+1. Check existing issues, the frozen MVP scope in [`docs/MVP-Spec.md`](docs/MVP-Spec.md), and the
+   [`full implementation roadmap`](docs/Full-Implementation-Roadmap.md).
+2. Keep query tools read-only. Record mutation tools require explicit host opt-in; do not add
+   Runner or cache reuse through the record surface.
 3. For a public contract change, update the relevant specification and generated schemas in the
    same change.
 
@@ -15,11 +16,14 @@ Thanks for helping make repository tooling easier for agents to inspect safely.
 Requirements are Go 1.26+ and `rg` on `PATH`.
 
 ```sh
-go generate ./internal/mcpserver
-go test ./...
-go vet ./...
-go build -trimpath ./cmd/repoplane
+go run ./cmd/repoplane-dev preflight
+go run ./cmd/repoplane-dev verify
 ```
+
+Both commands write bounded `check-report.v1` JSON under the ignored `.tmp/reports` directory.
+Preflight reports only whether explicitly requested environment variables exist, never their
+values. Before a public push or release, run `go run ./cmd/repoplane-dev public-release-check` from
+a clean worktree.
 
 Tests should use temporary directories and generated non-secret values. Do not commit local paths,
 usernames, environment dumps, databases, keys, logs, or unrelated project identifiers.

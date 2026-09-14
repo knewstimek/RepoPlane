@@ -14,7 +14,9 @@ import (
 	"repoplane/internal/cursor"
 	"repoplane/internal/dataquery"
 	"repoplane/internal/pathfacts"
+	"repoplane/internal/records"
 	"repoplane/internal/search"
+	"repoplane/internal/store"
 	"repoplane/internal/textcodec"
 	"repoplane/internal/workspace"
 )
@@ -25,10 +27,14 @@ const serverName = "repoplane"
 // feature milestones; constructing the server itself has no workspace side
 // effects.
 type Options struct {
-	Catalog   *catalog.Service
-	Search    *search.Service
-	PathFacts *pathfacts.Service
-	DataQuery *dataquery.Service
+	Catalog          *catalog.Service
+	Search           *search.Service
+	PathFacts        *pathfacts.Service
+	DataQuery        *dataquery.Service
+	Records          *records.Service
+	CheckpointWriter *records.Service
+	MemoWriter       *records.Service
+	ReportImporter   *records.Service
 }
 
 func New(version string, provided ...Options) *mcp.Server {
@@ -76,6 +82,30 @@ func New(version string, provided ...Options) *mcp.Server {
 			return nil, output, publicError(err)
 		})
 	}
+	if options.Records != nil {
+		mcp.AddTool(server, &mcp.Tool{Name: "project_records", Description: "Search and read durable verification, checkpoint, and memo records without modifying them."}, func(ctx context.Context, _ *mcp.CallToolRequest, input records.QueryRequest) (*mcp.CallToolResult, records.QueryResponse, error) {
+			output, err := options.Records.Query(ctx, input)
+			return nil, output, publicError(err)
+		})
+	}
+	if options.CheckpointWriter != nil {
+		mcp.AddTool(server, &mcp.Tool{Name: "checkpoint_write", Description: "Create, update, or supersede a bounded task checkpoint using optimistic concurrency."}, func(ctx context.Context, _ *mcp.CallToolRequest, input records.CheckpointRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
+			output, err := options.CheckpointWriter.WriteCheckpoint(ctx, input)
+			return nil, output, publicError(err)
+		})
+	}
+	if options.MemoWriter != nil {
+		mcp.AddTool(server, &mcp.Tool{Name: "memo_write", Description: "Create, update, or supersede a bounded decision or failure memo using optimistic concurrency."}, func(ctx context.Context, _ *mcp.CallToolRequest, input records.MemoRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
+			output, err := options.MemoWriter.WriteMemo(ctx, input)
+			return nil, output, publicError(err)
+		})
+	}
+	if options.ReportImporter != nil {
+		mcp.AddTool(server, &mcp.Tool{Name: "check_report_import", Description: "Import a bounded workspace-local check-report.v1 without storing its raw contents."}, func(ctx context.Context, _ *mcp.CallToolRequest, input records.ImportRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
+			output, err := options.ReportImporter.ImportReport(ctx, input)
+			return nil, output, publicError(err)
+		})
+	}
 	return server
 }
 
@@ -99,9 +129,17 @@ func publicError(err error) error {
 		code = "source_changed"
 	case errors.Is(err, fs.ErrNotExist):
 		code = "source_not_found"
+	case errors.Is(err, store.ErrNotFound):
+		code = "record_not_found"
+	case errors.Is(err, store.ErrConflict):
+		code = "revision_conflict"
+	case errors.Is(err, records.ErrPermissionDenied):
+		code = "permission_denied"
+	case errors.Is(err, records.ErrReportInvalid):
+		code = "report_invalid"
 	case errors.Is(err, contracts.ErrLimitExceeded),
 		errors.Is(err, catalog.ErrResponseTooLarge), errors.Is(err, search.ErrResponseTooLarge),
-		errors.Is(err, pathfacts.ErrResponseTooLarge), errors.Is(err, dataquery.ErrResponseTooLarge),
+		errors.Is(err, pathfacts.ErrResponseTooLarge), errors.Is(err, dataquery.ErrResponseTooLarge), errors.Is(err, records.ErrResponseTooLarge),
 		errors.Is(err, dataquery.ErrSourceTooLarge):
 		code = "limit_exceeded"
 	case errors.Is(err, search.ErrBackendUnavailable):

@@ -2,6 +2,7 @@ package repositorycheck
 
 import (
 	"bytes"
+	"encoding/json"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"testing"
 
 	"go.yaml.in/yaml/v3"
+	"repoplane/internal/catalog"
 )
 
 func repositoryRoot(t *testing.T) string {
@@ -22,27 +24,81 @@ func repositoryRoot(t *testing.T) string {
 	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
 }
 
-func TestRepositoryYAMLParses(t *testing.T) {
+func TestRepositoryCatalogParses(t *testing.T) {
 	root := repositoryRoot(t)
-	err := filepath.WalkDir(filepath.Join(root, ".github"), func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() || (filepath.Ext(path) != ".yml" && filepath.Ext(path) != ".yaml") {
-			return nil
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		var value any
-		if err := yaml.Unmarshal(data, &value); err != nil {
-			t.Errorf("%s: %v", filepath.Base(path), err)
-		}
-		return nil
-	})
+	entries, err := os.ReadDir(filepath.Join(root, "catalog"))
 	if err != nil {
 		t.Fatal(err)
+	}
+	parsed := 0
+	for _, entry := range entries {
+		if entry.IsDir() || (filepath.Ext(entry.Name()) != ".yaml" && filepath.Ext(entry.Name()) != ".yml" && filepath.Ext(entry.Name()) != ".json") {
+			continue
+		}
+		path := filepath.Join(root, "catalog", entry.Name())
+		file, err := os.Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, decodeErr := catalog.Decode(file, filepath.Ext(path))
+		closeErr := file.Close()
+		if decodeErr != nil {
+			t.Errorf("%s: %v", entry.Name(), decodeErr)
+		}
+		if closeErr != nil {
+			t.Errorf("%s: close: %v", entry.Name(), closeErr)
+		}
+		parsed++
+	}
+	if parsed == 0 {
+		t.Fatal("repository catalog is empty")
+	}
+}
+
+func TestRepositoryJSONSchemasParse(t *testing.T) {
+	root := repositoryRoot(t)
+	entries, err := os.ReadDir(filepath.Join(root, "schemas"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(root, "schemas", entry.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var value any
+		if err := json.Unmarshal(data, &value); err != nil {
+			t.Errorf("%s: %v", entry.Name(), err)
+		}
+	}
+}
+
+func TestRepositoryYAMLParses(t *testing.T) {
+	root := repositoryRoot(t)
+	for _, directory := range []string{".github", "checks"} {
+		err := filepath.WalkDir(filepath.Join(root, directory), func(path string, entry fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() || (filepath.Ext(path) != ".yml" && filepath.Ext(path) != ".yaml") {
+				return nil
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			var value any
+			if err := yaml.Unmarshal(data, &value); err != nil {
+				t.Errorf("%s: %v", filepath.Base(path), err)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://repoplane.local/schemas/memo.v1.schema.json",
+  "title": "RepoPlane decision or failure memo payload",
+  "type": "object",
+  "required": ["memo_kind", "scope", "configuration", "content", "invalidation_condition"],
+  "properties": {
+    "memo_kind": { "enum": ["decision", "failed_attempt", "resolved_failure", "limitation", ""] },
+    "scope": { "type": "string", "maxLength": 4096 },
+    "configuration": { "type": "string", "maxLength": 4096 },
+    "content": { "type": "string", "maxLength": 32768 },
+    "invalidation_condition": { "type": "string", "maxLength": 32768 }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,15 @@
+id: dev.preflight
+revision: 1
+summary: Check local tools, Git state, required files, and environment-variable presence without returning values
+use_when:
+  - before repository verification or implementation work
+tags: [development, environment, preflight]
+execution:
+  kind: cli
+  executable_ref: go
+  cwd: .
+  argv_template: [run, ./cmd/repoplane-dev, preflight]
+  trusted_for_run: false
+outputs: [.tmp/reports/preflight.json]
+docs: [docs/Full-Implementation-Roadmap.md]
+cache_policy: disabled

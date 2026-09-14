@@ -17,6 +17,7 @@ import (
 	"repoplane/internal/dataquery"
 	"repoplane/internal/mcpserver"
 	"repoplane/internal/pathfacts"
+	"repoplane/internal/records"
 	"repoplane/internal/search"
 	"repoplane/internal/store"
 	storesqlite "repoplane/internal/store/sqlite"
@@ -26,12 +27,16 @@ import (
 const cursorKeyBytes = 32
 
 type Application struct {
-	version    string
-	repository store.Repository
-	catalog    *catalog.Service
-	search     *search.Service
-	pathFacts  *pathfacts.Service
-	dataQuery  *dataquery.Service
+	version               string
+	repository            store.Repository
+	recordRepository      store.RecordRepository
+	catalog               *catalog.Service
+	search                *search.Service
+	pathFacts             *pathfacts.Service
+	dataQuery             *dataquery.Service
+	records               *records.Service
+	enableIntentionWrites bool
+	enableReportImport    bool
 }
 
 func Open(ctx context.Context, settings config.Settings, version string) (*Application, error) {
@@ -60,8 +65,14 @@ func Open(ctx context.Context, settings config.Settings, version string) (*Appli
 	if err != nil {
 		return nil, err
 	}
+	recordRepository, err := storesqlite.OpenRecords(ctx, filepath.Join(settings.StateDir, "records.db"))
+	if err != nil {
+		_ = repository.Close()
+		return nil, err
+	}
 	fail := func(err error) (*Application, error) {
 		_ = repository.Close()
+		_ = recordRepository.Close()
 		return nil, err
 	}
 	now := time.Now().UTC()
@@ -90,9 +101,11 @@ func Open(ctx context.Context, settings config.Settings, version string) (*Appli
 	searchService := search.NewService(root, repository, codec, searchBackend)
 	pathService := pathfacts.NewService(root, searchBackend, settings.RuleFiles)
 	dataService := dataquery.NewService(root, repository, codec)
+	recordService := records.NewService(root, recordRepository, repository, codec)
 	return &Application{
-		version: version, repository: repository, catalog: service,
-		search: searchService, pathFacts: pathService, dataQuery: dataService,
+		version: version, repository: repository, recordRepository: recordRepository, catalog: service,
+		search: searchService, pathFacts: pathService, dataQuery: dataService, records: recordService,
+		enableIntentionWrites: settings.EnableIntentionWrites, enableReportImport: settings.EnableReportImport,
 	}, nil
 }
 
@@ -122,12 +135,23 @@ func (a *Application) Run(ctx context.Context) error {
 }
 
 func (a *Application) MCPOptions() mcpserver.Options {
-	return mcpserver.Options{
+	options := mcpserver.Options{
 		Catalog: a.catalog, Search: a.search, PathFacts: a.pathFacts, DataQuery: a.dataQuery,
+		Records: a.records,
 	}
+	if a.enableIntentionWrites {
+		options.CheckpointWriter = a.records
+		options.MemoWriter = a.records
+	}
+	if a.enableReportImport {
+		options.ReportImporter = a.records
+	}
+	return options
 }
 
-func (a *Application) Close() error { return a.repository.Close() }
+func (a *Application) Close() error {
+	return errors.Join(a.repository.Close(), a.recordRepository.Close())
+}
 
 func loadOrCreateKey(path string) ([]byte, error) {
 	key, err := os.ReadFile(path)

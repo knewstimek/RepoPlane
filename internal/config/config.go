@@ -11,11 +11,13 @@ import (
 )
 
 type Settings struct {
-	Workspace      string
-	StateDir       string
-	CatalogRoots   []string
-	CandidateRoots []string
-	RuleFiles      []string
+	Workspace             string
+	StateDir              string
+	CatalogRoots          []string
+	CandidateRoots        []string
+	RuleFiles             []string
+	EnableIntentionWrites bool
+	EnableReportImport    bool
 }
 
 type stringList []string
@@ -53,6 +55,8 @@ func Parse(args []string, output io.Writer) (Settings, error) {
 	flags.Var(&roots, "catalog-root", "workspace-relative catalog file or directory; repeatable")
 	flags.Var(&candidates, "candidate-root", "workspace-relative executable candidate directory; repeatable")
 	flags.Var(&ruleFiles, "rule-file", "rule filename discovered from workspace root to target; repeatable")
+	flags.BoolVar(&settings.EnableIntentionWrites, "enable-intention-writes", false, "expose checkpoint and memo mutation tools")
+	flags.BoolVar(&settings.EnableReportImport, "enable-report-import", false, "expose the local check-report importer")
 	if err := flags.Parse(args); err != nil {
 		return Settings{}, err
 	}

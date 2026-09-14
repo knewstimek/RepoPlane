@@ -33,7 +33,7 @@ func TestCursorCapableToolSchemasAllowCursorOnlyRequests(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, tool := range parsed.Tools {
-		if tool.Name != "catalog_query" && tool.Name != "workspace_search" && tool.Name != "data_query" {
+		if tool.Name != "catalog_query" && tool.Name != "workspace_search" && tool.Name != "data_query" && tool.Name != "project_records" {
 			continue
 		}
 		schema, ok := tool.InputSchema.(map[string]any)

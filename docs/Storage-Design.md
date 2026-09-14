@@ -1,6 +1,6 @@
 # RepoPlane 저장 구조와 persistence interface
 
-상태: Draft 0.1
+상태: Implemented 0.2
 
 ## 1. 저장 계층
 
@@ -10,10 +10,11 @@ RepoPlane은 세 종류의 데이터를 구분한다.
 |---|---|---|
 | catalog/check 선언 | workspace 일반 파일 | 사용자가 관리하는 원본 |
 | 검색 색인·고정 결과·cursor | SQLite | 삭제 후 재생성 가능한 cache |
-| 향후 run/checkpoint/artifact | SQLite + blob directory | 정책에 따라 보존하는 durable record |
+| verification/checkpoint/memo | 별도 `records.db` | 정책에 따라 보존하는 durable record |
+| 향후 run/artifact | durable SQLite + blob directory | Runner/Artifact 명세에서 결정 |
 
-MVP는 앞의 두 종류만 구현한다. SQLite 파일과 임시 파일은 workspace 안에 숨겨서
-만들지 않고 호스트가 지정한 로컬 data directory에 둔다.
+SQLite 파일과 임시 파일은 workspace 안에 숨겨서 만들지 않고 호스트가 지정한 로컬
+data directory에 둔다. `repoplane.db`는 재생성 가능하고 `records.db`는 그렇지 않다.
 
 SQLite는 최초 adapter이지 서비스 계층의 계약이 아니다. 서비스는
 `internal/store`의 domain interface에만 의존하고 SQLite 구현은
@@ -40,8 +41,8 @@ MVP interface는 세 경계로 나눈다.
 | `ResultSetRepository` | 고정 결과 생성·페이지 조회·만료 정리 | result set과 ordered items 함께 생성 |
 
 각 서비스는 가능한 한 좁은 interface만 주입받는다. 전체 `Repository`는 조립 지점에서만
-사용한다. 향후 run/checkpoint 저장소도 기존 interface에 메서드를 계속 붙이지 않고
-별도 interface로 추가한다.
+사용한다. durable record 저장소도 기존 interface에 메서드를 계속 붙이지 않고
+별도 `RecordReader`, `CheckpointWriter`, `MemoWriter`, `ReportImporter`로 제공한다.
 
 ## 3. Identity
 
@@ -91,7 +92,8 @@ ref는 opaque string이며 다음 의미 종류를 내부적으로 갖는다.
 - `scope`: 검색 root와 include/exclude 정책
 - `snapshot`: index generation 또는 고정 result set
 - `cursor`: result set의 다음 위치
-- 향후 `artifact`, `run`, `check`, `checkpoint`
+- `check`, `checkpoint`, `memo`
+- 향후 `artifact`, `run`
 
 클라이언트가 ref 문자열을 파싱해야만 동작하는 계약을 만들지 않는다. ref 조회 시
 원본이 없거나 바뀌었으면 현재의 비슷한 파일로 대체하지 않는다.
@@ -131,11 +133,13 @@ payload는 호스트 local secret으로 인증한다. secret 값은 workspace, D
 
 SQLite 전용 migration과 query plan 테스트는 공통 conformance test와 별도로 둔다.
 
-## 9. 향후 durable store 경계
+## 9. Durable store 경계
 
-다음 수직 절단에서는 별도 migration으로 run, check, checkpoint, artifact relation을
-추가한다. MVP table에 nullable column을 미리 늘어놓지 않는다.
+Records 수직 절단은 별도 `records.db` migration으로 record, record revision, report import
+receipt를 추가한다. `RecordReader`, `CheckpointWriter`, `MemoWriter`, `ReportImporter`를
+분리하고 수정은 expected revision compare-and-swap을 사용한다. cache DB 삭제나 재색인은
+durable record에 영향을 주지 않는다.
 
-artifact blob은 content-addressed storage 후보지만, hash가 존재한다는 사실과 byte를
+artifact blob은 여전히 content-addressed storage 후보지만, hash가 존재한다는 사실과 byte를
 보관하고 있다는 사실을 분리한다. TTL, redaction, access policy가 확정되기 전에는
 민감할 수 있는 stdout/stderr나 원문 blob을 자동 보존하지 않는다.

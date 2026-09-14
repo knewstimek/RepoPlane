@@ -14,9 +14,10 @@ queries.
 
 ## Release checklist
 
-- Run `go generate ./internal/mcpserver` and verify no schema drift.
-- Run fresh tests, vet, and Windows/Linux builds.
-- Run the tracked-tree and Git-history privacy/secret scan.
+- Run `go run ./cmd/repoplane-dev preflight`.
+- Run `go run ./cmd/repoplane-dev verify` for schema drift, fresh tests, vet, and build.
+- From a clean worktree, run `go run ./cmd/repoplane-dev public-release-check` for the tracked-tree
+  and complete reachable Git-history privacy scan.
 - Confirm local DB, key, logs, binaries, and temporary files are ignored and untracked.
 - Create the public repository only after every preceding check passes.
 - Set the description and topics above, enable private vulnerability reporting, and push the

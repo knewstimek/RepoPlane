@@ -1,0 +1,17 @@
+id: dev.verify
+revision: 1
+summary: Run bounded schema, test, vet, and build checks and write check-report.v1
+use_when:
+  - before completing an implementation change
+  - when a reusable local verification report is needed
+tags: [development, verification, report]
+execution:
+  kind: cli
+  executable_ref: go
+  cwd: .
+  argv_template: [run, ./cmd/repoplane-dev, verify]
+  trusted_for_run: false
+outputs: [.tmp/reports/verify.json]
+checks: [repository.verify]
+docs: [docs/Full-Implementation-Roadmap.md, docs/Records-Spec.md]
+cache_policy: disabled

@@ -20,4 +20,11 @@ after a fix is available.
 
 RepoPlane is a local stdio MCP server. It does not authenticate clients, execute catalog entries,
 or provide a network listener. The host is responsible for choosing which local MCP client may
-start it and which workspace it may inspect.
+start it and which workspace it may inspect. Checkpoint/memo mutation and local report import are
+disabled by default and must be enabled independently. Record IDs and workspace read access do not
+grant mutation capability.
+
+The report importer accepts only bounded workspace-relative files resolved through the workspace
+boundary. It stores a content hash and normalized check statuses, not raw diagnostics. Durable
+records live in `records.db`, separately from the regenerable cache, under the host-selected state
+directory outside the workspace.
