@@ -28,17 +28,10 @@ jobs:
         run: choco install ripgrep -y --no-progress
       - name: Check ripgrep
         run: rg --version
-      - name: Verify generated schemas
-        run: go generate ./internal/mcpserver
-      - name: Check generated tree
-        shell: bash
-        run: git diff --exit-code
-      - name: Test
-        run: go test -count=1 ./...
-      - name: Vet
-        run: go vet ./...
-      - name: Build
-        run: go build -trimpath ./cmd/repoplane
+      - name: Preflight
+        run: go run ./cmd/repoplane-dev preflight
+      - name: Verify
+        run: go run ./cmd/repoplane-dev verify
 
   race:
     runs-on: ubuntu-latest

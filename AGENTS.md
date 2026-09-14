@@ -21,11 +21,12 @@
 
 ## Implementation
 
+- When work is complete, update README/usage and `Unreleased` notes as needed, verify, commit, and push, then report the completion time and elapsed time; for goal-tracked work, also report the goal's aggregate token usage.
 - Go services depend on domain interfaces in `internal/store`, not directly on SQL or a concrete
   database adapter.
 - Keep MCP stdout free of diagnostics; write diagnostics only to stderr.
 - Preserve bounded reads, explicit partial states, and exact/lower-bound/unknown distinctions.
 - Update public schemas, tests, and the relevant specification in the same change when an external
   contract changes.
-- Do not implement Runner, cache reuse, `project_records`, or record writes as part of the current
-  read-only MVP.
+- Keep Runner and cache reuse out of scope until their roadmap prerequisites and specifications
+  are complete.

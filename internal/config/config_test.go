@@ -32,4 +32,17 @@ func TestParseDefaultsCatalogRoot(t *testing.T) {
 	if len(got.RuleFiles) != 1 || got.RuleFiles[0] != "AGENTS.md" {
 		t.Fatalf("rule files=%v", got.RuleFiles)
 	}
+	if got.EnableIntentionWrites || got.EnableReportImport {
+		t.Fatal("record mutation flags must default to disabled")
+	}
+}
+
+func TestParseEnablesRecordCapabilitiesExplicitly(t *testing.T) {
+	got, err := Parse([]string{"--enable-intention-writes", "--enable-report-import"}, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.EnableIntentionWrites || !got.EnableReportImport {
+		t.Fatalf("settings=%+v", got)
+	}
 }

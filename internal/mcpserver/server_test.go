@@ -13,6 +13,8 @@ import (
 	"repoplane/internal/contracts"
 	"repoplane/internal/cursor"
 	"repoplane/internal/dataquery"
+	"repoplane/internal/records"
+	"repoplane/internal/store"
 	"repoplane/internal/workspace"
 )
 
@@ -56,6 +58,9 @@ func TestPublicErrorUsesStableSanitizedCodes(t *testing.T) {
 		{cursor.ErrExpired, "cursor_expired"},
 		{dataquery.ErrSourceChanged, "source_changed"},
 		{fs.ErrNotExist, "source_not_found"},
+		{store.ErrNotFound, "record_not_found"},
+		{store.ErrConflict, "revision_conflict"},
+		{records.ErrReportInvalid, "report_invalid"},
 		{contracts.ErrLimitExceeded, "limit_exceeded"},
 		{errors.New("ref is required"), "invalid_argument"},
 		{errors.New("database exploded at a host path"), "internal_error"},

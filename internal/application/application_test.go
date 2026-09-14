@@ -56,8 +56,11 @@ func TestApplicationExposesCatalogQuery(t *testing.T) {
 		}
 		found[tool.Name] = true
 	}
-	if !found["catalog_query"] || !found["workspace_search"] || !found["path_explain"] || !found["data_query"] {
+	if !found["catalog_query"] || !found["workspace_search"] || !found["path_explain"] || !found["data_query"] || !found["project_records"] {
 		t.Fatalf("expected tools not exposed: %v", found)
+	}
+	if found["checkpoint_write"] || found["memo_write"] || found["check_report_import"] {
+		t.Fatalf("mutation tools exposed without host opt-in: %v", found)
 	}
 	result, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
 		Name: "catalog_query", Arguments: map[string]any{"mode": "search", "query": "test"},
@@ -102,6 +105,52 @@ func TestApplicationExposesCatalogQuery(t *testing.T) {
 	}
 }
 
+func TestApplicationExposesOptInRecordWriters(t *testing.T) {
+	workspace := t.TempDir()
+	app, err := Open(context.Background(), config.Settings{
+		Workspace: workspace, StateDir: t.TempDir(), CatalogRoots: []string{"catalog"},
+		EnableIntentionWrites: true, EnableReportImport: true,
+	}, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = app.Close() })
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := mcpserver.New("test", app.MCPOptions()).Connect(ctx, serverTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer serverSession.Close()
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "test"}, nil)
+	session, err := client.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+	found := map[string]bool{}
+	for tool, err := range session.Tools(ctx, nil) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		found[tool.Name] = true
+	}
+	for _, name := range []string{"project_records", "checkpoint_write", "memo_write", "check_report_import"} {
+		if !found[name] {
+			t.Fatalf("%s not exposed: %v", name, found)
+		}
+	}
+	checkpoint, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "checkpoint_write", Arguments: map[string]any{"mode": "create", "goal": "test records"}})
+	if err != nil || checkpoint.IsError {
+		t.Fatalf("checkpoint write result=%+v error=%v", checkpoint, err)
+	}
+	query, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "project_records", Arguments: map[string]any{"mode": "list", "kind": "checkpoint"}})
+	if err != nil || query.IsError || query.StructuredContent == nil {
+		t.Fatalf("record query result=%+v error=%v", query, err)
+	}
+}
+
 func TestEmptyCatalogAndSearchReturnExactEmptyResults(t *testing.T) {
 	workspace := t.TempDir()
 	app, err := Open(context.Background(), config.Settings{
@@ -133,6 +182,7 @@ func TestEmptyCatalogAndSearchReturnExactEmptyResults(t *testing.T) {
 	}{
 		{name: "catalog_query", arguments: map[string]any{"mode": "list"}},
 		{name: "workspace_search", arguments: map[string]any{"mode": "filename", "pattern": ""}},
+		{name: "project_records", arguments: map[string]any{"mode": "list"}},
 	}
 	for _, request := range requests {
 		result, err := clientSession.CallTool(ctx, &mcp.CallToolParams{Name: request.name, Arguments: request.arguments})
@@ -170,6 +220,23 @@ func TestApplicationRejectsStateInsideWorkspace(t *testing.T) {
 	}, "test")
 	if err == nil || !strings.Contains(err.Error(), "outside the workspace") {
 		t.Fatalf("error=%v, want state boundary rejection", err)
+	}
+}
+
+func TestApplicationCreatesSeparateCacheAndDurableDatabases(t *testing.T) {
+	workspace := t.TempDir()
+	state := t.TempDir()
+	app, err := Open(context.Background(), config.Settings{Workspace: workspace, StateDir: state, CatalogRoots: []string{"catalog"}}, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Close(); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"repoplane.db", "records.db"} {
+		if info, err := os.Stat(filepath.Join(state, name)); err != nil || info.IsDir() {
+			t.Fatalf("%s missing: %v", name, err)
+		}
 	}
 }
 

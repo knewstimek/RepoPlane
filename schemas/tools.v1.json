@@ -358,6 +358,347 @@
       }
     },
     {
+      "name": "check_report_import",
+      "description": "Import a bounded workspace-local check-report.v1 without storing its raw contents.",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "byte_limit": {
+            "description": "maximum report bytes; default and maximum 1048576",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "checklist_path": {
+            "description": "workspace-relative verification-check.v1 YAML or JSON path",
+            "type": "string"
+          },
+          "configuration": {
+            "description": "declared checklist configuration being imported",
+            "type": "string"
+          },
+          "path": {
+            "description": "workspace-relative check-report.v1 path",
+            "type": "string"
+          },
+          "time_limit_ms": {
+            "description": "operation deadline in milliseconds; default 5000, maximum 30000",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "path",
+          "checklist_path",
+          "configuration"
+        ],
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "duplicate": {
+            "type": "boolean"
+          },
+          "record": {
+            "additionalProperties": false,
+            "properties": {
+              "created_at": {
+                "type": "string"
+              },
+              "evidence_refs": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "payload": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "revision": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string"
+              },
+              "supersedes": {
+                "type": "string"
+              },
+              "updated_at": {
+                "type": "string"
+              },
+              "validity": {
+                "type": "string"
+              },
+              "writer_class": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "schema_version",
+              "revision",
+              "source",
+              "writer_class",
+              "validity",
+              "created_at",
+              "updated_at",
+              "payload",
+              "evidence_refs"
+            ],
+            "type": "object"
+          },
+          "status": {
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "required": [
+                "code",
+                "message",
+                "ref"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "record",
+          "duplicate",
+          "warnings"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "checkpoint_write",
+      "description": "Create, update, or supersede a bounded task checkpoint using optimistic concurrency.",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "baseline_commit": {
+            "description": "observed baseline Git commit",
+            "type": "string"
+          },
+          "dirty": {
+            "description": "whether the observed baseline worktree was dirty",
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "evidence_refs": {
+            "description": "bounded evidence refs",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "expected_revision": {
+            "description": "current revision; required for update or supersede",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "goal": {
+            "description": "short task objective",
+            "type": "string"
+          },
+          "id": {
+            "description": "record ID; required for update or supersede",
+            "type": "string"
+          },
+          "mode": {
+            "description": "checkpoint mutation: create, update, or supersede",
+            "type": "string"
+          },
+          "next_action": {
+            "description": "next intended action",
+            "type": "string"
+          },
+          "remaining_checks": {
+            "description": "checks still required",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "risks": {
+            "description": "known unverified risks",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "run_refs": {
+            "description": "related run or report refs",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "duplicate": {
+            "type": "boolean"
+          },
+          "record": {
+            "additionalProperties": false,
+            "properties": {
+              "created_at": {
+                "type": "string"
+              },
+              "evidence_refs": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "payload": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "revision": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string"
+              },
+              "supersedes": {
+                "type": "string"
+              },
+              "updated_at": {
+                "type": "string"
+              },
+              "validity": {
+                "type": "string"
+              },
+              "writer_class": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "schema_version",
+              "revision",
+              "source",
+              "writer_class",
+              "validity",
+              "created_at",
+              "updated_at",
+              "payload",
+              "evidence_refs"
+            ],
+            "type": "object"
+          },
+          "status": {
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "required": [
+                "code",
+                "message",
+                "ref"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "record",
+          "duplicate",
+          "warnings"
+        ],
+        "type": "object"
+      }
+    },
+    {
       "name": "data_query",
       "description": "Read bounded text line/byte ranges or filter and project JSONL records without losing integer precision.",
       "input_schema": {
@@ -646,6 +987,176 @@
           "snapshot_ref",
           "warnings",
           "metadata"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "memo_write",
+      "description": "Create, update, or supersede a bounded decision or failure memo using optimistic concurrency.",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "configuration": {
+            "description": "applicable configuration",
+            "type": "string"
+          },
+          "content": {
+            "description": "bounded memo content",
+            "type": "string"
+          },
+          "evidence_refs": {
+            "description": "bounded evidence refs",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "expected_revision": {
+            "description": "current revision; required for update or supersede",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "id": {
+            "description": "record ID; required for update or supersede",
+            "type": "string"
+          },
+          "invalidation_condition": {
+            "description": "condition that makes the memo stale",
+            "type": "string"
+          },
+          "memo_kind": {
+            "description": "decision, failed_attempt, resolved_failure, or limitation",
+            "type": "string"
+          },
+          "mode": {
+            "description": "memo mutation: create, update, or supersede",
+            "type": "string"
+          },
+          "scope": {
+            "description": "workspace-relative logical scope",
+            "type": "string"
+          },
+          "source": {
+            "description": "user_asserted or llm_proposed",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "duplicate": {
+            "type": "boolean"
+          },
+          "record": {
+            "additionalProperties": false,
+            "properties": {
+              "created_at": {
+                "type": "string"
+              },
+              "evidence_refs": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "payload": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "revision": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string"
+              },
+              "supersedes": {
+                "type": "string"
+              },
+              "updated_at": {
+                "type": "string"
+              },
+              "validity": {
+                "type": "string"
+              },
+              "writer_class": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "schema_version",
+              "revision",
+              "source",
+              "writer_class",
+              "validity",
+              "created_at",
+              "updated_at",
+              "payload",
+              "evidence_refs"
+            ],
+            "type": "object"
+          },
+          "status": {
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "required": [
+                "code",
+                "message",
+                "ref"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "record",
+          "duplicate",
+          "warnings"
         ],
         "type": "object"
       }
@@ -962,6 +1473,237 @@
                 "rules",
                 "basename_candidates",
                 "declared_roles"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "next_cursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "scan": {
+            "additionalProperties": false,
+            "properties": {
+              "scope_ref": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "state": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "state",
+              "scope_ref"
+            ],
+            "type": "object"
+          },
+          "snapshot_ref": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "warnings": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "required": [
+                "code",
+                "message",
+                "ref"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "items",
+          "counts",
+          "scan",
+          "truncated",
+          "next_cursor",
+          "snapshot_ref",
+          "warnings"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "project_records",
+      "description": "Search and read durable verification, checkpoint, and memo records without modifying them.",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "byte_limit": {
+            "description": "maximum response bytes; default 65536, maximum 1048576",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "cursor": {
+            "description": "opaque cursor from an earlier project_records query",
+            "type": "string"
+          },
+          "id": {
+            "description": "opaque record ID; required for get",
+            "type": "string"
+          },
+          "item_limit": {
+            "description": "maximum returned items; default 50, maximum 500",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "kind": {
+            "description": "record kind filter: verification, checkpoint, or memo",
+            "type": "string"
+          },
+          "mode": {
+            "description": "record operation: search, list, or get; omit when using cursor",
+            "type": "string"
+          },
+          "source": {
+            "description": "source filter: imported, user_asserted, or llm_proposed",
+            "type": "string"
+          },
+          "time_limit_ms": {
+            "description": "operation deadline in milliseconds; default 5000, maximum 30000",
+            "type": "integer"
+          },
+          "updated_after": {
+            "description": "RFC3339 lower bound for record update time",
+            "type": "string"
+          },
+          "validity": {
+            "description": "validity filter: current, stale, unknown, or superseded",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "counts": {
+            "additionalProperties": false,
+            "properties": {
+              "matched": {
+                "minimum": 0,
+                "type": [
+                  "null",
+                  "integer"
+                ]
+              },
+              "relation": {
+                "type": "string"
+              },
+              "returned": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "matched",
+              "relation",
+              "returned"
+            ],
+            "type": "object"
+          },
+          "items": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "created_at": {
+                  "type": "string"
+                },
+                "evidence_refs": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": [
+                    "null",
+                    "array"
+                  ]
+                },
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "payload": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "revision": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "schema_version": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string"
+                },
+                "supersedes": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "type": "string"
+                },
+                "validity": {
+                  "type": "string"
+                },
+                "writer_class": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "schema_version",
+                "revision",
+                "source",
+                "writer_class",
+                "validity",
+                "created_at",
+                "updated_at",
+                "payload",
+                "evidence_refs"
               ],
               "type": "object"
             },

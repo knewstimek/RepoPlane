@@ -80,7 +80,7 @@ func TestStdioNegotiationHasNoOutputPollution(t *testing.T) {
 		}
 		found[tool.Name] = true
 	}
-	for _, name := range []string{"catalog_query", "workspace_search", "path_explain", "data_query"} {
+	for _, name := range []string{"catalog_query", "workspace_search", "path_explain", "data_query", "project_records"} {
 		if !found[name] {
 			t.Fatalf("stdio server did not expose %s; tools=%v", name, found)
 		}

@@ -1,0 +1,15 @@
+id: dev.public-release-check
+revision: 1
+summary: Scan the tracked tree and Git history for unreviewed public-release privacy findings
+use_when:
+  - before a public push or release
+tags: [development, security, release]
+execution:
+  kind: cli
+  executable_ref: go
+  cwd: .
+  argv_template: [run, ./cmd/repoplane-dev, public-release-check]
+  trusted_for_run: false
+outputs: [.tmp/reports/public-release-check.json]
+docs: [docs/Public-Release.md, AGENTS.md]
+cache_policy: disabled

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://repoplane.local/schemas/checkpoint.v1.schema.json",
+  "title": "RepoPlane task checkpoint payload",
+  "type": "object",
+  "required": ["goal", "baseline_commit", "dirty", "run_refs", "remaining_checks", "next_action", "risks"],
+  "properties": {
+    "goal": { "type": "string", "maxLength": 32768 },
+    "baseline_commit": { "type": "string", "maxLength": 128 },
+    "dirty": { "type": ["boolean", "null"] },
+    "run_refs": { "type": "array", "maxItems": 128, "items": { "type": "string", "maxLength": 1024 } },
+    "remaining_checks": { "type": "array", "maxItems": 128, "items": { "type": "string", "maxLength": 1024 } },
+    "next_action": { "type": "string", "maxLength": 32768 },
+    "risks": { "type": "array", "maxItems": 128, "items": { "type": "string", "maxLength": 1024 } }
+  },
+  "additionalProperties": false
+}
