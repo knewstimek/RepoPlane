@@ -138,6 +138,15 @@ func TestIndexerAuditsExecutionCandidates(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(rootPath, "tools", "registered.py"), []byte("print('ok')\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(rootPath, "tools", "wrapped.py"), []byte("print('wrapped')\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(rootPath, "scripts", "wrapped.ps1"), []byte("Write-Output wrapped\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(rootPath, "scripts", "dynamic.ps1"), []byte("Write-Output dynamic\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(filepath.Join(rootPath, "scripts", "unregistered.ps1"), []byte("Write-Output ok\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -152,6 +161,47 @@ execution:
   trusted_for_run: false
 `
 	if err := os.WriteFile(filepath.Join(rootPath, "catalog", "registered.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	pythonWrapper := `id: wrapped.python
+revision: 1
+summary: wrapped Python tool
+execution:
+  kind: cli
+  executable_ref: python
+  cwd: tools
+  argv_template: [wrapped.py]
+  trusted_for_run: false
+`
+	if err := os.WriteFile(filepath.Join(rootPath, "catalog", "python-wrapper.yaml"), []byte(pythonWrapper), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	powershellWrapper := `id: wrapped.powershell
+revision: 1
+summary: wrapped PowerShell tool
+execution:
+  kind: cli
+  executable_ref: powershell
+  cwd: repository
+  argv_template: [-File, scripts/wrapped.ps1]
+  trusted_for_run: false
+`
+	if err := os.WriteFile(filepath.Join(rootPath, "catalog", "powershell-wrapper.yaml"), []byte(powershellWrapper), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dynamicWrapper := `id: dynamic.powershell
+revision: 1
+summary: dynamic PowerShell tool
+arguments:
+  script: {type: string, required: true}
+execution:
+  kind: cli
+  executable_ref: powershell
+  cwd: repository
+  argv_template: [-File, "{script}"]
+  trusted_for_run: false
+`
+	if err := os.WriteFile(filepath.Join(rootPath, "catalog", "dynamic-wrapper.yaml"), []byte(dynamicWrapper), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	missing := `id: missing.tool
@@ -179,8 +229,13 @@ execution:
 	for _, issue := range generation.Issues {
 		codes[issue.Code]++
 	}
-	if codes["missing_source"] != 1 || codes["unregistered_candidate"] != 1 {
+	if codes["missing_source"] != 1 || codes["unregistered_candidate"] != 2 {
 		t.Fatalf("unexpected audit issues: %+v", generation.Issues)
+	}
+	for _, item := range generation.Items {
+		if (item.ID == "wrapped.python" || item.ID == "wrapped.powershell") && item.ExecutionFingerprint == "" {
+			t.Fatalf("wrapped script %q was not fingerprinted", item.ID)
+		}
 	}
 }
 

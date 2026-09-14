@@ -149,6 +149,9 @@ MVP에서 지원하지 않는 항목:
 - `unsupported_manifest`
 
 후보는 재사용 가능한 도구로 확정하지 않으며 `basis=heuristic`을 사용한다.
+인터프리터를 `executable_ref`로 사용하는 manifest는 고정 `argv_template`과 `cwd`가 가리키는
+workspace execution candidate도 등록된 source로 인정하고 fingerprint한다. argument placeholder로
+결정되는 동적 경로는 고정 등록으로 간주하지 않는다.
 
 ### 7.2 `path_explain`
 

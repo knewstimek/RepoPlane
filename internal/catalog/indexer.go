@@ -213,6 +213,14 @@ func (i *Indexer) Build(ctx context.Context) (store.CatalogGeneration, error) {
 func (i *Indexer) auditCandidates(ctx context.Context, items []store.CatalogItem) ([]store.CatalogIssue, error) {
 	registered := make(map[string]struct{})
 	issues := make([]store.CatalogIssue, 0)
+	candidates, err := i.candidatePaths(ctx)
+	if err != nil {
+		return nil, err
+	}
+	candidateSet := make(map[string]struct{}, len(candidates))
+	for _, candidate := range candidates {
+		candidateSet[normalizeRelativePath(candidate)] = struct{}{}
+	}
 	current, currentErr := i.repository.CurrentCatalogGeneration(ctx, i.root.ID())
 	if currentErr != nil && !errors.Is(currentErr, store.ErrNotFound) {
 		return nil, currentErr
@@ -223,49 +231,49 @@ func (i *Indexer) auditCandidates(ctx context.Context, items []store.CatalogItem
 		if err := json.Unmarshal(item.Document, &manifest); err != nil {
 			return nil, fmt.Errorf("decode indexed manifest %q: %w", item.ID, err)
 		}
-		if manifest.Execution == nil || !pathLikeExecutableRef(manifest.Execution.ExecutableRef) {
+		if manifest.Execution == nil {
 			continue
 		}
-		path := normalizeRelativePath(manifest.Execution.ExecutableRef)
-		registered[path] = struct{}{}
-		absolute, err := i.root.ResolveExisting(filepath.FromSlash(path))
-		if err != nil {
-			issues = append(issues, textIssue(
-				"missing_source", item.SourceRef,
-				fmt.Sprintf("executable_ref %q does not resolve inside the workspace", manifest.Execution.ExecutableRef),
-			))
-			continue
+		sources := auditExecutionSources(manifest.Execution, candidateSet)
+		fingerprints := make([]executionSourceFingerprint, 0, len(sources))
+		for _, path := range sources {
+			registered[path] = struct{}{}
+			absolute, resolveErr := i.root.ResolveExisting(filepath.FromSlash(path))
+			if resolveErr != nil {
+				issues = append(issues, textIssue(
+					"missing_source", item.SourceRef,
+					fmt.Sprintf("execution source %q does not resolve inside the workspace", path),
+				))
+				continue
+			}
+			file, openErr := os.Open(absolute)
+			if openErr != nil {
+				issues = append(issues, textIssue("needs_review", item.SourceRef, "execution source could not be fingerprinted"))
+				continue
+			}
+			fingerprint, _, hashErr := content.HashBounded(ctx, file, MaxExecutableFingerprintBytes)
+			closeErr := file.Close()
+			if hashErr != nil || closeErr != nil {
+				issues = append(issues, textIssue("needs_review", item.SourceRef, "execution source could not be fingerprinted within the audit limit"))
+				continue
+			}
+			fingerprints = append(fingerprints, executionSourceFingerprint{path: path, fingerprint: fingerprint})
 		}
-		file, err := os.Open(absolute)
-		if err != nil {
-			issues = append(issues, textIssue("needs_review", item.SourceRef, "executable could not be fingerprinted"))
-			continue
-		}
-		fingerprint, _, hashErr := content.HashBounded(ctx, file, MaxExecutableFingerprintBytes)
-		closeErr := file.Close()
-		if hashErr != nil || closeErr != nil {
-			issues = append(issues, textIssue("needs_review", item.SourceRef, "executable could not be fingerprinted within the audit limit"))
-			continue
-		}
-		item.ExecutionFingerprint = fingerprint
+		item.ExecutionFingerprint = combinedExecutionFingerprint(fingerprints)
 		if currentErr == nil {
 			previous, err := i.repository.GetCatalogItem(ctx, i.root.ID(), current.ID, item.ID)
 			if err != nil && !errors.Is(err, store.ErrNotFound) {
 				return nil, err
 			}
-			if err == nil && previous.Revision == item.Revision && previous.ExecutionFingerprint != "" && previous.ExecutionFingerprint != fingerprint {
+			if err == nil && previous.Revision == item.Revision && previous.ExecutionFingerprint != "" && previous.ExecutionFingerprint != item.ExecutionFingerprint {
 				issues = append(issues, textIssue(
 					"needs_review", item.SourceRef,
-					"executable changed without a catalog revision change",
+					"execution source changed without a catalog revision change",
 				))
 			}
 		}
 	}
 
-	candidates, err := i.candidatePaths(ctx)
-	if err != nil {
-		return nil, err
-	}
 	for _, candidate := range candidates {
 		if _, ok := registered[normalizeRelativePath(candidate)]; ok {
 			continue
@@ -279,6 +287,59 @@ func (i *Indexer) auditCandidates(ctx context.Context, items []store.CatalogItem
 		})
 	}
 	return issues, nil
+}
+
+func auditExecutionSources(execution *Execution, candidates map[string]struct{}) []string {
+	seen := make(map[string]struct{})
+	if pathLikeExecutableRef(execution.ExecutableRef) {
+		seen[normalizeRelativePath(execution.ExecutableRef)] = struct{}{}
+	}
+	cwd := execution.CWD
+	if cwd == "" || cwd == "." || cwd == "repository" {
+		cwd = "."
+	}
+	if !filepath.IsAbs(cwd) {
+		for _, argument := range execution.ArgvTemplate {
+			if filepath.IsAbs(argument) || strings.ContainsAny(argument, "{}") {
+				continue
+			}
+			path := normalizeRelativePath(filepath.Join(filepath.FromSlash(cwd), filepath.FromSlash(argument)))
+			if path == ".." || strings.HasPrefix(path, "../") {
+				continue
+			}
+			if _, candidate := candidates[path]; candidate {
+				seen[path] = struct{}{}
+			}
+		}
+	}
+	paths := make([]string, 0, len(seen))
+	for path := range seen {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+type executionSourceFingerprint struct {
+	path        string
+	fingerprint string
+}
+
+func combinedExecutionFingerprint(fingerprints []executionSourceFingerprint) string {
+	if len(fingerprints) == 0 {
+		return ""
+	}
+	if len(fingerprints) == 1 {
+		return fingerprints[0].fingerprint
+	}
+	hasher := sha256.New()
+	for _, source := range fingerprints {
+		_, _ = hasher.Write([]byte(source.path))
+		_, _ = hasher.Write([]byte{0})
+		_, _ = hasher.Write([]byte(source.fingerprint))
+		_, _ = hasher.Write([]byte{0})
+	}
+	return "sha256:" + hex.EncodeToString(hasher.Sum(nil))
 }
 
 func (i *Indexer) candidatePaths(ctx context.Context) ([]string, error) {
