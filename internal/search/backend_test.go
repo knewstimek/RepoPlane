@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"repoplane/internal/textcodec"
+	"repoplane/internal/workspace"
 )
 
 func newRGTestBackend(t *testing.T) *RGBackend {
@@ -22,9 +23,14 @@ func newRGTestBackend(t *testing.T) *RGBackend {
 func TestAdapterBackendSymbolAndGitHistory(t *testing.T) {
 	root := t.TempDir()
 	writeSearchFile(t, root, "symbols.jsonl", `{"_type":"tag","name":"FindThing","kind":"function","language":"Go","path":"main.go","line":7}`+"\n")
+	workspaceRoot, err := workspace.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolvedRoot := workspaceRoot.Resolved()
 	base := newRGTestBackend(t)
-	backend := NewAdapterBackend(context.Background(), base, root, []string{"symbols.jsonl"})
-	symbols, err := backend.Search(context.Background(), BackendQuery{Mode: "symbol", Pattern: "Find", Directory: root})
+	backend := NewAdapterBackend(context.Background(), base, resolvedRoot, []string{"symbols.jsonl"})
+	symbols, err := backend.Search(context.Background(), BackendQuery{Mode: "symbol", Pattern: "Find", Directory: resolvedRoot})
 	if err != nil || len(symbols.Matches) != 1 || symbols.Matches[0].Channel != "prefix" || symbols.Matches[0].Validity != "unknown" {
 		t.Fatalf("symbols=%+v err=%v", symbols, err)
 	}
@@ -34,7 +40,7 @@ func TestAdapterBackendSymbolAndGitHistory(t *testing.T) {
 	}
 	run := func(args ...string) {
 		command := exec.Command(git, args...)
-		command.Dir = root
+		command.Dir = resolvedRoot
 		command.Env = append(os.Environ(), "GIT_AUTHOR_NAME=Example", "GIT_AUTHOR_EMAIL=example@example.invalid", "GIT_COMMITTER_NAME=Example", "GIT_COMMITTER_EMAIL=example@example.invalid")
 		if output, err := command.CombinedOutput(); err != nil {
 			t.Fatalf("git %v: %v %s", args, err, output)
@@ -47,19 +53,19 @@ func TestAdapterBackendSymbolAndGitHistory(t *testing.T) {
 	writeSearchFile(t, root, "sub/nested.go", "package sub\n")
 	run("add", "sub/nested.go")
 	run("commit", "-q", "-m", "add nested file")
-	history, err := backend.Search(context.Background(), BackendQuery{Mode: "git_history", Pattern: "searchable", MatchKind: "commit", Directory: root, CaseSensitive: false})
+	history, err := backend.Search(context.Background(), BackendQuery{Mode: "git_history", Pattern: "searchable", MatchKind: "commit", Directory: resolvedRoot, CaseSensitive: false})
 	if err != nil || len(history.Matches) != 1 || history.Matches[0].Channel != "commit" {
 		t.Fatalf("history=%+v err=%v", history, err)
 	}
-	paths, err := backend.Search(context.Background(), BackendQuery{Mode: "git_history", Pattern: "main.go", MatchKind: "path", Directory: root, CaseSensitive: true})
+	paths, err := backend.Search(context.Background(), BackendQuery{Mode: "git_history", Pattern: "main.go", MatchKind: "path", Directory: resolvedRoot, CaseSensitive: true})
 	if err != nil || len(paths.Matches) != 1 || paths.Matches[0].Path != "main.go" {
 		t.Fatalf("paths=%+v err=%v", paths, err)
 	}
-	diffs, err := backend.Search(context.Background(), BackendQuery{Mode: "git_history", Pattern: "history needle", MatchKind: "diff", Directory: root, CaseSensitive: true})
+	diffs, err := backend.Search(context.Background(), BackendQuery{Mode: "git_history", Pattern: "history needle", MatchKind: "diff", Directory: resolvedRoot, CaseSensitive: true})
 	if err != nil || len(diffs.Matches) != 1 || diffs.Matches[0].Channel != "diff" {
 		t.Fatalf("diffs=%+v err=%v", diffs, err)
 	}
-	nested, err := backend.Search(context.Background(), BackendQuery{Mode: "git_history", Pattern: "nested.go", MatchKind: "path", Directory: filepath.Join(root, "sub"), CaseSensitive: true})
+	nested, err := backend.Search(context.Background(), BackendQuery{Mode: "git_history", Pattern: "nested.go", MatchKind: "path", Directory: filepath.Join(resolvedRoot, "sub"), CaseSensitive: true})
 	if err != nil || len(nested.Matches) != 1 || nested.Matches[0].Path != "nested.go" {
 		t.Fatalf("nested=%+v err=%v", nested, err)
 	}
