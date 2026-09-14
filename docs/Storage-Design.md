@@ -1,6 +1,6 @@
 # RepoPlane 저장 구조와 persistence interface
 
-상태: Implemented 0.2
+상태: Implemented 0.3
 
 ## 1. 저장 계층
 
@@ -9,9 +9,9 @@ RepoPlane은 세 종류의 데이터를 구분한다.
 | 종류 | 저장소 | 성격 |
 |---|---|---|
 | catalog/check 선언 | workspace 일반 파일 | 사용자가 관리하는 원본 |
-| 검색 색인·고정 결과·cursor | SQLite | 삭제 후 재생성 가능한 cache |
+| 검색 색인·고정 결과·Runner cache entry | SQLite | 삭제 후 재생성 가능한 cache |
 | verification/checkpoint/memo | 별도 `records.db` | 정책에 따라 보존하는 durable record |
-| 향후 run/artifact | durable SQLite + blob directory | Runner/Artifact 명세에서 결정 |
+| run/artifact | durable SQLite + content-addressed blob directory | 실행·재사용 evidence |
 
 SQLite 파일과 임시 파일은 workspace 안에 숨겨서 만들지 않고 호스트가 지정한 로컬
 data directory에 둔다. `repoplane.db`는 재생성 가능하고 `records.db`는 그렇지 않다.
@@ -68,6 +68,7 @@ catalog_items(generation_id, id, revision, source_ref, execution_fingerprint, do
 catalog_terms(generation_id, item_id, field, term, weight)
 result_sets(id, workspace_id, query_hash, generation_id, created_at, expires_at, item_count, metadata_json)
 result_items(result_set_id, ordinal, item_ref, item_hash, payload_json)
+cache_entries(cache_key, workspace_id, capability, state, source_run_ref, outputs_json, qualification_refs_json, timestamps, counts)
 ```
 
 `schema_migrations`는 순차 migration을 기록한다. 현재 SQLite adapter는 기존
@@ -83,6 +84,10 @@ pre-release result-set shape를 보정하고, 지원 버전보다 새로운 DB�
   파서 자체가 실패하면 이전 current generation을 유지한다.
 - pagination은 mutable query 재실행이 아니라 `result_items.ordinal`을 읽는다.
 - 만료 결과 정리는 요청 처리와 분리하고 bounded batch로 수행한다.
+- cache observation publish는 같은 key/output을 한 entry로 수렴시키고 다른 output은 같은
+  transaction에서 `quarantined`로 바꾼다.
+- active cache output hash는 artifact retention의 pin이며 cache entry 만료 정리는 한 번에
+  최대 64개다.
 
 ## 5. Ref 형식
 
@@ -115,7 +120,7 @@ payload는 호스트 local secret으로 인증한다. secret 값은 workspace, D
 - expected revision이 필요한 durable record는 compare-and-swap 조건을 사용한다.
 - 프로세스 crash 뒤 `building` generation은 current가 될 수 없다.
 - DB corruption 또는 schema incompatibility를 빈 검색 결과로 바꾸지 않는다.
-- 재생성 가능한 cache와 향후 durable record는 파일 또는 DB를 분리해 복구 경계를
+- 재생성 가능한 cache와 durable record는 파일 또는 DB를 분리해 복구 경계를
   명확히 한다.
 
 ## 8. Adapter conformance test

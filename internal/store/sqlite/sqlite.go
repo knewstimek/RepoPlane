@@ -38,7 +38,7 @@ func Open(ctx context.Context, path string) (*Repository, error) {
 
 func (r *Repository) Close() error { return r.db.Close() }
 
-const currentSchemaVersion = 2
+const currentSchemaVersion = 3
 
 func (r *Repository) initialize(ctx context.Context) (err error) {
 	for _, statement := range []string{`PRAGMA foreign_keys = ON`, `PRAGMA busy_timeout = 5000`} {
@@ -82,6 +82,14 @@ func (r *Repository) initialize(ctx context.Context) (err error) {
 		}
 		if _, err = tx.ExecContext(ctx, `INSERT INTO schema_migrations(version, applied_at) VALUES (2, ?)`, time.Now().UTC().UnixNano()); err != nil {
 			return fmt.Errorf("record sqlite migration 2: %w", err)
+		}
+	}
+	if version < 3 {
+		if err = migrateV3(ctx, tx); err != nil {
+			return err
+		}
+		if _, err = tx.ExecContext(ctx, `INSERT INTO schema_migrations(version, applied_at) VALUES (3, ?)`, time.Now().UTC().UnixNano()); err != nil {
+			return fmt.Errorf("record sqlite migration 3: %w", err)
 		}
 	}
 	if err = tx.Commit(); err != nil {
@@ -212,6 +220,36 @@ func migrateV2(ctx context.Context, tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, `ALTER TABLE catalog_items ADD COLUMN execution_fingerprint TEXT NOT NULL DEFAULT ''`); err != nil {
 			return fmt.Errorf("add catalog_items.execution_fingerprint: %w", err)
 		}
+	}
+	return nil
+}
+
+func migrateV3(ctx context.Context, tx *sql.Tx) error {
+	_, err := tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS cache_entries (
+        cache_key TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        capability_id TEXT NOT NULL,
+        capability_revision TEXT NOT NULL,
+        configuration TEXT NOT NULL,
+        state TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        source_run_ref TEXT NOT NULL,
+        outputs_json BLOB NOT NULL,
+        qualification_refs_json BLOB NOT NULL,
+        created_at INTEGER NOT NULL,
+        observed_at INTEGER NOT NULL,
+        last_used_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL,
+        observation_count INTEGER NOT NULL,
+        hit_count INTEGER NOT NULL,
+        PRIMARY KEY (project_id, workspace_id, cache_key)
+    )`)
+	if err != nil {
+		return fmt.Errorf("apply sqlite migration 3: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS cache_entries_expiry ON cache_entries(project_id, workspace_id, expires_at, cache_key)`); err != nil {
+		return fmt.Errorf("index cache entry expiry: %w", err)
 	}
 	return nil
 }

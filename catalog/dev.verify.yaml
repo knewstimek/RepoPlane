@@ -1,5 +1,5 @@
 id: dev.verify
-revision: 2
+revision: 3
 summary: Run bounded schema, test, vet, and build checks and write check-report.v1
 use_when:
   - before completing an implementation change
@@ -17,8 +17,8 @@ execution:
     - {id: go.version, kind: executable, ref: go, requirement: required, argv: [version]}
     - {id: git.repository, kind: git, requirement: required}
     - {id: rg.version, kind: executable, ref: rg, requirement: required, argv: [--version]}
-inputs: [go.mod, go.sum, "**/*.go", "schemas/**", "catalog/**", "checks/**"]
+inputs: [go.mod, go.sum, "cmd/**/*.go", "internal/**/*.go", "schemas/**", "catalog/**", "checks/**"]
 outputs: [.tmp/reports/verify.json]
 checks: [repository.verify]
-docs: [docs/Full-Implementation-Roadmap.md, docs/Records-Spec.md, docs/Runner-Spec.md]
+docs: [docs/Full-Implementation-Roadmap.md, docs/Records-Spec.md, docs/Runner-Spec.md, docs/Cache-Spec.md]
 cache_policy: disabled

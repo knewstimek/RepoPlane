@@ -1,6 +1,6 @@
 # RepoPlane Artifact and Run Receipt Specification
 
-상태: Accepted 1.0
+상태: Accepted 1.1
 
 ## 1. 실행 영수증
 
@@ -21,7 +21,7 @@ additive하게 유지한다. 서버 시작 시 종료되지 않은 `running` rec
   artifact directory에 저장한다. 초과분은 버리고 `truncated=true`를 기록한다.
 - MCP 응답은 요청된 bounded range만 반환한다. raw stream을 record payload에 넣지 않는다.
 - 선언 output은 실행 전후 존재와 content hash를 snapshot하고, 변경 artifact에는 크기를
-  기록한다.
+  기록한다. cache 관찰 대상은 동일 output도 capture하여 on/off 비교 증거를 보존한다.
 - 기본 artifact mode는 `metadata`: byte를 복제하지 않는다.
 - manifest가 `capture`를 선언한 output만 content-addressed storage에 복제한다. 기본
   artifact당 64 MiB, run당 512 MiB 한도를 적용하고 초과는 partial로 기록한다.
@@ -40,6 +40,9 @@ verification 또는 다른 current non-server record가 evidence/run ref로 참�
 artifact는 자동 정리하지 않는다. server가 만든 순환 provenance ref만으로 stream 수명을
 무한 연장하지 않는다. 정리는 한 번에 최대 64개만 처리하고 실패해도 실행 결과를
 실패로 바꾸지 않는다. redacted/삭제/미보존/부분 보존을 서로 다른 상태로 기록한다.
+active cache entry가 참조하는 content hash도 pin이며 entry 만료 전에는 blob을 정리하지
+않는다. 재사용 run은 새 artifact record를 만들고 `basis=reused`,
+`writer_attribution=cache`, source artifact evidence를 기록한다.
 
 ## 3. 완료 조건
 

@@ -1,6 +1,6 @@
 # RepoPlane Environment Preflight Specification
 
-상태: Accepted 1.0
+상태: Accepted 1.1
 
 ## 1. 목적과 표면
 
@@ -27,6 +27,9 @@ preflight를 수행해 environment record와 plan에 연결하고, 과거 결과
 `failed`/`missing`/`unknown`만 plan을 실행 불가로 만든다. 나머지는 경고로 보존하며
 `run_execute`가 별도 override token을 요구하지 않는다. 알 수 없는 executable에
 관습적인 `--version`을 추측하지 않고 manifest가 명시한 argv만 실행한다.
+version argv가 있으면 identity는 실행 파일 hash와 bounded probe output을 함께 hash한 값이다.
+따라서 사람이 읽는 요약을 key에 넣거나 원문을 노출하지 않으면서 runtime 변화가 cache
+key와 execute 재검사에 반영된다.
 
 검사와 응답은 개수, 시간, 출력 byte가 제한된다. probe stdout/stderr는 bounded 한 줄
 요약만 저장하고 host 절대 경로, 환경 값, credential, 원시 진단은 record에 저장하지

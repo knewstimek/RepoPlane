@@ -1,6 +1,6 @@
 # RepoPlane Runner Specification
 
-상태: Accepted 1.0
+상태: Accepted 1.1
 
 ## 1. 범위와 권한
 
@@ -15,15 +15,23 @@ tool을 노출한다. 이 host opt-in과 MCP client의 tool 승인이 실행 권
 `run_prepare`는 capability ID/revision, typed arguments와 configuration을 받아 manifest를
 새로 읽고 argument schema를 검증한다. 실제 argv/cwd, executable identity, 선언
 input/output, preflight 결과, fan-out과 한도를 고정한 durable plan을 만든다.
+optional `cache_mode=auto|bypass`를 받으며 cache policy, eligibility, key 존재 여부, hit/miss와
+안정적인 reason을 같은 plan에 기록한다.
 
 `run_execute`는 plan ID를 받아 manifest revision, executable identity와 선언 input만
 재검사한다. 관련 없는 worktree 변경은 차단하지 않는다. plan은 한 번만 실행할 수 있고
 실행은 background에서 진행된다. 변경 command는 자동 재시도하지 않는다.
+검증된 cache hit이면 dependency와 qualification 및 blob hash를 다시 확인한 뒤 subprocess
+없이 output을 materialize하고 state `reused`로 끝낸다. 복원 전 durable
+`materializing` 상태를 기록하고 restart 시 성공으로 추측하지 않는다. miss나 cache 거절은 기존 background
+실행 경로를 그대로 사용한다.
 
 `run_inspect`는 `status`, `stdout`, `stderr`, `artifact`, `cancel` action을 제공한다.
 stream과 retained artifact 조회는 offset/byte limit을 사용한다. artifact는 같은
 workspace/run의 record ref만 허용하고 조회할 때 content hash를 다시 검증한다. cancel은
 해당 run을 시작할 권한과 같은 host capability에 속한다.
+reused run은 source run/artifact와 materialization 상태를 보여주며 실행되지 않은 stdout과
+stderr를 `expired`로 명시한다.
 
 ## 3. 실행 호환성
 
@@ -47,4 +55,5 @@ failure로 처리하고 CPU/memory/network 격리를 제공했다고 추측하�
   실제 subprocess test로 고정한다.
 - prepare 이후 manifest/executable/input 변경과 중복 execute를 거부한다.
 - 실패와 중단도 조회 가능한 receipt가 되며 MCP stdout은 protocol frame만 포함한다.
-- cache lookup/reuse, 임의 shell, network transport는 포함하지 않는다.
+- cache는 [Cache-Spec.md](Cache-Spec.md)의 별도 opt-in과 qualification gate를 지키며 Runner
+  세 tool 안에만 존재한다. 임의 shell과 network transport는 포함하지 않는다.

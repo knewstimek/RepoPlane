@@ -26,6 +26,190 @@ func (resolver fixedResolver) ResolveCapability(context.Context, string) (catalo
 	return resolver.capability, nil
 }
 
+type fixedQualifications struct {
+	refs    []string
+	current bool
+}
+
+func (q fixedQualifications) ResolveCacheQualifications(context.Context, string, string, []string) ([]string, bool, error) {
+	return append([]string(nil), q.refs...), q.current, nil
+}
+
+func TestVerifiedCacheMissThenReuseAndConflict(t *testing.T) {
+	manifest := cacheTestManifest("verified")
+	service, cleanup := newCacheTestService(t, manifest, fixedQualifications{refs: []string{"record:verification_current"}, current: true})
+	defer cleanup()
+	t.Setenv("REPOPLANE_RUNNER_HELPER", "1")
+	t.Setenv("REPOPLANE_RUNNER_OUTPUT", "1")
+
+	first, err := service.Prepare(context.Background(), PrepareRequest{CapabilityID: manifest.ID, CapabilityRevision: "1"})
+	if err != nil || first.Plan.Cache.Status != "miss" || !first.Plan.Cache.Eligible {
+		t.Fatalf("first prepare=%+v err=%v", first.Plan.Cache, err)
+	}
+	executed, err := service.Execute(context.Background(), ExecuteRequest{PlanID: first.Plan.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	completed := awaitTerminal(t, service, executed.RunID)
+	if completed.Run["cache"].(map[string]any)["status"] != "observed" {
+		t.Fatalf("cache observation missing: %+v", completed.Run["cache"])
+	}
+	want, err := os.ReadFile(filepath.Join(service.root.Resolved(), "out.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(service.root.Resolved(), "out.txt")); err != nil {
+		t.Fatal(err)
+	}
+	second, err := service.Prepare(context.Background(), PrepareRequest{CapabilityID: manifest.ID, CapabilityRevision: "1"})
+	if err != nil || second.Plan.Cache.Status != "hit" {
+		t.Fatalf("second prepare=%+v err=%v", second.Plan.Cache, err)
+	}
+	reused, err := service.Execute(context.Background(), ExecuteRequest{PlanID: second.Plan.ID})
+	if err != nil || reused.State != "reused" {
+		t.Fatalf("reuse=%+v err=%v", reused, err)
+	}
+	got, err := os.ReadFile(filepath.Join(service.root.Resolved(), "out.txt"))
+	if err != nil || string(got) != string(want) {
+		t.Fatalf("materialized=%q err=%v want=%q", got, err, want)
+	}
+
+	third, err := service.Prepare(context.Background(), PrepareRequest{CapabilityID: manifest.ID, CapabilityRevision: "1"})
+	if err != nil || third.Plan.Cache.Status != "hit" {
+		t.Fatalf("third prepare=%+v err=%v", third.Plan.Cache, err)
+	}
+	if err := os.WriteFile(filepath.Join(service.root.Resolved(), "out.txt"), []byte("local change"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Execute(context.Background(), ExecuteRequest{PlanID: third.Plan.ID}); !errors.Is(err, ErrPlanStale) {
+		t.Fatalf("conflicting output error=%v, want ErrPlanStale", err)
+	}
+	unchanged, _ := os.ReadFile(filepath.Join(service.root.Resolved(), "out.txt"))
+	if string(unchanged) != "local change" {
+		t.Fatalf("conflicting output was overwritten: %q", unchanged)
+	}
+}
+
+func TestCacheBypassAndQualificationFailureStillExecute(t *testing.T) {
+	manifest := cacheTestManifest("verified")
+	service, cleanup := newCacheTestService(t, manifest, fixedQualifications{current: false})
+	defer cleanup()
+	t.Setenv("REPOPLANE_RUNNER_HELPER", "1")
+	t.Setenv("REPOPLANE_RUNNER_OUTPUT", "1")
+	prepared, err := service.Prepare(context.Background(), PrepareRequest{CapabilityID: manifest.ID, CapabilityRevision: "1", CacheMode: "bypass"})
+	if err != nil || prepared.Plan.Cache.Reason != "qualification_not_current" || prepared.Plan.Cache.Eligible {
+		t.Fatalf("prepare cache=%+v err=%v", prepared.Plan.Cache, err)
+	}
+	executed, err := service.Execute(context.Background(), ExecuteRequest{PlanID: prepared.Plan.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if terminal := awaitTerminal(t, service, executed.RunID); terminal.Run["state"] != "completed" {
+		t.Fatalf("normal execution did not complete: %+v", terminal.Run)
+	}
+}
+
+func TestCacheBypassSkipsHitAndCorruptBlobIsQuarantined(t *testing.T) {
+	manifest := cacheTestManifest("verified")
+	service, cleanup := newCacheTestService(t, manifest, fixedQualifications{refs: []string{"record:verification_current"}, current: true})
+	defer cleanup()
+	t.Setenv("REPOPLANE_RUNNER_HELPER", "1")
+	t.Setenv("REPOPLANE_RUNNER_OUTPUT", "1")
+	first, err := service.Prepare(context.Background(), PrepareRequest{CapabilityID: manifest.ID, CapabilityRevision: "1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	executed, err := service.Execute(context.Background(), ExecuteRequest{PlanID: first.Plan.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = awaitTerminal(t, service, executed.RunID)
+
+	bypassed, err := service.Prepare(context.Background(), PrepareRequest{CapabilityID: manifest.ID, CapabilityRevision: "1", CacheMode: "bypass"})
+	if err != nil || bypassed.Plan.Cache.Status != "bypassed" {
+		t.Fatalf("bypass=%+v err=%v", bypassed.Plan.Cache, err)
+	}
+	bypassRun, err := service.Execute(context.Background(), ExecuteRequest{PlanID: bypassed.Plan.ID})
+	if err != nil || bypassRun.State != "running" {
+		t.Fatalf("bypass execution=%+v err=%v", bypassRun, err)
+	}
+	_ = awaitTerminal(t, service, bypassRun.RunID)
+
+	entry, err := service.cache.GetCacheEntry(context.Background(), service.projectID, service.workspaceID, first.Plan.Cache.Key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	blob := filepath.Join(service.stateDir, "artifacts", "blobs", strings.TrimPrefix(entry.Outputs[0].ContentHash, "sha256:"))
+	if err := os.WriteFile(blob, []byte("corrupt"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := service.Prepare(context.Background(), PrepareRequest{CapabilityID: manifest.ID, CapabilityRevision: "1"})
+	if err != nil || prepared.Plan.Cache.Status != "quarantined" || prepared.Plan.Cache.Reason != "artifact_unavailable" {
+		t.Fatalf("corrupt prepare=%+v err=%v", prepared.Plan.Cache, err)
+	}
+}
+
+func TestCacheKeyPreservesArgvOrderAndConfiguration(t *testing.T) {
+	manifest := cacheTestManifest("observe")
+	capability := catalog.Capability{Manifest: manifest, Revision: "1", ExecutionFingerprint: "sha256:manifest"}
+	secret := []byte("01234567890123456789012345678901")
+	base, err := makeCacheKey(secret, capability, "default", []string{"a", "b"}, map[string]string{"in": "sha256:x"}, map[string]string{"runtime": "sha256:y"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ordered, _ := makeCacheKey(secret, capability, "default", []string{"b", "a"}, map[string]string{"in": "sha256:x"}, map[string]string{"runtime": "sha256:y"})
+	configured, _ := makeCacheKey(secret, capability, "release", []string{"a", "b"}, map[string]string{"in": "sha256:x"}, map[string]string{"runtime": "sha256:y"})
+	inputChanged, _ := makeCacheKey(secret, capability, "default", []string{"a", "b"}, map[string]string{"in": "sha256:z"}, map[string]string{"runtime": "sha256:y"})
+	runtimeChanged, _ := makeCacheKey(secret, capability, "default", []string{"a", "b"}, map[string]string{"in": "sha256:x"}, map[string]string{"runtime": "sha256:z"})
+	if base == ordered || base == configured || base == inputChanged || base == runtimeChanged {
+		t.Fatal("cache key lost argv, configuration, input, or runtime identity")
+	}
+}
+
+func TestExecutableProbeOutputContributesToIdentity(t *testing.T) {
+	service, _, cleanup := newTestService(t, testManifest())
+	defer cleanup()
+	declaration := catalog.PreflightCheck{ID: "runtime.version", Kind: "executable", Ref: helperRelativePath(), Requirement: "required", Argv: []string{"version"}}
+	t.Setenv("REPOPLANE_WRAPPER_ARG", "runtime-one")
+	first := service.runPreflightCheck(context.Background(), declaration)
+	t.Setenv("REPOPLANE_WRAPPER_ARG", "runtime-two")
+	second := service.runPreflightCheck(context.Background(), declaration)
+	if first.Status != "passed" || second.Status != "passed" || first.Identity == second.Identity {
+		t.Fatalf("first=%+v second=%+v", first, second)
+	}
+}
+
+func TestIsolatedRootMaterializationReplacesWholeTree(t *testing.T) {
+	service, _, cleanup := newTestService(t, testManifest())
+	defer cleanup()
+	source := filepath.Join(service.root.Resolved(), "cached.txt")
+	if err := os.WriteFile(source, []byte("cached"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	identity, err := hashFile(context.Background(), source, 1024)
+	if err != nil || service.captureBlob(source, identity) != nil {
+		t.Fatalf("capture identity=%q err=%v", identity, err)
+	}
+	root := filepath.Join(service.root.Resolved(), "dist")
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "old.txt"), []byte("old"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	outputs := []store.CacheOutput{{Path: "dist/nested/out.txt", ContentHash: identity, Size: 6, ArtifactRef: "record:artifact_source"}}
+	if err := service.materializeIsolatedRoot(context.Background(), "dist", outputs); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "old.txt")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("old isolated output remains: %v", err)
+	}
+	got, err := os.ReadFile(filepath.Join(root, "nested", "out.txt"))
+	if err != nil || string(got) != "cached" {
+		t.Fatalf("materialized=%q err=%v", got, err)
+	}
+}
+
 func TestPrepareExecuteInspectAndCapture(t *testing.T) {
 	service, records, cleanup := newTestService(t, catalog.Manifest{
 		ID: "test.run", Revision: 1, Summary: "runner integration",
@@ -370,10 +554,51 @@ func newTestService(t *testing.T, manifest catalog.Manifest) (*Service, *storesq
 		t.Fatal(err)
 	}
 	capability := catalog.Capability{Manifest: manifest, Revision: "1", SourceRef: "source:test", ExecutionFingerprint: "sha256:manifest", GenerationID: "test"}
-	service := NewService(root, fixedResolver{capability: capability}, records, stateDirectory)
+	service := NewService(root, fixedResolver{capability: capability}, records, nil, nil, stateDirectory, nil)
 	return service, records, func() {
 		_ = service.Close()
 		_ = records.Close()
+	}
+}
+
+func cacheTestManifest(policy string) catalog.Manifest {
+	return catalog.Manifest{
+		ID: "test.cache", Revision: 1, Summary: "pure cache fixture",
+		Execution: &catalog.Execution{Kind: "cli", ExecutableRef: helperRelativePath(), CWD: ".", TrustedForRun: true, TimeoutSec: 5, ArtifactMode: "capture", Preflight: []catalog.PreflightCheck{{ID: "runtime.version", Kind: "executable", Ref: "go", Requirement: "required", Argv: []string{"version"}}}},
+		Inputs:    []string{"input.txt"}, Outputs: []string{"out.txt"}, CachePolicy: policy,
+		Cache: &catalog.Cache{ContractRevision: 1, OutputContract: "test-output.v1", KeyChecks: []string{"runtime.version"}, QualificationChecks: []string{"cache.test.differential"}, RestorePolicy: "missing_or_matching", Assumptions: catalog.CacheAssumptions{InputsComplete: true, OutputsComplete: true, ExternalState: "none", Nondeterminism: "none", SideEffects: "declared_outputs_only"}},
+	}
+}
+
+func newCacheTestService(t *testing.T, manifest catalog.Manifest, qualifications qualificationResolver) (*Service, func()) {
+	t.Helper()
+	workspaceDirectory := t.TempDir()
+	stateDirectory := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(workspaceDirectory, "tools"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	writePlatformHelper(t, filepath.Join(workspaceDirectory, filepath.FromSlash(helperRelativePath())))
+	if err := os.WriteFile(filepath.Join(workspaceDirectory, "input.txt"), []byte("input"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	root, err := workspace.Open(workspaceDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	records, err := storesqlite.OpenRecords(context.Background(), filepath.Join(stateDirectory, "records.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cache, err := storesqlite.Open(context.Background(), filepath.Join(stateDirectory, "repoplane.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	capability := catalog.Capability{Manifest: manifest, Revision: "1", SourceRef: "source:test", ExecutionFingerprint: "sha256:manifest", GenerationID: "test"}
+	service := NewService(root, fixedResolver{capability: capability}, records, cache, qualifications, stateDirectory, []byte("01234567890123456789012345678901"))
+	return service, func() {
+		_ = service.Close()
+		_ = records.Close()
+		_ = cache.Close()
 	}
 }
 

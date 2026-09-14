@@ -26,8 +26,9 @@ guess where they are or read far too much to find them. RepoPlane provides five 
 
 RepoPlane does not execute catalog entries by default. Hosts may separately opt into
 `checkpoint_write`/`memo_write`, `check_report_import`, and the registered-capability Runner. The
-Runner adds exactly `run_prepare`, `run_execute`, and `run_inspect`; arbitrary commands and cache
-reuse remain out of scope.
+Runner adds exactly `run_prepare`, `run_execute`, and `run_inspect`; arbitrary commands remain out
+of scope. A separate host opt-in enables qualified cache observation and reuse inside those same
+three tools without adding a gateway or another MCP tool.
 
 ## Highlights
 
@@ -46,6 +47,8 @@ reuse remain out of scope.
 - Capability-scoped environment preflight with secret values withheld
 - Durable run receipts and bounded stdout, stderr, and captured-artifact inspection
 - Prepare/execute revalidation that ignores unrelated worktree changes
+- HMAC-keyed, qualification-gated cache reuse with observe, bypass, conflict, corruption, and
+  false-hit quarantine states
 
 ## Requirements
 
@@ -111,6 +114,7 @@ args = [
   "--enable-intention-writes",
   "--enable-report-import",
   "--enable-runner",
+  "--enable-cache",
 ]
 ```
 
@@ -129,6 +133,7 @@ Available flags:
 --enable-intention-writes  expose checkpoint_write and memo_write; default: false
 --enable-report-import     expose check_report_import; default: false
 --enable-runner          expose run_prepare, run_execute, and run_inspect; default: false
+--enable-cache           allow qualified Runner cache observation and reuse; requires Runner
 ```
 
 MCP frames are the only data written to stdout. Startup failures and diagnostics go to stderr.
@@ -192,6 +197,30 @@ Call `catalog_query(mode=get)` to obtain the current capability revision, then
 `run_inspect` for status, cancellation, bounded stdout/stderr ranges, or a retained artifact ref.
 Preflight runs during prepare—there is intentionally no fourth environment execution tool.
 
+Pure, side-effect-free transforms may opt into observation first. The full inputs, outputs,
+runtime identity and purity assumptions are explicit; ordinary build/test capabilities should use
+their native build cache and remain disabled unless they pass a differential qualification check:
+
+```yaml
+cache_policy: observe
+cache:
+  contract_revision: 1
+  output_contract: schema-output.v1
+  key_checks: [runtime.version]
+  qualification_checks: [cache.schema-output.differential]
+  restore_policy: missing_or_matching
+  assumptions:
+    inputs_complete: true
+    outputs_complete: true
+    external_state: none
+    nondeterminism: none
+    side_effects: declared_outputs_only
+```
+
+Use `cache_mode: bypass` in `run_prepare` to force the normal process path for cache on/off
+comparisons. `verified` policy additionally requires a current passed verification record for each
+qualification check. A miss or rejected cache never blocks the otherwise valid Runner execution.
+
 ## Response semantics
 
 List and search responses use one common envelope:
@@ -216,8 +245,8 @@ ordered result set; `data_query` additionally rechecks the source hash between p
 
 ## Local state and removal
 
-RepoPlane stores a regenerable SQLite index, a separate durable `records.db`, a random
-cursor-authentication key, and opt-in Runner streams/artifact blobs in `--state-dir`. It does not
+RepoPlane stores a regenerable SQLite index and cache-entry index, a separate durable `records.db`,
+random cursor/cache authentication keys, and opt-in Runner streams/artifact blobs in `--state-dir`. It does not
 write databases into the workspace and refuses a state directory that resolves inside it. Runner
 streams retain the wider of 14 days or the most recent 200 runs; current intention/imported record
 references protect older run streams. Raw stream/artifact bytes are never placed in record payloads.
@@ -237,8 +266,9 @@ and durable records use separate database files and domain interfaces.
 
 Public JSON Schemas are committed under [`schemas/`](schemas/). Run
 `go generate ./internal/mcpserver` after changing a tool contract; tests reject schema drift.
-The compact MCP schema set also has a regression budget (32 KiB overall and 6 KiB for the three
-Runner tools) so tool discovery remains understandable without consuming unbounded model context.
+The compact MCP schema set has a regression budget (30 KiB overall and 5,500 bytes for the three
+Runner tools). Its wording is deduplicated without dropping response fields, limits, defaults, or
+state semantics; cross-tool references are avoided because each MCP tool schema must stand alone.
 
 ## Security model and limitations
 
@@ -251,6 +281,10 @@ Runner tools) so tool discovery remains understandable without consuming unbound
   argv arrays, or shell strings. It records environment-variable presence without values.
 - Captured output is raw trusted-tool output and is not content-redacted automatically; use
   `metadata` mode for sensitive outputs and never pass credentials as catalog arguments.
+- Cache is disabled by default and requires host opt-in, a cache manifest, captured outputs, stable
+  runtime identities, purity assumptions, and—before reuse—current qualification evidence.
+- Cache materialization never overwrites a differing file. Whole-root replacement is limited to an
+  untracked, input-disjoint directory explicitly owned by the capability.
 - Dirty-worktree reports without a content fingerprint are never classified as current.
 - The server does not provide authentication because the MVP transport is local stdio.
 - JSONL support is deliberately limited to top-level equality filters and field projection.
@@ -261,9 +295,8 @@ See [SECURITY.md](SECURITY.md) for vulnerability reporting and
 
 ## Roadmap
 
-The read-only MVP, durable Records, Environment Preflight, Artifact/Run Receipt, and
-Prepare/Execute/Inspect slices are complete. Adopted P1/P2 work next proceeds to Conservative
-Cache; cache reuse is not part of the current Runner release. See the
+The read-only MVP, durable Records, Execution Foundation, and Conservative Cache slices are
+complete. Adopted P1/P2 work next proceeds to Search Adapters. See the
 [`full implementation roadmap`](docs/Full-Implementation-Roadmap.md), the
 [`Records specification`](docs/Records-Spec.md), and the full
 [`design document`](docs/Project-Control-Plane-MCP-Design.md).

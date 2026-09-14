@@ -108,7 +108,14 @@ func Open(ctx context.Context, settings config.Settings, version string) (*Appli
 	var runnerService *runner.Service
 	if settings.EnableRunner {
 		service.EnableExecution()
-		runnerService = runner.NewService(root, service, recordRepository, settings.StateDir)
+		var cacheKey []byte
+		if settings.EnableCache {
+			cacheKey, err = loadOrCreateKey(filepath.Join(settings.StateDir, "cache.key"))
+			if err != nil {
+				return fail(err)
+			}
+		}
+		runnerService = runner.NewService(root, service, recordRepository, repository, recordService, settings.StateDir, cacheKey)
 		if err := runnerService.Recover(ctx); err != nil {
 			return fail(err)
 		}

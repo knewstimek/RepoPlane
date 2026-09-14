@@ -23,7 +23,7 @@ func (s *Service) observeArtifacts(ctx context.Context, runID string, payload ru
 	partial := false
 	var captured uint64
 	for _, relative := range sortedKeys(after) {
-		if strings.HasPrefix(relative, "pattern:") || after[relative] == payload.OutputsBefore[relative] {
+		if strings.HasPrefix(relative, "pattern:") || (after[relative] == payload.OutputsBefore[relative] && (payload.Cache.Key == "" || !payload.Cache.Eligible)) {
 			continue
 		}
 		path, err := s.root.ResolveExisting(filepath.FromSlash(relative))
@@ -168,6 +168,15 @@ func (s *Service) cleanupExpiredRuns(ctx context.Context, now time.Time, limit i
 	}
 	artifactsByRun := make(map[string][]store.Record)
 	protectedHashes := make(map[string]struct{})
+	if s.cache != nil {
+		hashes, complete, cacheErr := s.cache.ListProtectedCacheHashes(ctx, s.projectID, s.workspaceID, now, 10_000)
+		if cacheErr != nil || !complete {
+			return cacheErr
+		}
+		for _, hash := range hashes {
+			protectedHashes[hash] = struct{}{}
+		}
+	}
 	for _, record := range allRecords.Records {
 		if record.Kind != "artifact" || record.WriterClass != "server" {
 			continue
@@ -241,6 +250,9 @@ func (s *Service) cleanupExpiredRuns(ctx context.Context, now time.Time, limit i
 			}
 			removed++
 		}
+	}
+	if s.cache != nil {
+		_, _ = s.cache.DeleteExpiredCacheEntries(ctx, s.projectID, s.workspaceID, now, uint64(limit-removed))
 	}
 	return nil
 }

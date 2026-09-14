@@ -18,7 +18,19 @@ type PrepareRequest struct {
 	CapabilityRevision string         `json:"capability_revision" jsonschema:"selected catalog capability revision"`
 	Arguments          map[string]any `json:"arguments,omitempty" jsonschema:"typed values declared by the capability argument schema"`
 	Configuration      string         `json:"configuration,omitempty" jsonschema:"bounded execution configuration name; default: default"`
-	TimeLimitMS        int64          `json:"time_limit_ms,omitempty" jsonschema:"prepare deadline in milliseconds; default 5000, maximum 30000"`
+	CacheMode          string         `json:"cache_mode,omitempty" jsonschema:"cache lookup mode: auto or bypass; default: auto"`
+	TimeLimitMS        int64          `json:"time_limit_ms,omitempty" jsonschema:"deadline ms; default 5000, max 30000"`
+}
+
+type CacheDecision struct {
+	Policy            string   `json:"policy"`
+	Mode              string   `json:"mode"`
+	Status            string   `json:"status"`
+	Eligible          bool     `json:"eligible"`
+	Reason            string   `json:"reason"`
+	Key               string   `json:"key,omitempty"`
+	SourceRunRef      string   `json:"source_run_ref,omitempty"`
+	QualificationRefs []string `json:"qualification_refs"`
 }
 
 type PreflightResult struct {
@@ -45,6 +57,7 @@ type PlanResult struct {
 	TimeoutSec           uint64            `json:"timeout_sec"`
 	PreparedAt           time.Time         `json:"prepared_at"`
 	ExecutionFingerprint string            `json:"execution_fingerprint"`
+	Cache                CacheDecision     `json:"cache"`
 }
 
 type PrepareResponse struct {
@@ -56,7 +69,7 @@ type PrepareResponse struct {
 
 type ExecuteRequest struct {
 	PlanID      string `json:"plan_id" jsonschema:"prepared run plan ID"`
-	TimeLimitMS int64  `json:"time_limit_ms,omitempty" jsonschema:"start deadline in milliseconds; default 5000, maximum 30000"`
+	TimeLimitMS int64  `json:"time_limit_ms,omitempty" jsonschema:"start deadline ms; default 5000, max 30000"`
 }
 
 type ExecuteResponse struct {
@@ -71,8 +84,8 @@ type InspectRequest struct {
 	Action      string `json:"action,omitempty" jsonschema:"status, stdout, stderr, artifact, or cancel; default status"`
 	ArtifactRef string `json:"artifact_ref,omitempty" jsonschema:"artifact record ref required by the artifact action"`
 	Offset      uint64 `json:"offset,omitempty" jsonschema:"zero-based stream byte offset"`
-	ByteLimit   uint64 `json:"byte_limit,omitempty" jsonschema:"maximum returned stream bytes; default 65536, maximum 1048576"`
-	TimeLimitMS int64  `json:"time_limit_ms,omitempty" jsonschema:"inspect deadline in milliseconds; default 5000, maximum 30000"`
+	ByteLimit   uint64 `json:"byte_limit,omitempty" jsonschema:"stream bytes; default 65536, max 1048576"`
+	TimeLimitMS int64  `json:"time_limit_ms,omitempty" jsonschema:"deadline ms; default 5000, max 30000"`
 }
 
 type artifactPayload struct {
@@ -113,6 +126,8 @@ type runPayload struct {
 	ExecutableRef        string            `json:"executable_ref"`
 	ExecutableIdentity   string            `json:"executable_identity"`
 	ExecutionFingerprint string            `json:"execution_fingerprint"`
+	Cache                CacheDecision     `json:"cache"`
+	CacheKeyChecks       map[string]string `json:"cache_key_checks"`
 	InputHashes          map[string]string `json:"input_hashes"`
 	OutputPaths          []string          `json:"output_paths"`
 	OutputsBefore        map[string]string `json:"outputs_before"`

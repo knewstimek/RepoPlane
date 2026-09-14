@@ -221,8 +221,11 @@ MVP 이후 완료:
 - 실행 영수증과 artifact provenance
 - `run_prepare`, `run_execute`, `run_inspect`
 
-현재 대기:
+MVP 동결 뒤 완료(현재 상태는 active roadmap 기준):
 
 - cache eligibility와 artifact 재사용
+
+현재 대기:
+
 - semantic/symbol/Git-history adapter
 - HTTP transport와 인증

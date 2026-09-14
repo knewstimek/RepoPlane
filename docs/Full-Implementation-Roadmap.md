@@ -29,7 +29,7 @@ RepoPlane의 "풀 구현"은 장기 설계에서 **채택된 P1/P2 기능을 모
 | 3 | Environment Preflight | executable/SDK/Git/config 전제조건 관찰 | 허용 probe와 비밀정보 경계 | 완료 |
 | 4 | Artifact/Run Receipt | run/input/output/reference, hash, 보존·redaction | blob 보존과 삭제 정책 | 완료 |
 | 5 | Prepare/Execute/Inspect | 제한된 capability 실행과 취소 | 승인 주체와 OS 격리 한계 | 완료 |
-| 6 | Conservative Cache | 검증된 순수 변환만 재사용 | eligibility와 false-hit gate | 대기 |
+| 6 | Conservative Cache | 검증된 순수 변환만 재사용 | eligibility와 false-hit gate | 완료 |
 | 7 | Search Adapters | Git history, symbol, frontmatter, JSON/log 확장 | 결과 evidence class | 대기 |
 | 8 | HTTP/Auth | HTTP MCP, workspace 권한, 감사와 limits | host 인증 연동 | 대기 |
 
@@ -53,9 +53,14 @@ artifact validity가 안정된 뒤에만 시작한다. HTTP 배포는 local stdi
 - [Runner-Spec.md](Runner-Spec.md)
 - [ADR-0003](adr/0003-runner-authority-and-compatibility.md)
 
+6단계에서 작성하고 승인한 문서:
+
+- [Cache-Spec.md](Cache-Spec.md)
+- [Cache-Implementation-Plan.md](Cache-Implementation-Plan.md)
+- [ADR-0004](adr/0004-conservative-cache-qualification.md)
+
 다음 문서는 해당 수직 절단을 시작할 때 작성하고 승인한다.
 
-- `Cache-Spec.md`
 - `Search-Adapters-Spec.md`
 - `HTTP-Security-Spec.md`
 
@@ -112,3 +117,18 @@ exit code만으로 verification을 passed로 만들지 않고, 요구된 check�
 - stdout/stderr pagination, timeout/cancel/restart interruption, artifact 한도·누락·변조,
   stream retention과 reference 보호를 회귀 test로 고정했다.
 - Windows batch wrapper와 POSIX shebang은 OS adapter 뒤에서 실행하고 cache는 사용하지 않는다.
+
+## 8. Conservative Cache 완료
+
+- 별도 `--enable-cache` opt-in과 manifest의 `disabled|observe|verified` policy를 함께 요구한다.
+- HMAC key는 manifest source/revision, ordered argv, configuration, executable/runtime identity와
+  선언 input hash만 포함하며 로컬 값이나 무관한 Git 상태를 노출하지 않는다.
+- observe는 자동 승격하지 않고 동일 key의 output mismatch를 격리한다. verified reuse는
+  current/passed qualification record와 artifact hash를 prepare/execute에서 다시 확인한다.
+- cache miss, bypass, qualification 부재와 corruption은 등록 실행 자체를 막지 않는다.
+- `missing_or_matching`은 다른 content를 덮어쓰지 않으며 `replace_isolated_root`는 untracked,
+  input-disjoint 전용 directory만 staged swap한다.
+- 새 `run-receipt.v2`가 실행과 `reused`를 구분하고 cache entry pin/TTL/복구를 회귀 test로
+  고정했다. 기존 v1 receipt는 계속 읽는다.
+- MCP tool은 11개를 유지하고 cache field 추가 뒤에도 compact schema를 30 KiB 이내로
+  제한한다. 독립 schema scope를 깨는 외부 `$ref`나 output schema 삭제는 사용하지 않는다.

@@ -26,6 +26,10 @@ verification 유효성, CI report import 계약을 정의한다. 현재 read-onl
 - 중앙 작업 스케줄링, claim lock, 자동 commit/stash/reset
 - 대화 원문 전량 수집
 
+이 제외 목록은 Records 수직 절단의 동결 범위다. 이후 완료된 Runner/Artifact/Cache의 현재
+계약은 [Full-Implementation-Roadmap.md](Full-Implementation-Roadmap.md)와 각 기능 명세를
+따른다.
+
 ## 2. 읽기와 쓰기 표면
 
 `project_records`는 항상 조회 전용이다. 숨은 import, 수정, 실행, freshness refresh를

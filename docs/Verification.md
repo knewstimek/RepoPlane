@@ -1,4 +1,4 @@
-# MVP verification matrix
+# RepoPlane verification matrix
 
 This matrix maps the completion conditions in [`MVP-Spec.md`](MVP-Spec.md) to executable
 evidence. The developer entry point is `go run ./cmd/repoplane-dev verify`; its `test.all` check
@@ -28,6 +28,14 @@ reviewable.
 | Report import is bounded, idempotent, and omits raw diagnostics | records importer idempotency, oversized, and sensitive-diagnostic tests |
 | Verification validity becomes stale after workspace change | `TestImportReportIsIdempotentAndBecomesStale` |
 | Mutation tools require host opt-in | application default and opt-in record writer tests |
+| Cache opt-in does not add tools and creates a private host key | config and `TestApplicationExposesExactlyThreeOptInRunnerTools` |
+| Cache keys preserve argv/config/input/runtime distinctions | `TestCacheKeyPreservesArgvOrderAndConfiguration` |
+| Cache qualification follows dynamic verification validity | `TestImportReportIsIdempotentAndBecomesStale` qualification assertions |
+| Verified miss, reuse, conflict, bypass, corruption and output bytes are explicit | Runner cache integration tests |
+| Same cache output converges and different output quarantines under concurrency | SQLite cache observation tests |
+| Whole-root restore is staged and removes undeclared prior output | `TestIsolatedRootMaterializationReplacesWholeTree` on Windows/Linux |
+| Cache pins and expiry are bounded | `TestCachePinsAndExpiryAreBounded` and Runner retention tests |
+| MCP discovery remains bounded without output-schema removal | `TestCompactToolSchemaFootprintStaysBounded` |
 
 ## Release commands
 
@@ -46,7 +54,6 @@ toolchain and race runtime; race correctness is gated by the Linux CI job.
 ## Deliberate MVP limits
 
 The frozen MVP refuses sources larger than its documented bounded-read limits instead of silently
-streaming an unbounded fallback. It did not execute tools or write project records. The subsequent
-Records slice adds host-opt-in checkpoint/memo/import writes but still does not execute catalog
-entries, expose a network transport, authenticate users, or claim semantic/symbol/Git-history
-coverage.
+streaming an unbounded fallback. Subsequent slices add opt-in records, registered execution and
+qualified cache reuse. RepoPlane still does not expose arbitrary commands or a network transport,
+authenticate users, or claim semantic/symbol/Git-history coverage.

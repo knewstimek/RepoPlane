@@ -107,8 +107,9 @@ func TestApplicationExposesCatalogQuery(t *testing.T) {
 
 func TestApplicationExposesExactlyThreeOptInRunnerTools(t *testing.T) {
 	workspace := t.TempDir()
+	state := t.TempDir()
 	app, err := Open(context.Background(), config.Settings{
-		Workspace: workspace, StateDir: t.TempDir(), CatalogRoots: []string{"catalog"}, EnableRunner: true,
+		Workspace: workspace, StateDir: state, CatalogRoots: []string{"catalog"}, EnableRunner: true, EnableCache: true,
 	}, "test")
 	if err != nil {
 		t.Fatal(err)
@@ -142,6 +143,9 @@ func TestApplicationExposesExactlyThreeOptInRunnerTools(t *testing.T) {
 	}
 	if len(found) != 8 {
 		t.Fatalf("runner should add exactly three tools to five defaults: %v", found)
+	}
+	if info, err := os.Stat(filepath.Join(state, "cache.key")); err != nil || info.Size() != 32 {
+		t.Fatalf("cache key info=%v err=%v", info, err)
 	}
 }
 

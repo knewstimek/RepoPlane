@@ -13,12 +13,15 @@
 | [Preflight-Spec.md](Preflight-Spec.md) | capability 환경 점검과 hard/soft gate 계약 | preflight 관찰이나 redaction이 바뀔 때 |
 | [Artifact-Provenance-Spec.md](Artifact-Provenance-Spec.md) | run receipt, stream, artifact 보존 계약 | 실행 기록이나 retention이 바뀔 때 |
 | [Runner-Spec.md](Runner-Spec.md) | prepare/execute/inspect와 플랫폼 실행 계약 | Runner 권한이나 실행 동작이 바뀔 때 |
+| [Cache-Spec.md](Cache-Spec.md) | cache 적격성, key, 재사용, materialization 계약 | cache 외부·저장 계약이 바뀔 때 |
+| [Cache-Implementation-Plan.md](Cache-Implementation-Plan.md) | Stage 6 구현 순서와 검증 gate | cache 작업 단계가 진행되거나 재계획될 때 |
 | [Storage-Design.md](Storage-Design.md) | SQLite, blob, ref, cursor 저장 계약 | 영속성 구조가 바뀔 때 |
 | [Public-Release.md](Public-Release.md) | 공개 설명, topic, 최종 공개 체크리스트 | 릴리스 준비와 공개 시점 |
 | [Verification.md](Verification.md) | 완료 조건과 실행 가능한 증거 매핑 | 완료 게이트나 검증 방식이 바뀔 때 |
 | [adr/0001-use-go.md](adr/0001-use-go.md) | Go 선택 결정과 결과 | 결정을 뒤집거나 보완할 때 |
 | [adr/0002-record-write-boundaries.md](adr/0002-record-write-boundaries.md) | record read/write 권한과 충돌 경계 | writer 책임이나 권한 모델이 바뀔 때 |
 | [adr/0003-runner-authority-and-compatibility.md](adr/0003-runner-authority-and-compatibility.md) | Runner 권한, 실용적 gate, 호환성 결정 | 실행 승인이나 호환성 원칙이 바뀔 때 |
+| [adr/0004-conservative-cache-qualification.md](adr/0004-conservative-cache-qualification.md) | cache opt-in, qualification, false-hit 결정 | cache 승인이나 격리 원칙이 바뀔 때 |
 
 ## 문서 우선순위
 

@@ -26,9 +26,9 @@ type QueryRequest struct {
 	Query       string `json:"query,omitempty" jsonschema:"lexical search text; required for search"`
 	ID          string `json:"id,omitempty" jsonschema:"catalog item ID; required for get"`
 	Cursor      string `json:"cursor,omitempty" jsonschema:"opaque cursor returned by an earlier list or search"`
-	ItemLimit   uint64 `json:"item_limit,omitempty" jsonschema:"maximum returned items; default 50, maximum 500"`
-	ByteLimit   uint64 `json:"byte_limit,omitempty" jsonschema:"maximum response bytes; default 65536, maximum 1048576"`
-	TimeLimitMS int64  `json:"time_limit_ms,omitempty" jsonschema:"operation deadline in milliseconds; default 5000, maximum 30000"`
+	ItemLimit   uint64 `json:"item_limit,omitempty" jsonschema:"item limit; default 50, max 500"`
+	ByteLimit   uint64 `json:"byte_limit,omitempty" jsonschema:"response bytes; default 65536, max 1048576"`
+	TimeLimitMS int64  `json:"time_limit_ms,omitempty" jsonschema:"deadline ms; default 5000, max 30000"`
 }
 
 type QueryResult struct {

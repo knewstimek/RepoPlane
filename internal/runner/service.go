@@ -47,6 +47,10 @@ type capabilityResolver interface {
 	ResolveCapability(ctx context.Context, id string) (catalog.Capability, error)
 }
 
+type qualificationResolver interface {
+	ResolveCacheQualifications(ctx context.Context, capabilityID, configuration string, checkIDs []string) ([]string, bool, error)
+}
+
 type runningProcess struct {
 	cancel context.CancelFunc
 	done   chan struct{}
@@ -59,6 +63,9 @@ type Service struct {
 	catalog              capabilityResolver
 	reader               store.RecordReader
 	writer               store.ObservationWriter
+	cache                store.CacheRepository
+	qualifications       qualificationResolver
+	cacheKey             []byte
 	stateDir             string
 	streamByteLimit      uint64
 	artifactByteLimit    uint64
@@ -70,10 +77,10 @@ type Service struct {
 	running              map[string]*runningProcess
 }
 
-func NewService(root *workspace.Root, catalogService capabilityResolver, records store.RecordRepository, stateDir string) *Service {
+func NewService(root *workspace.Root, catalogService capabilityResolver, records store.RecordRepository, cache store.CacheRepository, qualifications qualificationResolver, stateDir string, cacheKey []byte) *Service {
 	return &Service{
 		root: root, projectID: root.ID(), workspaceID: root.ID(), catalog: catalogService,
-		reader: records, writer: records, stateDir: stateDir,
+		reader: records, writer: records, cache: cache, qualifications: qualifications, stateDir: stateDir, cacheKey: append([]byte(nil), cacheKey...),
 		streamByteLimit: DefaultStreamByteLimit, artifactByteLimit: DefaultArtifactByteLimit,
 		runArtifactByteLimit: DefaultRunArtifactLimit, now: time.Now, running: make(map[string]*runningProcess),
 		retentionRunCount: 200, retentionAge: 14 * 24 * time.Hour,
@@ -89,6 +96,12 @@ func (s *Service) Prepare(ctx context.Context, request PrepareRequest) (PrepareR
 	}
 	if request.Configuration == "" {
 		request.Configuration = "default"
+	}
+	if request.CacheMode == "" {
+		request.CacheMode = "auto"
+	}
+	if request.CacheMode != "auto" && request.CacheMode != "bypass" {
+		return PrepareResponse{}, errors.New("cache_mode must be auto or bypass")
 	}
 	limits, err := contracts.NormalizeLimits(contracts.LimitRequest{TimeLimitMS: request.TimeLimitMS})
 	if err != nil {
@@ -145,6 +158,10 @@ func (s *Service) Prepare(ctx context.Context, request PrepareRequest) (PrepareR
 	if err != nil {
 		return PrepareResponse{}, err
 	}
+	cacheDecision, cacheChecks, err := s.prepareCache(ctx, capability, request, argv, inputHashes, checks)
+	if err != nil {
+		return PrepareResponse{}, err
+	}
 	preflightID, err := recordID("environment_")
 	if err != nil {
 		return PrepareResponse{}, err
@@ -190,13 +207,14 @@ func (s *Service) Prepare(ctx context.Context, request PrepareRequest) (PrepareR
 		PreflightRecordRef: "record:" + preflightRecord.ID, Ready: ready, TimeoutSec: timeout,
 		ArtifactMode: artifactMode, PreparedAt: now, ArtifactRefs: []string{},
 		StreamsRetained: false,
+		Cache:           cacheDecision, CacheKeyChecks: cacheChecks,
 	}
 	encoded, err := json.Marshal(payload)
 	if err != nil || len(encoded) > maximumPlanPayload {
 		return PrepareResponse{}, contracts.ErrLimitExceeded
 	}
 	runRecord, err := s.writer.CreateObservation(ctx, store.RecordCreate{Record: store.Record{
-		ID: runID, Kind: "run", SchemaVersion: "run-receipt.v1",
+		ID: runID, Kind: "run", SchemaVersion: "run-receipt.v2",
 		ProjectID: s.projectID, WorkspaceID: s.workspaceID, Revision: 1,
 		Source: "observed", WriterClass: "server", Validity: "current",
 		CreatedAt: now, UpdatedAt: now, Payload: encoded,
@@ -221,6 +239,7 @@ func planResult(id string, payload runPayload) PlanResult {
 		OutputPaths: append([]string(nil), payload.OutputPaths...), PreflightRecordRef: payload.PreflightRecordRef,
 		Ready: payload.Ready, TimeoutSec: payload.TimeoutSec, PreparedAt: payload.PreparedAt,
 		ExecutionFingerprint: payload.ExecutionFingerprint,
+		Cache:                payload.Cache,
 	}
 }
 
@@ -447,8 +466,12 @@ func (s *Service) runPreflightCheck(ctx context.Context, declaration catalog.Pre
 			output, probeErr := boundedCommandOutput(command, maximumProbeOutput)
 			if probeErr != nil {
 				result.Status, result.Summary = "failed", "declared version probe failed"
-			} else if line := firstLine(string(output)); line != "" {
-				result.Summary = s.sanitizeProbeSummary(line)
+			} else {
+				sum := sha256.Sum256(append(append([]byte(identity), 0), output...))
+				result.Identity = "sha256:" + hex.EncodeToString(sum[:])
+				if line := firstLine(string(output)); line != "" {
+					result.Summary = s.sanitizeProbeSummary(line)
+				}
 			}
 		}
 	}

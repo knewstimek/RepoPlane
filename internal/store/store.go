@@ -110,7 +110,46 @@ type Repository interface {
 	WorkspaceRepository
 	CatalogRepository
 	ResultSetRepository
+	CacheRepository
 	Close() error
+}
+
+// CacheRepository stores regenerable reuse decisions. Durable run and artifact
+// evidence remains in RecordRepository; deleting this index only causes misses.
+type CacheRepository interface {
+	GetCacheEntry(ctx context.Context, projectID, workspaceID, key string) (CacheEntry, error)
+	PublishCacheObservation(ctx context.Context, entry CacheEntry) (CacheEntry, error)
+	MarkCacheHit(ctx context.Context, projectID, workspaceID, key string, usedAt time.Time) (CacheEntry, error)
+	QuarantineCacheEntry(ctx context.Context, projectID, workspaceID, key, reason string, at time.Time) error
+	ListProtectedCacheHashes(ctx context.Context, projectID, workspaceID string, now time.Time, limit uint64) ([]string, bool, error)
+	DeleteExpiredCacheEntries(ctx context.Context, projectID, workspaceID string, now time.Time, limit uint64) (uint64, error)
+}
+
+type CacheOutput struct {
+	Path        string `json:"path"`
+	ContentHash string `json:"content_hash"`
+	Size        int64  `json:"size"`
+	ArtifactRef string `json:"artifact_ref"`
+}
+
+type CacheEntry struct {
+	Key                string
+	ProjectID          string
+	WorkspaceID        string
+	CapabilityID       string
+	CapabilityRevision string
+	Configuration      string
+	State              string
+	Reason             string
+	SourceRunRef       string
+	Outputs            []CacheOutput
+	QualificationRefs  []string
+	CreatedAt          time.Time
+	ObservedAt         time.Time
+	LastUsedAt         time.Time
+	ExpiresAt          time.Time
+	ObservationCount   uint64
+	HitCount           uint64
 }
 
 // WorkspaceRepository stores opaque workspace identities. RootFingerprint is

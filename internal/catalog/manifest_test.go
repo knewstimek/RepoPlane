@@ -94,3 +94,62 @@ execution:
 		t.Fatalf("unexpected execution policy: %+v", got.Execution)
 	}
 }
+
+func TestDecodeAcceptsQualifiedCacheManifest(t *testing.T) {
+	manifest := `id: schema.output
+revision: 2
+summary: deterministic transform
+execution:
+  kind: cli
+  executable_ref: tool
+  cwd: .
+  argv_template: [build]
+  trusted_for_run: true
+  artifact_mode: capture
+  preflight:
+    - {id: runtime.version, kind: executable, ref: tool, requirement: required, argv: [version]}
+inputs: [src.txt]
+outputs: [dist/out.txt]
+cache_policy: verified
+cache:
+  contract_revision: 1
+  output_contract: schema-output.v1
+  key_checks: [runtime.version]
+  qualification_checks: [cache.schema-output.differential]
+  restore_policy: missing_or_matching
+  assumptions:
+    inputs_complete: true
+    outputs_complete: true
+    external_state: none
+    nondeterminism: none
+    side_effects: declared_outputs_only
+`
+	got, err := Decode(strings.NewReader(manifest), ".yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Cache == nil || got.Cache.ContractRevision != 1 || got.CachePolicy != "verified" {
+		t.Fatalf("unexpected cache declaration: %+v", got.Cache)
+	}
+}
+
+func TestDecodeRejectsUnsafeCacheManifest(t *testing.T) {
+	manifest := `id: unsafe.cache
+revision: 1
+summary: incomplete transform
+execution: {kind: cli, executable_ref: tool, cwd: ., argv_template: [build], trusted_for_run: true, artifact_mode: metadata}
+inputs: [src.txt]
+outputs: [out.txt]
+cache_policy: verified
+cache:
+  contract_revision: 1
+  output_contract: output.v1
+  key_checks: [runtime.version]
+  qualification_checks: [cache.differential]
+  restore_policy: missing_or_matching
+  assumptions: {inputs_complete: true, outputs_complete: true, external_state: none, nondeterminism: none, side_effects: declared_outputs_only}
+`
+	if _, err := Decode(strings.NewReader(manifest), ".yaml"); !errors.Is(err, ErrManifestInvalid) {
+		t.Fatalf("error=%v, want ErrManifestInvalid", err)
+	}
+}

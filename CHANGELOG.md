@@ -18,6 +18,10 @@ Notable changes to RepoPlane are documented here.
 - Bounded stdout/stderr and content-addressed artifact capture with explicit retention, missing,
   corruption, and partial states.
 - Accepted Preflight, Artifact/Run Receipt, and Runner specifications plus the Runner authority ADR.
+- Conservative Cache specification, implementation plan, and qualification ADR.
+- Opt-in Runner cache observation and verified reuse with HMAC keys, current verification
+  qualification, false-hit quarantine, safe materialization, and cache-aware run receipts.
+- A regenerable SQLite cache-entry index with bounded expiry and active artifact-blob pins.
 
 ### Changed
 
@@ -30,5 +34,11 @@ Notable changes to RepoPlane are documented here.
   preserving argument boundaries; arbitrary request-supplied shell commands remain prohibited.
 - Catalog execution policy is additive, and existing manifests and records databases remain valid.
 - Compact MCP tool schemas now have regression budgets to prevent accidental model-context growth.
+- MCP schema wording is deduplicated without removing contract fields, and tighter 30 KiB/5,500-byte
+  discovery budgets include the new cache contract.
+- New runs use `run-receipt.v2`; existing v1 receipts remain readable, and reused artifacts retain
+  source provenance without claiming a subprocess ran.
+- The registered verification capability scopes Go inputs to source directories instead of
+  hashing ignored temporary clones into execution plans.
 - README, security, storage, and verification documentation describe the Records capabilities and
   their opt-in write boundaries.

@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -230,5 +232,92 @@ func TestResultSetRejectsOrdinalGap(t *testing.T) {
 	}
 	if err := repository.CreateResultSet(context.Background(), set); !errors.Is(err, store.ErrConflict) {
 		t.Fatalf("error=%v, want ErrConflict", err)
+	}
+}
+
+func TestCacheObservationConvergesAndQuarantinesMismatch(t *testing.T) {
+	repository := openTestRepository(t)
+	workspace := seedWorkspace(t, repository)
+	now := time.Unix(2_000_000_000, 0).UTC()
+	entry := store.CacheEntry{
+		Key: "hmac-sha256:" + strings.Repeat("a", 64), ProjectID: workspace.ID, WorkspaceID: workspace.ID,
+		CapabilityID: "schema.output", CapabilityRevision: "2", Configuration: "default", State: "active",
+		SourceRunRef: "record:run_source", Outputs: []store.CacheOutput{{Path: "dist/out.txt", ContentHash: "sha256:" + strings.Repeat("b", 64), Size: 4, ArtifactRef: "record:artifact_source"}},
+		QualificationRefs: []string{"record:verification_current"}, CreatedAt: now, ObservedAt: now, LastUsedAt: now, ExpiresAt: now.Add(30 * 24 * time.Hour), ObservationCount: 1,
+	}
+	first, err := repository.PublishCacheObservation(context.Background(), entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry.ObservedAt = now.Add(time.Minute)
+	entry.ExpiresAt = entry.ObservedAt.Add(30 * 24 * time.Hour)
+	entry.Outputs[0].ArtifactRef = "record:artifact_second"
+	second, err := repository.PublishCacheObservation(context.Background(), entry)
+	if err != nil || second.ObservationCount != 2 || second.State != "active" {
+		t.Fatalf("second=%+v err=%v", second, err)
+	}
+	entry.Outputs[0].ContentHash = "sha256:" + strings.Repeat("c", 64)
+	third, err := repository.PublishCacheObservation(context.Background(), entry)
+	if err != nil || third.State != "quarantined" || third.Reason != "output_mismatch" {
+		t.Fatalf("third=%+v err=%v", third, err)
+	}
+	if first.Key != third.Key {
+		t.Fatal("cache key changed")
+	}
+}
+
+func TestCachePinsAndExpiryAreBounded(t *testing.T) {
+	repository := openTestRepository(t)
+	workspace := seedWorkspace(t, repository)
+	now := time.Unix(2_000_000_000, 0).UTC()
+	for index, suffix := range []string{"d", "e"} {
+		entry := store.CacheEntry{
+			Key: "hmac-sha256:" + strings.Repeat(suffix, 64), ProjectID: workspace.ID, WorkspaceID: workspace.ID,
+			CapabilityID: "schema.output", CapabilityRevision: "2", Configuration: "default", State: "active",
+			SourceRunRef: "record:run_source", Outputs: []store.CacheOutput{{Path: "dist/out.txt", ContentHash: "sha256:" + strings.Repeat(suffix, 64), Size: 4, ArtifactRef: "record:artifact_source"}},
+			CreatedAt: now, ObservedAt: now, LastUsedAt: now, ExpiresAt: now.Add(time.Duration(index) * time.Hour), ObservationCount: 1,
+		}
+		if _, err := repository.PublishCacheObservation(context.Background(), entry); err != nil {
+			t.Fatal(err)
+		}
+	}
+	hashes, complete, err := repository.ListProtectedCacheHashes(context.Background(), workspace.ID, workspace.ID, now.Add(-time.Minute), 1)
+	if err != nil || complete || len(hashes) != 1 {
+		t.Fatalf("hashes=%v complete=%v err=%v", hashes, complete, err)
+	}
+	deleted, err := repository.DeleteExpiredCacheEntries(context.Background(), workspace.ID, workspace.ID, now.Add(2*time.Hour), 1)
+	if err != nil || deleted != 1 {
+		t.Fatalf("deleted=%d err=%v", deleted, err)
+	}
+}
+
+func TestConcurrentCacheMismatchQuarantines(t *testing.T) {
+	repository := openTestRepository(t)
+	workspace := seedWorkspace(t, repository)
+	now := time.Unix(2_000_000_000, 0).UTC()
+	base := store.CacheEntry{Key: "hmac-sha256:" + strings.Repeat("f", 64), ProjectID: workspace.ID, WorkspaceID: workspace.ID, CapabilityID: "schema.output", CapabilityRevision: "2", Configuration: "default", State: "active", SourceRunRef: "record:run_source", CreatedAt: now, ObservedAt: now, LastUsedAt: now, ExpiresAt: now.Add(time.Hour), ObservationCount: 1}
+	entries := []store.CacheEntry{base, base}
+	entries[0].Outputs = []store.CacheOutput{{Path: "dist/out.txt", ContentHash: "sha256:" + strings.Repeat("1", 64), Size: 1, ArtifactRef: "record:artifact_one"}}
+	entries[1].Outputs = []store.CacheOutput{{Path: "dist/out.txt", ContentHash: "sha256:" + strings.Repeat("2", 64), Size: 1, ArtifactRef: "record:artifact_two"}}
+	var wait sync.WaitGroup
+	errorsSeen := make(chan error, 2)
+	for _, entry := range entries {
+		wait.Add(1)
+		go func(entry store.CacheEntry) {
+			defer wait.Done()
+			_, err := repository.PublishCacheObservation(context.Background(), entry)
+			errorsSeen <- err
+		}(entry)
+	}
+	wait.Wait()
+	close(errorsSeen)
+	for err := range errorsSeen {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := repository.GetCacheEntry(context.Background(), workspace.ID, workspace.ID, base.Key)
+	if err != nil || got.State != "quarantined" {
+		t.Fatalf("entry=%+v err=%v", got, err)
 	}
 }

@@ -35,9 +35,9 @@ type Request struct {
 	Encoding      string   `json:"encoding,omitempty" jsonschema:"text encoding: utf-8, cp949, or euc-kr"`
 	CaseSensitive bool     `json:"case_sensitive,omitempty" jsonschema:"perform case-sensitive matching"`
 	Cursor        string   `json:"cursor,omitempty" jsonschema:"opaque cursor from an earlier workspace_search"`
-	ItemLimit     uint64   `json:"item_limit,omitempty" jsonschema:"maximum returned items; default 50, maximum 500"`
-	ByteLimit     uint64   `json:"byte_limit,omitempty" jsonschema:"maximum structured response bytes; default 65536, maximum 1048576"`
-	TimeLimitMS   int64    `json:"time_limit_ms,omitempty" jsonschema:"search deadline in milliseconds; default 5000, maximum 30000"`
+	ItemLimit     uint64   `json:"item_limit,omitempty" jsonschema:"item limit; default 50, max 500"`
+	ByteLimit     uint64   `json:"byte_limit,omitempty" jsonschema:"response bytes; default 65536, max 1048576"`
+	TimeLimitMS   int64    `json:"time_limit_ms,omitempty" jsonschema:"deadline ms; default 5000, max 30000"`
 }
 
 type Result struct {

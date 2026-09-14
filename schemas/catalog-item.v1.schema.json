@@ -19,7 +19,25 @@
         "executable_ref": { "type": "string" },
         "cwd": { "type": "string" },
         "argv_template": { "type": "array", "items": { "type": "string" } },
-        "trusted_for_run": { "type": "boolean" }
+        "trusted_for_run": { "type": "boolean" },
+        "timeout_sec": { "type": "integer", "maximum": 86400 },
+        "artifact_mode": { "enum": ["metadata", "capture"] },
+        "preflight": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "required": ["id", "kind"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$" },
+              "kind": { "enum": ["executable", "file", "environment", "git", "platform"] },
+              "ref": { "type": "string", "maxLength": 4096 },
+              "requirement": { "enum": ["required", "recommended", "informational"] },
+              "argv": { "type": "array", "maxItems": 32, "items": { "type": "string" } }
+            },
+            "additionalProperties": false
+          }
+        }
       },
       "additionalProperties": false
     },
@@ -41,7 +59,57 @@
     "outputs": { "type": "array", "items": { "type": "string" } },
     "checks": { "type": "array", "items": { "type": "string" } },
     "docs": { "type": "array", "items": { "type": "string" } },
-    "cache_policy": { "enum": ["disabled"] }
+    "cache_policy": { "enum": ["disabled", "observe", "verified"] },
+    "cache": {
+      "type": "object",
+      "required": ["contract_revision", "output_contract", "restore_policy", "assumptions"],
+      "properties": {
+        "contract_revision": { "type": "integer", "minimum": 1 },
+        "output_contract": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$" },
+        "key_checks": { "type": "array", "minItems": 1, "maxItems": 64, "items": { "type": "string" } },
+        "qualification_checks": { "type": "array", "maxItems": 64, "items": { "type": "string" } },
+        "restore_policy": { "enum": ["missing_or_matching", "replace_isolated_root"] },
+        "isolated_root": { "type": "string", "maxLength": 4096 },
+        "assumptions": {
+          "type": "object",
+          "required": ["inputs_complete", "outputs_complete", "external_state", "nondeterminism", "side_effects"],
+          "properties": {
+            "inputs_complete": { "const": true },
+            "outputs_complete": { "const": true },
+            "external_state": { "const": "none" },
+            "nondeterminism": { "const": "none" },
+            "side_effects": { "const": "declared_outputs_only" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
   },
+  "allOf": [
+    {
+      "if": { "required": ["cache"] },
+      "then": { "required": ["cache_policy"], "properties": { "cache_policy": { "enum": ["observe", "verified"] } } }
+    },
+    {
+      "if": { "properties": { "cache_policy": { "enum": ["observe", "verified"] } }, "required": ["cache_policy"] },
+      "then": {
+        "required": ["cache", "execution", "inputs", "outputs"],
+        "properties": {
+          "inputs": { "minItems": 1 },
+          "outputs": { "minItems": 1 },
+          "execution": { "properties": { "trusted_for_run": { "const": true }, "artifact_mode": { "const": "capture" } }, "required": ["artifact_mode"] }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "cache_policy": { "const": "verified" } }, "required": ["cache_policy"] },
+      "then": { "properties": { "cache": { "properties": { "qualification_checks": { "minItems": 1 } }, "required": ["qualification_checks"] } } }
+    },
+    {
+      "if": { "properties": { "cache": { "properties": { "restore_policy": { "const": "replace_isolated_root" } }, "required": ["restore_policy"] } }, "required": ["cache"] },
+      "then": { "properties": { "cache": { "required": ["isolated_root"] } } }
+    }
+  ],
   "additionalProperties": false
 }
