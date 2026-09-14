@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,6 +21,9 @@ func TestStdioHelperProcess(t *testing.T) {
 	if os.Getenv("REPOPLANE_STDIO_HELPER") != "1" {
 		return
 	}
+	// Exit directly after serving so the Go test harness cannot append PASS
+	// output to the MCP protocol stream. This matters for race-instrumented
+	// test binaries, whose shutdown timing differs from an ordinary test run.
 	app, err := application.Open(context.Background(), config.Settings{
 		Workspace:      os.Getenv("REPOPLANE_STDIO_WORKSPACE"),
 		StateDir:       os.Getenv("REPOPLANE_STDIO_STATE"),
@@ -27,12 +32,16 @@ func TestStdioHelperProcess(t *testing.T) {
 		RuleFiles:      []string{"AGENTS.md"},
 	}, "test")
 	if err != nil {
-		t.Fatal(err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
-	defer app.Close()
-	if err := app.Run(context.Background()); err != nil {
-		t.Fatal(err)
+	err = app.Run(context.Background())
+	closeErr := app.Close()
+	if err != nil || closeErr != nil {
+		_, _ = fmt.Fprintln(os.Stderr, errors.Join(err, closeErr))
+		os.Exit(1)
 	}
+	os.Exit(0)
 }
 
 func TestStdioNegotiationHasNoOutputPollution(t *testing.T) {

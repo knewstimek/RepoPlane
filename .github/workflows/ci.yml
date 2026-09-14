@@ -20,6 +20,12 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Install ripgrep on Ubuntu
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: Install ripgrep on Windows
+        if: runner.os == 'Windows'
+        run: choco install ripgrep -y --no-progress
       - name: Check ripgrep
         run: rg --version
       - name: Verify generated schemas
@@ -42,5 +48,7 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - name: Race tests
         run: go test -race ./...
