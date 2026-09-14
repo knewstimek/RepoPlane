@@ -63,6 +63,11 @@ RepoPlane currently targets Windows and Linux.
 
 ## Build
 
+Download versioned Windows and Linux archives plus `SHA256SUMS.txt` from the
+[Releases page](https://github.com/knewstimek/RepoPlane/releases). Verify the archive checksum
+before installation. Release archives contain the `repoplane` MCP server; `rg` and optional Git
+remain host dependencies.
+
 From a repository checkout:
 
 ```sh
@@ -185,6 +190,9 @@ the full payload was returned. Checkpoint, memo, and report-import writes also p
 response by default. Pass `"response_view":"receipt"` when the caller only needs the record ID,
 revision, validity, evidence, duplicate state, and warnings and does not need its submitted payload
 echoed back:
+
+Record only consequential failures whose cause and remedy can prevent repeated work; include the
+invalidation condition, and leave one-off typos or noise out of durable memos.
 
 ```json
 {"mode":"create","goal":"verify the release","status":"incomplete","next_action":"run the release gate","response_view":"receipt"}

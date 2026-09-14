@@ -4,6 +4,10 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+No changes yet.
+
+## [1.0.0] - 2026-09-15
+
 ### Added
 
 - A durable project-records store, separate from the rebuildable catalog cache.

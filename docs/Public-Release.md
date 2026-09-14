@@ -1,11 +1,11 @@
 # Public release metadata
 
-Status: released publicly after the MVP completion gates and privacy checks passed.
+Status: public repository released; versioned release process adopted for v1.0.0.
 
 ## GitHub description
 
-Read-only MCP server for bounded repository search, path facts, tool discovery, and lossless JSONL
-queries.
+Repository control-plane MCP server for bounded search, path facts, durable task evidence, and
+opt-in registered execution.
 
 ## Suggested topics
 
@@ -23,3 +23,10 @@ queries.
 - Set the description and topics above, enable private vulnerability reporting, and push the
   reviewed default branch.
 - Clone into a new temporary directory and rerun build and tests from the public default branch.
+- Prepare notes using [Release-Notes-Spec.md](Release-Notes-Spec.md) and freeze `Unreleased` under
+  the version and release date.
+- Build only declared platform archives with `-trimpath` and an injected tag version; generate
+  `SHA256SUMS.txt` and verify every archive before upload.
+- Create an annotated SemVer tag only from a clean commit whose required GitHub Actions jobs passed.
+- Publish a non-draft, non-prerelease GitHub Release from the same tag and tracked notes, then verify
+  its tag, assets, checksums, and displayed metadata through the GitHub API.

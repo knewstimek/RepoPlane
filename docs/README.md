@@ -23,6 +23,8 @@
 | [Context-Efficiency-Implementation-Plan.md](Context-Efficiency-Implementation-Plan.md) | post-roadmap context 효율 작업과 보류 실험 | 효율 작업이 진행되거나 재계획될 때 |
 | [Storage-Design.md](Storage-Design.md) | SQLite, blob, ref, cursor 저장 계약 | 영속성 구조가 바뀔 때 |
 | [Public-Release.md](Public-Release.md) | 공개 설명, topic, 최종 공개 체크리스트 | 릴리스 준비와 공개 시점 |
+| [Release-Notes-Spec.md](Release-Notes-Spec.md) | versioned release note, artifact, 검증 형식 | tag나 GitHub Release를 준비할 때 |
+| [releases/v1.0.0.md](releases/v1.0.0.md) | 최초 안정 릴리스의 게시용 노트 | v1.0.0 사실관계를 수정할 때 |
 | [Verification.md](Verification.md) | 완료 조건과 실행 가능한 증거 매핑 | 완료 게이트나 검증 방식이 바뀔 때 |
 | [adr/0001-use-go.md](adr/0001-use-go.md) | Go 선택 결정과 결과 | 결정을 뒤집거나 보완할 때 |
 | [adr/0002-record-write-boundaries.md](adr/0002-record-write-boundaries.md) | record read/write 권한과 충돌 경계 | writer 책임이나 권한 모델이 바뀔 때 |
