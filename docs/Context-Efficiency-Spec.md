@@ -15,7 +15,7 @@ RepoPlane은 정확성·권한·호환성 계약을 줄이지 않고 모델이 �
 
 | 측정값 | 의미 |
 |---|---|
-| complete contract bytes | 13개 tool의 이름·설명·input/output schema를 compact JSON으로 직렬화한 크기 |
+| complete contract bytes | 14개 tool의 이름·설명·input/output schema를 compact JSON으로 직렬화한 크기 |
 | exposure candidate bytes | 이름·설명·input schema처럼 특정 client 경로가 노출할 수 있는 부분의 직렬화 크기 |
 | observed model input tokens | 실제 client가 특정 model 요청에 넣은 정의와 instruction의 token 수 |
 | successful-task cost | 작업 완료까지의 전체 token, model step, tool call, 지연과 실패 수 |
@@ -26,7 +26,8 @@ byte 수를 token 수나 고정 시작 비용으로 표현하지 않는다.
 
 ## 3. 도구 노출 계약
 
-- 13개 표준 typed tool과 안정적인 `tools/list`를 유지한다. `runtime_access`는 별도
+- 14개 표준 typed tool과 안정적인 `tools/list`를 유지한다. `runtime_access`와
+  `runtime_config`는 각각 승인과 live configuration을 담당하는 typed tool이며 별도
   toolbox gateway가 아니라 승인 상태만 관리하는 typed tool이다.
 - local stdio runtime grant, 기존 host pre-authorization과 HTTP scope는 서로 독립적이다.
 - 대화에서 어떤 tool을 호출했는지에 따라 서버 tool 목록을 바꾸지 않는다.
@@ -34,7 +35,7 @@ byte 수를 token 수나 고정 시작 비용으로 표현하지 않는다.
   승인, server scope, audit, SDK 입력 검증과 오류 복구가 동등하다는 별도 증거가 필요하다.
 - native deferred exposure/tool search는 client 기능이다. 지원 client는 이를 사용할 수 있지만,
   RepoPlane schema에 비표준 힌트를 넣지 않으며 미지원 client는 직접 tool 계약으로 동작한다.
-- 13-tool compact complete-contract 회귀 예산은 34 KiB이고 Runner 세 tool 예산은 5,500
+- 14-tool compact complete-contract 회귀 예산은 34 KiB이고 Runner 세 tool 예산은 5,500
   bytes다.
 - schema identity나 handle은 계약 버전만 식별한다. 압축 뒤 model 문맥에서 사라진 계약 내용을
   복구했다거나 현재 권한을 증명하지 않는다.

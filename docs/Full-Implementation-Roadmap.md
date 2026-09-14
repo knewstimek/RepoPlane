@@ -3,8 +3,9 @@
 상태: Complete 1.0
 기준선: [MVP 1.0 명세](MVP-Spec.md)
 
-이 문서는 1.0 완료 기준선으로 동결됐다. 이후 정적 opt-in의 runtime 전환은
-[Runtime Access 구현 계획](Runtime-Access-Implementation-Plan.md)이 현재 상태를 관리한다.
+이 문서는 1.0 완료 기준선으로 동결됐다. 이후 runtime 권한과 live service 설정은
+[Runtime Access 명세](Runtime-Access-Spec.md)와
+[Runtime Configuration 명세](Runtime-Configuration-Spec.md)가 현재 상태를 관리한다.
 
 ## 1. 완료 범위
 

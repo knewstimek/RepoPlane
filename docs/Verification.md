@@ -28,6 +28,7 @@ reviewable.
 | Report import is bounded, idempotent, and omits raw diagnostics | records importer idempotency, oversized, and sensitive-diagnostic tests |
 | Verification validity becomes stale after workspace change | `TestImportReportIsIdempotentAndBecomesStale` |
 | Mutation and external read tools require a host pre-grant or one-time user-approved runtime lease | `TestApplicationGrantsExternalReadAndWriteAtRuntime`, runtimeaccess decline/expiry/revoke tests |
+| Live source/workspace/state/HTTP configuration is one-shot approved and switches complete bundles | `TestRuntimeConfigurationUsesOneShotMCPApproval`, `TestApplicationReconfiguresSourcesWorkspaceStateAndHTTPAtRuntime` |
 | Portable memory survives a changed absolute workspace path without exporting secrets | `TestPortableMemoryExportRestoreRebindsAndExcludesSecrets`, `TestRecordRepositoryTransferPreservesHistoryAndRebindsWorkspace`, `TestApplicationExportsPortableMemoryAtRuntime` |
 | Cache authorization is runtime-gated and keeps a private host key | config, `TestApplicationPreservesHostGrantedRunnerAndCache`, and `TestRuntimeCacheAuthorizationFailsClosed` |
 | Cache keys preserve argv/config/input/runtime distinctions | `TestCacheKeyPreservesArgvOrderAndConfiguration` |

@@ -28,5 +28,5 @@ server-issued one-time state는 현재 호출을 유지하면서 두 주체를 �
   따른다.
 - elicitation을 지원하지 않는 client는 runtime 확장을 완료할 수 없으며 기존 사전 승인
   플래그를 호환 경로로 사용할 수 있다.
-- transport/listen/state 저장소처럼 프로세스 구성을 바꾸는 설정은 계속 시작 시점에
-  고정한다.
+- 이 결정 당시 transport/listen/state는 시작 시점에 고정했다. 이 역사적 제한은 이후
+  [ADR-0009](0009-runtime-service-configuration.md)의 승인된 live bundle 교체로 대체됐다.

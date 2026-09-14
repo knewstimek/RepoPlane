@@ -29,19 +29,19 @@
     },
     {
       "name": "state",
-      "tool_count": 1,
-      "complete_contract_bytes": 985,
-      "name_description_input_bytes": 517,
-      "input_schema_bytes": 324,
-      "output_schema_bytes": 451
+      "tool_count": 2,
+      "complete_contract_bytes": 1658,
+      "name_description_input_bytes": 856,
+      "input_schema_bytes": 522,
+      "output_schema_bytes": 768
     },
     {
       "name": "all",
-      "tool_count": 13,
-      "complete_contract_bytes": 33977,
-      "name_description_input_bytes": 13774,
-      "input_schema_bytes": 11667,
-      "output_schema_bytes": 19982
+      "tool_count": 14,
+      "complete_contract_bytes": 34650,
+      "name_description_input_bytes": 14113,
+      "input_schema_bytes": 11865,
+      "output_schema_bytes": 20299
     }
   ]
 }

@@ -49,7 +49,7 @@ failure로 처리하고 CPU/memory/network 격리를 제공했다고 추측하�
 
 ## 4. 완료 조건
 
-- 현재 13개 typed tool의 이름·schema·안정적 노출이 유지된다.
+- 현재 14개 typed tool의 이름·schema·안정적 노출이 유지된다.
 - 승인되지 않은 Runner 호출은 실행 전에 input-required 상태가 된다.
 - 기존 catalog manifest와 records DB가 migration 없이 계속 읽힌다.
 - Windows/Linux에서 공백·Unicode, quoting, exit code, timeout, cancel, child cleanup을

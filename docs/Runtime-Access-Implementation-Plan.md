@@ -3,6 +3,9 @@
 상태: Complete  
 기준선: [Runtime Access 명세](Runtime-Access-Spec.md)
 
+역사적 완료 계획이다. 이후 live service 설정은
+[Runtime Configuration 명세](Runtime-Configuration-Spec.md)에서 관리한다.
+
 ## 목표
 
 local stdio 사용자가 작업 중 권한 부족을 발견했을 때 host 설정 편집과 MCP 재시작 없이

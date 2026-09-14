@@ -22,12 +22,14 @@
 | [Context-Efficiency-Spec.md](Context-Efficiency-Spec.md) | MCP 노출 비용 측정과 호환형 compact 응답 계약 | tool/record 응답 또는 측정 의미가 바뀔 때 |
 | [Context-Efficiency-Implementation-Plan.md](Context-Efficiency-Implementation-Plan.md) | post-roadmap context 효율 작업과 보류 실험 | 효율 작업이 진행되거나 재계획될 때 |
 | [Runtime-Access-Spec.md](Runtime-Access-Spec.md) | local stdio runtime grant, elicitation, 외부 read 경계 | runtime 승인이나 workspace 확장 계약이 바뀔 때 |
+| [Runtime-Configuration-Spec.md](Runtime-Configuration-Spec.md) | source/workspace/state/HTTP의 live configuration과 atomic switch | runtime 설정·service topology가 바뀔 때 |
 | [Runtime-Access-Implementation-Plan.md](Runtime-Access-Implementation-Plan.md) | post-1.0 runtime access 수직 절단과 완료 gate | runtime access 작업이 진행되거나 재계획될 때 |
 | [Memory-Backup-Spec.md](Memory-Backup-Spec.md) | portable durable-memory export/restore와 secret 제외 경계 | backup 포맷·복원·보안 계약이 바뀔 때 |
 | [Storage-Design.md](Storage-Design.md) | SQLite, blob, ref, cursor 저장 계약 | 영속성 구조가 바뀔 때 |
 | [Public-Release.md](Public-Release.md) | 공개 설명, topic, 최종 공개 체크리스트 | 릴리스 준비와 공개 시점 |
 | [Release-Notes-Spec.md](Release-Notes-Spec.md) | versioned release note, artifact, 검증 형식 | tag나 GitHub Release를 준비할 때 |
 | [releases/v1.0.0.md](releases/v1.0.0.md) | 최초 안정 릴리스의 게시용 노트 | v1.0.0 사실관계를 수정할 때 |
+| [releases/v1.0.1.md](releases/v1.0.1.md) | runtime control과 portable memory 패치 릴리스 노트 | v1.0.1 사실관계를 수정할 때 |
 | [Verification.md](Verification.md) | 완료 조건과 실행 가능한 증거 매핑 | 완료 게이트나 검증 방식이 바뀔 때 |
 | [adr/0001-use-go.md](adr/0001-use-go.md) | Go 선택 결정과 결과 | 결정을 뒤집거나 보완할 때 |
 | [adr/0002-record-write-boundaries.md](adr/0002-record-write-boundaries.md) | record read/write 권한과 충돌 경계 | writer 책임이나 권한 모델이 바뀔 때 |
@@ -37,6 +39,7 @@
 | [adr/0006-http-resource-server-boundary.md](adr/0006-http-resource-server-boundary.md) | HTTP resource-server와 인증 책임 경계 | HTTP 인증·workspace 경계가 바뀔 때 |
 | [adr/0007-runtime-access-leases.md](adr/0007-runtime-access-leases.md) | local stdio runtime lease와 primary write 경계 | runtime 승인 주체나 lease 범위가 바뀔 때 |
 | [adr/0008-portable-logical-memory-backup.md](adr/0008-portable-logical-memory-backup.md) | logical memory archive, secret 제외, identity rebind 결정 | backup 저장·복원 전략이 바뀔 때 |
+| [adr/0009-runtime-service-configuration.md](adr/0009-runtime-service-configuration.md) | live service bundle 교체와 stdio/HTTP 제어 경계 | runtime topology 결정이 바뀔 때 |
 
 ## 문서 우선순위
 

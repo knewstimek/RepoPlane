@@ -5,8 +5,8 @@
 RepoPlane is a read-first [Model Context Protocol](https://modelcontextprotocol.io/) server that
 helps coding agents discover repository tools, inspect path facts, search source, query large
 files, and recover durable verification and task records without pulling an entire workspace into
-context. Local stdio sessions request explicit user approval at runtime before mutation, execution,
-cache reuse, or reading a path outside the primary workspace.
+context. Local stdio sessions can approve access and reconfigure sources, workspace, state, and an
+optional HTTP endpoint at runtime without editing the MCP host configuration or restarting stdio.
 
 It is built around a simple rule: **return bounded evidence and say exactly what was not
 observed**. Every search reports its scope, count semantics, truncation state, warnings, and a
@@ -26,6 +26,7 @@ repository evidence, runtime access, and portable memory:
 | `data_query` | Can I range-read or safely query JSON/JSONL/log/CSV/TSV data? |
 | `project_records` | Which verification, checkpoint, memo, environment, run, and artifact records exist? |
 | `runtime_access` | Which ephemeral grants are active, and should one be approved or revoked? |
+| `runtime_config` | Which live sources and service paths are active, and should they change now? |
 | `memory_backup` | Can durable records and retained Runner evidence be exported portably now? |
 
 RepoPlane does not execute catalog entries without authorization. Local stdio calls request user
@@ -125,9 +126,8 @@ the state directory must be outside the primary workspace.
 }
 ```
 
-No later TOML edit or RepoPlane restart is required to use checkpoint/memo writes, local report
-import, Runner, cache, or a required parent file. The attempted tool call requests user approval and
-continues after acceptance. External paths are read-only and only the requested existing file or
+No later TOML edit or RepoPlane restart is required. Access-controlled operations request approval
+inside the attempted call. External paths are read-only and only the requested existing file or
 directory is added. Inspect or revoke grants explicitly when needed:
 
 ```json
@@ -138,9 +138,38 @@ directory is added. Inspect or revoke grants explicitly when needed:
 {"action":"revoke","grant_id":"GRANT_ID"}
 ```
 
-The legacy enable flags remain useful for unattended trusted stdio hosts: they pre-authorize the
-named capability and suppress its runtime prompt. They do not invoke a tool automatically. Runner
-still requires a catalog entry with `trusted_for_run: true`.
+For example, when the selected workspace is `gameserver`, a call for `../_ETC2` is retried after
+an exact `read_path` approval; no `--read-root`, context-file copy, TOML edit, or restart is needed.
+
+Use `runtime_config` for live service configuration. `status` needs no approval; every change is a
+one-shot proposal whose exact action, target, and values are bound to the user's approval. Source
+paths are relative to the selected workspace and must exist when added or replaced. Workspace,
+state, and HTTP-profile paths are absolute. A successful source change rebuilds and refreshes the
+catalog before atomically switching the service bundle. A workspace switch drops external path
+grants; active Runner work blocks workspace/state/source switching.
+
+```json
+{"action":"status"}
+{"action":"add","target":"catalog_root","values":["_ETC2"]}
+{"action":"remove","target":"catalog_root","values":["catalog"]}
+{"action":"replace","target":"rule_file","values":["AGENTS.md","PROJECT_RULES.md"]}
+{"action":"refresh","target":"catalog_root"}
+{"action":"select","target":"workspace","values":["WORKSPACE"]}
+{"action":"select","target":"state_dir","values":["STATE_DIRECTORY"]}
+{"action":"start","target":"http_transport","values":["HTTP_PROFILE"]}
+{"action":"stop","target":"http_transport"}
+```
+
+The four source targets are `catalog_root`, `candidate_root`, `rule_file`, and `symbol_index`.
+The status response returns a compact `configuration` map keyed by those targets plus `workspace`,
+`state_dir`, and `http_transport`; a running HTTP endpoint has its profile path as the sole
+`http_transport` value. HTTP is a child transport of the stdio control session, so starting or
+stopping it does not disconnect stdio. HTTP clients cannot call `runtime_config`.
+
+All CLI arguments below are optional startup pre-registration for compatibility or unattended
+hosts; they are not the normal way to change a running session. The legacy enable flags
+pre-authorize named capabilities and suppress runtime prompts. They do not invoke a tool
+automatically. Runner still requires a catalog entry with `trusted_for_run: true`.
 
 Available flags:
 
@@ -386,13 +415,14 @@ state semantics; cross-tool references are avoided because each MCP tool schema 
 The generated [`tool-footprint.v1.json`](schemas/tool-footprint.v1.json) separates complete-contract
 bytes from a name/description/input-only comparison. These are deterministic serialized byte
 counts—not observed model tokens or proof of what a particular MCP client exposes. RepoPlane keeps
-all 13 typed tools and stable discovery; clients may defer model exposure natively without changing
+all 14 typed tools and stable discovery; clients may defer model exposure natively without changing
 the server contract. See the
 [`context-efficiency specification`](docs/Context-Efficiency-Spec.md).
 
 ## Security model and limitations
 
-- The host chooses the trusted workspace root and local state directory.
+- The host supplies startup defaults; an explicitly approved local stdio `runtime_config` call can
+  replace the live workspace or state directory without restarting stdio.
 - Requests cannot escape the resolved workspace through `..`, symlinks, or junctions.
 - RepoPlane controls ripgrep arguments and never builds a shell command from a query.
 - Reads, process output, result counts, response bytes, record sizes, and deadlines are bounded.

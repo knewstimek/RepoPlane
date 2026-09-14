@@ -1,16 +1,19 @@
 # RepoPlane HTTP and Security Specification
 
-상태: Accepted 1.0
+상태: Accepted 1.1
 
 ## 1. transport와 호환성
 
 stdio는 기본 transport이며 기존 startup과 tool 계약을 바꾸지 않는다. HTTP는 명시적
-`--transport http`와 ignored host profile로만 활성화한다. MCP endpoint는 official Go SDK의
+`--transport http` startup 또는 local stdio의 승인된 `runtime_config`와 ignored host
+profile로 활성화한다. MCP endpoint는 official Go SDK의
 Streamable HTTP를 사용하며 2026-07-28 stateless 동작을 우선하고 SDK가 지원하는 이전
 protocol negotiation을 보존한다. legacy HTTP+SSE endpoint는 새로 제공하지 않는다.
 
-HTTP mode는 한 process에서 한 trusted workspace만 제공한다. 같은 process가 request 인자로
-workspace root를 바꾸지 않는다. MCP tool 수와 input/output schema는 transport 사이에 같다.
+각 HTTP endpoint는 한 시점에 한 trusted workspace만 제공한다. HTTP request 인자로 workspace
+root를 바꾸지 않으며 remote principal의 `runtime_config`는 fail closed한다. local stdio가
+bundle을 교체하면 listener와 audit store도 graceful restart된다. MCP tool 수와 schema는
+transport 사이에 같다.
 
 ## 2. host profile과 listener
 
@@ -52,7 +55,8 @@ resource/audience 검증은 process의 public MCP resource URI에 결합한다. 
 - checkpoint/memo: `repoplane.intent.write`
 - report import: `repoplane.report.import`
 - Runner 3개와 cache reuse: `repoplane.runner.execute`
-- portable memory export: `repoplane.state.export` (HTTP runtime grant는 지원하지 않음)
+- portable memory export와 runtime configuration: `repoplane.state.export` (HTTP runtime
+  grant/configuration은 지원하지 않음)
 
 host opt-in flag와 token scope를 모두 만족해야 한다. broader scope implication은 profile에
 명시하고 임의 문자열 prefix로 추론하지 않는다. 인증은 tool 목록 노출 여부와 별개이며 실제

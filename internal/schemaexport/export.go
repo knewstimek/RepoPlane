@@ -17,6 +17,7 @@ import (
 	"repoplane/internal/records"
 	"repoplane/internal/runner"
 	"repoplane/internal/runtimeaccess"
+	"repoplane/internal/runtimeconfig"
 	"repoplane/internal/search"
 )
 
@@ -55,6 +56,15 @@ type exposureCandidate struct {
 	InputSchema any    `json:"input_schema"`
 }
 
+type configurationSchemaController struct{}
+
+func (configurationSchemaController) Status(context.Context) (runtimeconfig.Response, error) {
+	return runtimeconfig.Response{}, nil
+}
+func (configurationSchemaController) Apply(context.Context, runtimeconfig.Request) (runtimeconfig.Response, error) {
+	return runtimeconfig.Response{}, nil
+}
+
 func Generate(ctx context.Context) ([]byte, error) {
 	server := mcpserver.New("schema-export", mcpserver.Options{
 		Catalog: &catalog.Service{}, Search: &search.Service{},
@@ -62,6 +72,7 @@ func Generate(ctx context.Context) ([]byte, error) {
 		CheckpointWriter: &records.Service{}, MemoWriter: &records.Service{}, ReportImporter: &records.Service{},
 		Runner:        &runner.Service{},
 		RuntimeAccess: runtimeaccess.New(nil, false, runtimeaccess.Initial{}),
+		RuntimeConfig: configurationSchemaController{},
 		MemoryBackup:  &memorybackup.Service{},
 	})
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
@@ -80,7 +91,7 @@ func Generate(ctx context.Context) ([]byte, error) {
 	document := document{
 		Schema: "https://json-schema.org/draft/2020-12/schema",
 		ID:     "https://repoplane.local/schemas/tools.v1.json",
-		Tools:  make([]toolSchema, 0, 13),
+		Tools:  make([]toolSchema, 0, 14),
 	}
 	for tool, err := range session.Tools(ctx, nil) {
 		if err != nil {

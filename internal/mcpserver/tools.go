@@ -13,6 +13,7 @@ const (
 	ToolRunExecute        = "run_execute"
 	ToolRunInspect        = "run_inspect"
 	ToolRuntimeAccess     = "runtime_access"
+	ToolRuntimeConfig     = "runtime_config"
 	ToolMemoryBackup      = "memory_backup"
 )
 
@@ -30,7 +31,7 @@ func RequiredScope(tool string) (string, bool) {
 	switch tool {
 	case ToolCatalogQuery, ToolWorkspaceSearch, ToolPathExplain, ToolDataQuery, ToolProjectRecords, ToolRuntimeAccess:
 		return ScopeRead, true
-	case ToolMemoryBackup:
+	case ToolMemoryBackup, ToolRuntimeConfig:
 		return ScopeStateExport, true
 	case ToolCheckpointWrite, ToolMemoWrite:
 		return ScopeIntentWrite, true
@@ -49,5 +50,5 @@ func ToolNames() (reads, writes, imports, runner, state []string) {
 		[]string{ToolCheckpointWrite, ToolMemoWrite},
 		[]string{ToolCheckReportImport},
 		[]string{ToolRunPrepare, ToolRunExecute, ToolRunInspect},
-		[]string{ToolMemoryBackup}
+		[]string{ToolMemoryBackup, ToolRuntimeConfig}
 }

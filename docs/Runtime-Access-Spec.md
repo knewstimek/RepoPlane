@@ -16,7 +16,8 @@ RepoPlane의 읽기·쓰기·실행 권한을 바꾸기 위해 TOML을 다시 �
 
 ## 2. 공개 계약
 
-표준 typed tool은 13개이며 `tools/list`는 대화 상태에 따라 변하지 않는다.
+표준 typed tool은 14개이며 `tools/list`는 대화 상태에 따라 변하지 않는다. live service
+설정은 [Runtime Configuration 명세](Runtime-Configuration-Spec.md)를 따른다.
 
 - `runtime_access`는 `status`, `grant`, `revoke`를 제공한다.
 - `grant` kind는 `read_path`, `intent_write`, `report_import`, `runner_execute`,
@@ -38,6 +39,8 @@ RepoPlane의 읽기·쓰기·실행 권한을 바꾸기 위해 TOML을 다시 �
 
 - runtime grant는 local stdio 프로세스에만 적용되고 영속 저장하지 않는다. stdio 연결이
   끝나 프로세스가 종료되면 모두 사라진다.
+- primary workspace가 승인된 runtime configuration으로 교체되면 외부 path grant와 pending
+  proposal은 폐기된다.
 - stateless HTTP는 runtime grant를 지원하지 않는다. 기존 host opt-in, bearer/OAuth scope,
   audit 경계를 유지한다.
 - 외부 read grant는 `workspace_search`, `path_explain`, `data_query`의 조회 해석에만
