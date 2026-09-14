@@ -53,9 +53,11 @@
 - Do not rerun an unchanged failing command. Classify the failure as product code, test fixture,
   host/toolchain, or safety-policy related, make a relevant change or choose the documented
   supported environment, then run one focused check.
-- Check host support before optional race, sanitizer, cross-runtime, or platform-specific test
-  modes. A mode assigned to CI must not be improvised on an unsupported local host as a release
-  gate; record the limitation and rely on the declared CI job.
+- Before optional race, sanitizer, cross-runtime, or platform-specific modes, reuse the current
+  support result for the same OS, architecture, and toolchain fingerprint. Probe only when no
+  current evidence exists or that fingerprint changed; do not repeat the probe merely because a
+  session restarted. A mode assigned to CI must not be improvised on an unsupported local host as
+  a release gate; record the limitation and rely on the declared CI job.
 - Keep a bounded count of failed verification invocations during a goal and report the count and
   classifications when any occurred. Do not present one command's repeated package errors as
   independent failures.
