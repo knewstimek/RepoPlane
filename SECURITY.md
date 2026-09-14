@@ -2,8 +2,13 @@
 
 ## Supported versions
 
-RepoPlane is currently an early MVP. Security fixes are applied to the latest commit on the default
-branch until versioned releases are published.
+| Version | Supported |
+|---|---|
+| 1.0.x | Yes |
+| < 1.0 | No |
+
+Security fixes are applied to the latest `1.0.x` release and the default branch. A newer minor or
+major line replaces the preceding line unless this table explicitly says otherwise.
 
 ## Reporting a vulnerability
 

@@ -1,0 +1,19 @@
+id: release.status
+revision: 1
+summary: Query published GitHub releases with the supported bounded field set
+use_when:
+  - checking whether a version tag has a draft, prerelease, or published GitHub Release
+  - verifying release metadata without guessing gh JSON field names
+tags: [release, github, status]
+execution:
+  kind: cli
+  executable_ref: gh
+  cwd: .
+  argv_template: [release, list, --limit, "20", --json, tagName,name,isDraft,isPrerelease,publishedAt,isLatest]
+  trusted_for_run: true
+  timeout_sec: 30
+  artifact_mode: metadata
+  preflight:
+    - {id: gh.version, kind: executable, ref: gh, requirement: required, argv: [--version]}
+docs: [docs/Release-Notes-Spec.md, docs/Public-Release.md]
+cache_policy: disabled
