@@ -21,7 +21,13 @@
 
 ## Implementation
 
-- When work is complete, update README/usage and `Unreleased` notes as needed, verify, commit, and push, then report the completion time and elapsed time; for goal-tracked work, also report the goal's aggregate token usage.
+- When work is complete, update README/usage and `Unreleased` notes as needed, verify, commit, and
+  push. If the MCP executable changed, rebuild it and replace the installed executable resolved
+  from the ignored local profile or `PATH`; never record the host-specific destination in tracked
+  files. On Windows, rename an in-use installed executable to
+  `old_repoplane_<timestamp>.exe` before copying the replacement, and leave that backup in place
+  until no process is using it. Then report the completion time and elapsed time; for goal-tracked
+  work, also report the goal's aggregate token usage.
 - Go services depend on domain interfaces in `internal/store`, not directly on SQL or a concrete
   database adapter.
 - Keep MCP stdout free of diagnostics; write diagnostics only to stderr.

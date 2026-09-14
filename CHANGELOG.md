@@ -17,5 +17,6 @@ Notable changes to RepoPlane are documented here.
 ### Changed
 
 - CI and contributor guidance now use the repository verification workflow.
+- Windows update guidance now rotates an in-use MCP executable before installing its replacement.
 - README, security, storage, and verification documentation describe the Records capabilities and
   their opt-in write boundaries.
