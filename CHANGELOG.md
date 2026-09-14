@@ -29,5 +29,6 @@ Notable changes to RepoPlane are documented here.
 - Windows batch wrappers and POSIX shebang capabilities execute through platform adapters while
   preserving argument boundaries; arbitrary request-supplied shell commands remain prohibited.
 - Catalog execution policy is additive, and existing manifests and records databases remain valid.
+- Compact MCP tool schemas now have regression budgets to prevent accidental model-context growth.
 - README, security, storage, and verification documentation describe the Records capabilities and
   their opt-in write boundaries.

@@ -237,6 +237,8 @@ and durable records use separate database files and domain interfaces.
 
 Public JSON Schemas are committed under [`schemas/`](schemas/). Run
 `go generate ./internal/mcpserver` after changing a tool contract; tests reject schema drift.
+The compact MCP schema set also has a regression budget (32 KiB overall and 6 KiB for the three
+Runner tools) so tool discovery remains understandable without consuming unbounded model context.
 
 ## Security model and limitations
 
