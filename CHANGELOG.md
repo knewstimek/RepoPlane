@@ -37,6 +37,8 @@ No changes yet.
 
 ### Changed
 
+- Catalog audit now recognizes and fingerprints fixed workspace script targets passed through an
+  interpreter's `argv_template`, without treating dynamic argument placeholders as registrations.
 - CI and contributor guidance now use the repository verification workflow.
 - Documentation workflow now requires roadmap-status consistency checks and copyable host examples
   for opt-in tools.
