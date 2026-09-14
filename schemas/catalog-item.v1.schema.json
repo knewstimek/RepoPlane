@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://repoplane.local/schemas/catalog-item.v1.schema.json",
+  "title": "RepoPlane catalog item",
+  "type": "object",
+  "required": ["id", "revision", "summary"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$" },
+    "revision": { "type": "integer", "minimum": 1 },
+    "summary": { "type": "string", "minLength": 1 },
+    "use_when": { "type": "array", "items": { "type": "string" } },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "aliases": { "type": "array", "items": { "type": "string" } },
+    "execution": {
+      "type": "object",
+      "required": ["kind", "executable_ref", "cwd", "argv_template", "trusted_for_run"],
+      "properties": {
+        "kind": { "const": "cli" },
+        "executable_ref": { "type": "string" },
+        "cwd": { "type": "string" },
+        "argv_template": { "type": "array", "items": { "type": "string" } },
+        "trusted_for_run": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "arguments": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type": { "type": "string" },
+          "required": { "type": "boolean" },
+          "default": true,
+          "description": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "inputs": { "type": "array", "items": { "type": "string" } },
+    "outputs": { "type": "array", "items": { "type": "string" } },
+    "checks": { "type": "array", "items": { "type": "string" } },
+    "docs": { "type": "array", "items": { "type": "string" } },
+    "cache_policy": { "enum": ["disabled"] }
+  },
+  "additionalProperties": false
+}

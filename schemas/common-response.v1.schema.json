@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://repoplane.local/schemas/common-response.v1.schema.json",
+  "title": "RepoPlane common list response",
+  "type": "object",
+  "required": [
+    "status",
+    "items",
+    "counts",
+    "scan",
+    "truncated",
+    "next_cursor",
+    "snapshot_ref",
+    "warnings"
+  ],
+  "properties": {
+    "status": { "enum": ["ok", "partial", "error", "unsupported"] },
+    "items": { "type": "array" },
+    "counts": {
+      "type": "object",
+      "required": ["matched", "relation", "returned"],
+      "properties": {
+        "matched": { "type": ["integer", "null"], "minimum": 0 },
+        "relation": { "enum": ["exact", "lower_bound", "unknown", "not_applicable"] },
+        "returned": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "scan": {
+      "type": "object",
+      "required": ["state", "scope_ref"],
+      "properties": {
+        "state": { "enum": ["complete", "partial", "not_applicable"] },
+        "scope_ref": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "truncated": { "type": ["boolean", "null"] },
+    "next_cursor": { "type": ["string", "null"] },
+    "snapshot_ref": { "type": ["string", "null"] },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "message", "ref"],
+        "properties": {
+          "code": { "type": "string", "minLength": 1 },
+          "message": { "type": "string", "minLength": 1 },
+          "ref": { "type": ["string", "null"] }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
