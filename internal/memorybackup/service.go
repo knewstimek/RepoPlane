@@ -13,6 +13,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -79,6 +80,9 @@ type manifest struct {
 }
 
 func New(root *workspace.Root, records recordTransfer, runner snapshotGuard, stateDir string) *Service {
+	if resolved, err := filepath.EvalSymlinks(filepath.Clean(stateDir)); err == nil {
+		stateDir = resolved
+	}
 	return &Service{root: root, records: records, runner: runner, stateDir: stateDir, now: time.Now}
 }
 
@@ -331,9 +335,13 @@ func (s *Service) validateDestination(value string) (string, error) {
 }
 
 func pathInside(root, candidate string) (bool, error) {
+	root, candidate = filepath.Clean(root), filepath.Clean(candidate)
 	rootVolume, candidateVolume := filepath.VolumeName(root), filepath.VolumeName(candidate)
 	if !strings.EqualFold(rootVolume, candidateVolume) {
 		return false, nil
+	}
+	if runtime.GOOS == "windows" {
+		root, candidate = strings.ToLower(root), strings.ToLower(candidate)
 	}
 	relative, err := filepath.Rel(root, candidate)
 	if err != nil {

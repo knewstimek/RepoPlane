@@ -24,6 +24,8 @@ Notable changes to RepoPlane are documented here.
   path grant while catalog, importer, Runner, and cache writes remain inside the primary workspace.
 - Portable memory archives exclude profiles, tokens, keys, audit state, and regenerable cache; restore
   refuses non-empty targets and rebinds records to the current workspace identity.
+- Windows workspace/state containment checks canonicalize path casing before comparison, preventing
+  the state directory itself from being accepted as a backup destination.
 
 ## [1.0.0] - 2026-09-15
 

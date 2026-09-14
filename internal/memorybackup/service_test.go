@@ -7,6 +7,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -116,7 +118,11 @@ func TestExportRejectsWorkspaceAndStateDestinations(t *testing.T) {
 	}
 	defer repository.Close()
 	service := New(root, repository, idleGuard{}, state)
-	for _, destination := range []string{rootPath, state} {
+	destinations := []string{rootPath, state}
+	if runtime.GOOS == "windows" {
+		destinations = append(destinations, strings.ToUpper(state))
+	}
+	for _, destination := range destinations {
 		if _, err := service.Export(context.Background(), Request{Destination: destination}); err == nil {
 			t.Fatalf("unsafe destination accepted: %s", destination)
 		}
