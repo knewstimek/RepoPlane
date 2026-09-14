@@ -21,7 +21,7 @@ after a fix is available.
 RepoPlane is a local stdio MCP server. It does not authenticate clients or provide a network
 listener. The host is responsible for choosing which local MCP client may start it and which
 workspace it may inspect. Checkpoint/memo mutation, local report import, and registered-capability
-execution are disabled by default and must be enabled independently. Record IDs and workspace read
+execution and cache reuse are disabled by default and must be enabled explicitly. Record IDs and workspace read
 access do not grant mutation or execution capability.
 
 Runner accepts only a registered capability ID, its current revision, and manifest-declared typed
@@ -31,6 +31,11 @@ required. Plans bind the executable identity and declared inputs before one-time
 Environment probes store credential presence but not values. Raw command output and explicitly
 captured artifacts are not automatically redacted, so sensitive capabilities should use metadata
 mode and must not receive credentials as catalog arguments.
+
+`--enable-cache` requires Runner and does not add an arbitrary write surface. Reuse additionally
+requires a strict cache manifest, host-local HMAC key, current passed qualification evidence, and
+verified artifact blobs. It does not overwrite a differing output; whole-root replacement is
+restricted to an explicitly owned untracked directory that does not overlap declared inputs.
 
 The report importer accepts only bounded workspace-relative files resolved through the workspace
 boundary. It stores a content hash and normalized check statuses, not raw diagnostics. Durable

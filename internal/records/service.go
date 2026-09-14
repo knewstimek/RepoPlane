@@ -50,9 +50,9 @@ type QueryRequest struct {
 	Source       string `json:"source,omitempty" jsonschema:"source filter: observed, imported, user_asserted, or llm_proposed"`
 	UpdatedAfter string `json:"updated_after,omitempty" jsonschema:"RFC3339 lower bound for record update time"`
 	Cursor       string `json:"cursor,omitempty" jsonschema:"opaque cursor from an earlier project_records query"`
-	ItemLimit    uint64 `json:"item_limit,omitempty" jsonschema:"maximum returned items; default 50, maximum 500"`
-	ByteLimit    uint64 `json:"byte_limit,omitempty" jsonschema:"maximum response bytes; default 65536, maximum 1048576"`
-	TimeLimitMS  int64  `json:"time_limit_ms,omitempty" jsonschema:"operation deadline in milliseconds; default 5000, maximum 30000"`
+	ItemLimit    uint64 `json:"item_limit,omitempty" jsonschema:"item limit; default 50, max 500"`
+	ByteLimit    uint64 `json:"byte_limit,omitempty" jsonschema:"response bytes; default 65536, max 1048576"`
+	TimeLimitMS  int64  `json:"time_limit_ms,omitempty" jsonschema:"deadline ms; default 5000, max 30000"`
 }
 
 type RecordResult struct {
@@ -104,7 +104,7 @@ type ImportRequest struct {
 	ChecklistPath string `json:"checklist_path" jsonschema:"workspace-relative verification-check.v1 YAML or JSON path"`
 	Configuration string `json:"configuration" jsonschema:"declared checklist configuration being imported"`
 	ByteLimit     uint64 `json:"byte_limit,omitempty" jsonschema:"maximum report bytes; default and maximum 1048576"`
-	TimeLimitMS   int64  `json:"time_limit_ms,omitempty" jsonschema:"operation deadline in milliseconds; default 5000, maximum 30000"`
+	TimeLimitMS   int64  `json:"time_limit_ms,omitempty" jsonschema:"deadline ms; default 5000, max 30000"`
 }
 
 type MutationResponse struct {
@@ -186,6 +186,54 @@ func (s *Service) Query(ctx context.Context, request QueryRequest) (QueryRespons
 	default:
 		return QueryResponse{}, fmt.Errorf("unsupported records mode %q", request.Mode)
 	}
+}
+
+// ResolveCacheQualifications returns current passed verification records for
+// every requested checklist ID. It intentionally exposes only opaque refs to
+// Runner, keeping dynamic Git validity in the Records service.
+func (s *Service) ResolveCacheQualifications(ctx context.Context, capabilityID, configuration string, checkIDs []string) ([]string, bool, error) {
+	if capabilityID == "" || configuration == "" || len(checkIDs) == 0 || len(checkIDs) > 64 {
+		return []string{}, false, nil
+	}
+	wanted := make(map[string]struct{}, len(checkIDs))
+	for _, id := range checkIDs {
+		wanted[id] = struct{}{}
+	}
+	page, err := s.records.QueryRecords(ctx, store.RecordQuery{ProjectID: s.projectID, WorkspaceID: s.workspaceID, Kind: "verification", Limit: maximumRecordQuery})
+	if err != nil {
+		return nil, false, err
+	}
+	if !page.Complete {
+		return []string{}, false, nil
+	}
+	current := s.observeSubject(ctx)
+	found := make(map[string]string, len(wanted))
+	for _, record := range page.Records {
+		var payload map[string]any
+		decoder := json.NewDecoder(bytes.NewReader(record.Payload))
+		decoder.UseNumber()
+		if decoder.Decode(&payload) != nil || validityFromPayload(payload, current) != "current" {
+			continue
+		}
+		id, _ := payload["check_id"].(string)
+		capability, _ := payload["capability"].(string)
+		config, _ := payload["configuration"].(string)
+		outcome, _ := payload["outcome"].(string)
+		if _, ok := wanted[id]; ok && capability == capabilityID && config == configuration && outcome == "passed" {
+			if _, exists := found[id]; !exists {
+				found[id] = "record:" + record.ID
+			}
+		}
+	}
+	refs := make([]string, 0, len(checkIDs))
+	for _, id := range checkIDs {
+		ref, ok := found[id]
+		if !ok {
+			return refs, false, nil
+		}
+		refs = append(refs, ref)
+	}
+	return refs, true, nil
 }
 
 func (s *Service) WriteCheckpoint(ctx context.Context, request CheckpointRequest) (MutationResponse, error) {

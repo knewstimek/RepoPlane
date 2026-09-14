@@ -19,6 +19,7 @@ type Settings struct {
 	EnableIntentionWrites bool
 	EnableReportImport    bool
 	EnableRunner          bool
+	EnableCache           bool
 }
 
 type stringList []string
@@ -59,11 +60,15 @@ func Parse(args []string, output io.Writer) (Settings, error) {
 	flags.BoolVar(&settings.EnableIntentionWrites, "enable-intention-writes", false, "expose checkpoint and memo mutation tools")
 	flags.BoolVar(&settings.EnableReportImport, "enable-report-import", false, "expose the local check-report importer")
 	flags.BoolVar(&settings.EnableRunner, "enable-runner", false, "expose registered-capability prepare, execute, and inspect tools")
+	flags.BoolVar(&settings.EnableCache, "enable-cache", false, "allow qualified Runner cache observation and reuse")
 	if err := flags.Parse(args); err != nil {
 		return Settings{}, err
 	}
 	if flags.NArg() != 0 {
 		return Settings{}, fmt.Errorf("unexpected positional arguments: %s", strings.Join(flags.Args(), " "))
+	}
+	if settings.EnableCache && !settings.EnableRunner {
+		return Settings{}, fmt.Errorf("--enable-cache requires --enable-runner")
 	}
 	if len(roots) == 0 {
 		roots = append(roots, "catalog")

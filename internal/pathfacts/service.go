@@ -30,8 +30,8 @@ type Request struct {
 	Path        string `json:"path" jsonschema:"workspace-relative path to explain"`
 	Action      string `json:"action,omitempty" jsonschema:"intended action such as read or edit"`
 	Encoding    string `json:"encoding,omitempty" jsonschema:"explicit codec to test: utf-8, cp949, or euc-kr"`
-	ByteLimit   uint64 `json:"byte_limit,omitempty" jsonschema:"maximum structured response bytes"`
-	TimeLimitMS int64  `json:"time_limit_ms,omitempty" jsonschema:"operation deadline in milliseconds"`
+	ByteLimit   uint64 `json:"byte_limit,omitempty" jsonschema:"response byte limit"`
+	TimeLimitMS int64  `json:"time_limit_ms,omitempty" jsonschema:"deadline ms"`
 }
 
 type Newlines struct {

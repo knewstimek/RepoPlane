@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://repoplane.local/schemas/run-receipt.v2.schema.json",
+  "title": "RepoPlane cache-aware prepared plan and run receipt",
+  "type": "object",
+  "required": [
+    "state", "capability_id", "capability_revision", "configuration", "arguments", "argv", "cwd",
+    "executable_ref", "executable_identity", "execution_fingerprint", "input_hashes", "output_paths",
+    "outputs_before", "outputs_after", "preflight_record_ref", "ready", "timeout_sec", "artifact_mode", "prepared_at",
+    "started_at", "finished_at", "exit_code", "termination_reason", "stdout_bytes", "stderr_bytes",
+    "stdout_truncated", "stderr_truncated", "artifact_refs", "observation_partial", "streams_retained",
+    "cache", "cache_key_checks"
+  ],
+  "properties": {
+    "state": { "enum": ["prepared", "running", "materializing", "completed", "reused", "failed", "cancelled", "timed_out", "interrupted"] },
+    "capability_id": { "type": "string", "maxLength": 128 },
+    "capability_revision": { "type": "string", "maxLength": 128 },
+    "configuration": { "type": "string", "maxLength": 128 },
+    "arguments": { "type": "object", "maxProperties": 64 },
+    "argv": { "type": "array", "maxItems": 256, "items": { "type": "string", "maxLength": 8192 } },
+    "cwd": { "type": "string", "maxLength": 4096 },
+    "executable_ref": { "type": "string", "maxLength": 4096 },
+    "executable_identity": { "type": "string", "maxLength": 256 },
+    "execution_fingerprint": { "type": "string", "maxLength": 256 },
+    "input_hashes": { "type": "object", "maxProperties": 256, "additionalProperties": { "type": "string", "maxLength": 256 } },
+    "output_paths": { "type": "array", "maxItems": 128, "items": { "type": "string", "maxLength": 4096 } },
+    "outputs_before": { "type": "object", "maxProperties": 256, "additionalProperties": { "type": "string", "maxLength": 256 } },
+    "outputs_after": { "type": "object", "maxProperties": 256, "additionalProperties": { "type": "string", "maxLength": 256 } },
+    "preflight_record_ref": { "type": "string", "maxLength": 256 },
+    "ready": { "type": "boolean" },
+    "timeout_sec": { "type": "integer", "minimum": 1, "maximum": 86400 },
+    "artifact_mode": { "enum": ["metadata", "capture"] },
+    "prepared_at": { "type": "string", "format": "date-time" },
+    "started_at": { "type": ["string", "null"], "format": "date-time" },
+    "finished_at": { "type": ["string", "null"], "format": "date-time" },
+    "exit_code": { "type": ["integer", "null"] },
+    "termination_reason": { "type": "string", "maxLength": 128 },
+    "stdout_bytes": { "type": "integer", "minimum": 0 },
+    "stderr_bytes": { "type": "integer", "minimum": 0 },
+    "stdout_truncated": { "type": "boolean" },
+    "stderr_truncated": { "type": "boolean" },
+    "artifact_refs": { "type": "array", "maxItems": 128, "items": { "type": "string", "maxLength": 256 } },
+    "observation_partial": { "type": "boolean" },
+    "streams_retained": { "type": "boolean" },
+    "cache": {
+      "type": "object",
+      "required": ["policy", "mode", "status", "eligible", "reason", "qualification_refs"],
+      "properties": {
+        "policy": { "enum": ["disabled", "observe", "verified"] },
+        "mode": { "enum": ["auto", "bypass"] },
+        "status": { "enum": ["disabled", "rejected", "miss", "bypassed", "hit", "observed", "reused", "quarantined"] },
+        "eligible": { "type": "boolean" },
+        "reason": { "type": "string", "maxLength": 128 },
+        "key": { "type": "string", "pattern": "^hmac-sha256:[0-9a-f]{64}$" },
+        "source_run_ref": { "type": "string", "maxLength": 256 },
+        "qualification_refs": { "type": "array", "maxItems": 64, "items": { "type": "string", "maxLength": 256 } }
+      },
+      "additionalProperties": false
+    },
+    "cache_key_checks": { "type": "object", "maxProperties": 65, "additionalProperties": { "type": "string", "maxLength": 256 } }
+  },
+  "additionalProperties": false
+}

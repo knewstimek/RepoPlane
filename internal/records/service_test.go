@@ -162,6 +162,10 @@ func TestImportReportIsIdempotentAndBecomesStale(t *testing.T) {
 	if first.Record.Payload["outcome"] != "passed" || first.Record.Payload["raw_storage"] != "hash_only" {
 		t.Fatalf("verification payload=%v", first.Record.Payload)
 	}
+	refs, qualified, err := service.ResolveCacheQualifications(context.Background(), "dev.verify", "default", []string{"test.verify"})
+	if err != nil || !qualified || len(refs) != 1 || refs[0] != "record:"+first.Record.ID {
+		t.Fatalf("qualification refs=%v qualified=%v err=%v", refs, qualified, err)
+	}
 	second, err := service.ImportReport(context.Background(), ImportRequest{Path: ".tmp/verify.json", ChecklistPath: checklistPath, Configuration: "default"})
 	if err != nil || !second.Duplicate || second.Record.ID != first.Record.ID {
 		t.Fatalf("second=%+v error=%v", second, err)
@@ -175,6 +179,9 @@ func TestImportReportIsIdempotentAndBecomesStale(t *testing.T) {
 	}
 	if query.Items[0].Validity != "stale" {
 		t.Fatalf("validity=%q", query.Items[0].Validity)
+	}
+	if refs, qualified, err := service.ResolveCacheQualifications(context.Background(), "dev.verify", "default", []string{"test.verify"}); err != nil || qualified || len(refs) != 0 {
+		t.Fatalf("stale qualification refs=%v qualified=%v err=%v", refs, qualified, err)
 	}
 	report["subject"] = map[string]any{"git_commit": commit, "dirty": true}
 	dirtyData, _ := json.Marshal(report)

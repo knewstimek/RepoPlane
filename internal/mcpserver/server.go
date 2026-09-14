@@ -51,7 +51,7 @@ func New(version string, provided ...Options) *mcp.Server {
 	if options.Catalog != nil {
 		mcp.AddTool(server, &mcp.Tool{
 			Name:        "catalog_query",
-			Description: "Search, inspect, enumerate, audit, or report status for the workspace tool catalog.",
+			Description: "Query the workspace catalog by search, get, list, audit, or status.",
 		}, func(ctx context.Context, _ *mcp.CallToolRequest, input catalog.QueryRequest) (*mcp.CallToolResult, catalog.QueryResponse, error) {
 			output, err := options.Catalog.Query(ctx, input)
 			return nil, output, publicError(err)
@@ -60,7 +60,7 @@ func New(version string, provided ...Options) *mcp.Server {
 	if options.Search != nil {
 		mcp.AddTool(server, &mcp.Tool{
 			Name:        "workspace_search",
-			Description: "Search workspace filenames or UTF-8, CP949, or EUC-KR text with explicit scope, coverage, and bounded results.",
+			Description: "Search names or UTF-8, CP949, or EUC-KR text with bounded scope and coverage.",
 		}, func(ctx context.Context, _ *mcp.CallToolRequest, input search.Request) (*mcp.CallToolResult, search.Response, error) {
 			output, err := options.Search.Query(ctx, input)
 			return nil, output, publicError(err)
@@ -69,7 +69,7 @@ func New(version string, provided ...Options) *mcp.Server {
 	if options.PathFacts != nil {
 		mcp.AddTool(server, &mcp.Tool{
 			Name:        "path_explain",
-			Description: "Explain observable workspace, Git, link, encoding, newline, rule-scope, and basename facts for a path.",
+			Description: "Explain workspace, Git, link, encoding, newline, rule, and basename facts for a path.",
 		}, func(ctx context.Context, _ *mcp.CallToolRequest, input pathfacts.Request) (*mcp.CallToolResult, pathfacts.Response, error) {
 			output, err := options.PathFacts.Explain(ctx, input)
 			return nil, output, publicError(err)
@@ -78,32 +78,32 @@ func New(version string, provided ...Options) *mcp.Server {
 	if options.DataQuery != nil {
 		mcp.AddTool(server, &mcp.Tool{
 			Name:        "data_query",
-			Description: "Read bounded text line/byte ranges or filter and project JSONL records without losing integer precision.",
+			Description: "Read bounded text ranges or filter/project JSONL without integer loss.",
 		}, func(ctx context.Context, _ *mcp.CallToolRequest, input dataquery.Request) (*mcp.CallToolResult, dataquery.Response, error) {
 			output, err := options.DataQuery.Query(ctx, input)
 			return nil, output, publicError(err)
 		})
 	}
 	if options.Records != nil {
-		mcp.AddTool(server, &mcp.Tool{Name: "project_records", Description: "Search and read durable verification, checkpoint, memo, environment, run, and artifact records without modifying them."}, func(ctx context.Context, _ *mcp.CallToolRequest, input records.QueryRequest) (*mcp.CallToolResult, records.QueryResponse, error) {
+		mcp.AddTool(server, &mcp.Tool{Name: "project_records", Description: "Query durable verification, checkpoint, memo, environment, run, and artifact records."}, func(ctx context.Context, _ *mcp.CallToolRequest, input records.QueryRequest) (*mcp.CallToolResult, records.QueryResponse, error) {
 			output, err := options.Records.Query(ctx, input)
 			return nil, output, publicError(err)
 		})
 	}
 	if options.CheckpointWriter != nil {
-		mcp.AddTool(server, &mcp.Tool{Name: "checkpoint_write", Description: "Create, update, or supersede a bounded task checkpoint using optimistic concurrency."}, func(ctx context.Context, _ *mcp.CallToolRequest, input records.CheckpointRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
+		mcp.AddTool(server, &mcp.Tool{Name: "checkpoint_write", Description: "Create, update, or supersede a bounded checkpoint with optimistic concurrency."}, func(ctx context.Context, _ *mcp.CallToolRequest, input records.CheckpointRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
 			output, err := options.CheckpointWriter.WriteCheckpoint(ctx, input)
 			return nil, output, publicError(err)
 		})
 	}
 	if options.MemoWriter != nil {
-		mcp.AddTool(server, &mcp.Tool{Name: "memo_write", Description: "Create, update, or supersede a bounded decision or failure memo using optimistic concurrency."}, func(ctx context.Context, _ *mcp.CallToolRequest, input records.MemoRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
+		mcp.AddTool(server, &mcp.Tool{Name: "memo_write", Description: "Create, update, or supersede a bounded memo with optimistic concurrency."}, func(ctx context.Context, _ *mcp.CallToolRequest, input records.MemoRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
 			output, err := options.MemoWriter.WriteMemo(ctx, input)
 			return nil, output, publicError(err)
 		})
 	}
 	if options.ReportImporter != nil {
-		mcp.AddTool(server, &mcp.Tool{Name: "check_report_import", Description: "Import a bounded workspace-local check-report.v1 without storing its raw contents."}, func(ctx context.Context, _ *mcp.CallToolRequest, input records.ImportRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
+		mcp.AddTool(server, &mcp.Tool{Name: "check_report_import", Description: "Import a bounded local check-report.v1 without storing raw contents."}, func(ctx context.Context, _ *mcp.CallToolRequest, input records.ImportRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
 			output, err := options.ReportImporter.ImportReport(ctx, input)
 			return nil, output, publicError(err)
 		})
@@ -111,15 +111,15 @@ func New(version string, provided ...Options) *mcp.Server {
 	if options.Runner != nil {
 		nonDestructive := false
 		destructive := true
-		mcp.AddTool(server, &mcp.Tool{Name: "run_prepare", Description: "Validate a registered capability, observe its required environment, and create a durable execution plan.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &nonDestructive, IdempotentHint: false}}, func(ctx context.Context, _ *mcp.CallToolRequest, input runner.PrepareRequest) (*mcp.CallToolResult, runner.PrepareResponse, error) {
+		mcp.AddTool(server, &mcp.Tool{Name: "run_prepare", Description: "Validate a capability and create a durable environment-bound plan.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &nonDestructive, IdempotentHint: false}}, func(ctx context.Context, _ *mcp.CallToolRequest, input runner.PrepareRequest) (*mcp.CallToolResult, runner.PrepareResponse, error) {
 			output, err := options.Runner.Prepare(ctx, input)
 			return nil, output, publicError(err)
 		})
-		mcp.AddTool(server, &mcp.Tool{Name: "run_execute", Description: "Execute one prepared registered-capability plan after revalidating relevant inputs and identities.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false}}, func(ctx context.Context, _ *mcp.CallToolRequest, input runner.ExecuteRequest) (*mcp.CallToolResult, runner.ExecuteResponse, error) {
+		mcp.AddTool(server, &mcp.Tool{Name: "run_execute", Description: "Execute or reuse one plan after dependency revalidation.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false}}, func(ctx context.Context, _ *mcp.CallToolRequest, input runner.ExecuteRequest) (*mcp.CallToolResult, runner.ExecuteResponse, error) {
 			output, err := options.Runner.Execute(ctx, input)
 			return nil, output, publicError(err)
 		})
-		mcp.AddTool(server, &mcp.Tool{Name: "run_inspect", Description: "Inspect a run, page bounded stdout, stderr, or retained artifacts, or request cancellation.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false}}, func(ctx context.Context, _ *mcp.CallToolRequest, input runner.InspectRequest) (*mcp.CallToolResult, runner.InspectResponse, error) {
+		mcp.AddTool(server, &mcp.Tool{Name: "run_inspect", Description: "Inspect/cancel a run or page retained streams and artifacts.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false}}, func(ctx context.Context, _ *mcp.CallToolRequest, input runner.InspectRequest) (*mcp.CallToolResult, runner.InspectResponse, error) {
 			output, err := options.Runner.Inspect(ctx, input)
 			return nil, output, publicError(err)
 		})

@@ -95,6 +95,9 @@ func (s *Service) Execute(ctx context.Context, request ExecuteRequest) (ExecuteR
 	if err != nil || relativeCWD != payload.CWD {
 		return ExecuteResponse{}, ErrPlanStale
 	}
+	if payload.Cache.Status == "hit" {
+		return s.executeCacheHit(startCtx, record, &payload, capability)
+	}
 	runDirectory := filepath.Join(s.stateDir, "runs", request.PlanID)
 	if err := os.MkdirAll(runDirectory, 0o700); err != nil {
 		return ExecuteResponse{}, fmt.Errorf("create run directory: %w", err)
@@ -210,6 +213,7 @@ func (s *Service) waitForRun(runContext context.Context, id string, record store
 	payload.ArtifactRefs = artifactRefs
 	payload.OutputsAfter = outputsAfter
 	payload.ObservationPartial = partial
+	s.publishCacheObservation(context.Background(), id, &payload)
 	_, _ = s.updateRun(context.Background(), record, payload, "current")
 	s.mu.Lock()
 	delete(s.running, id)
@@ -433,6 +437,7 @@ func (s *Service) Close() error {
 // Recover marks runs whose process ownership was lost across a server restart
 // as interrupted, then applies bounded stream retention maintenance.
 func (s *Service) Recover(ctx context.Context) error {
+	s.recoverCacheSwaps()
 	page, err := s.reader.QueryRecords(ctx, store.RecordQuery{ProjectID: s.projectID, WorkspaceID: s.workspaceID, Kind: "run", Limit: 10_000})
 	if err != nil {
 		return err
@@ -442,7 +447,7 @@ func (s *Service) Recover(ctx context.Context) error {
 		if err := json.Unmarshal(record.Payload, &payload); err != nil {
 			return err
 		}
-		if payload.State != "running" {
+		if payload.State != "running" && payload.State != "materializing" {
 			continue
 		}
 		finished := s.now().UTC()

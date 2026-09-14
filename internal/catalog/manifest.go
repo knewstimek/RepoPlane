@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -36,6 +37,25 @@ type Manifest struct {
 	Checks      []string            `json:"checks,omitempty" yaml:"checks,omitempty"`
 	Docs        []string            `json:"docs,omitempty" yaml:"docs,omitempty"`
 	CachePolicy string              `json:"cache_policy,omitempty" yaml:"cache_policy,omitempty"`
+	Cache       *Cache              `json:"cache,omitempty" yaml:"cache,omitempty"`
+}
+
+type Cache struct {
+	ContractRevision    uint64           `json:"contract_revision" yaml:"contract_revision"`
+	OutputContract      string           `json:"output_contract" yaml:"output_contract"`
+	KeyChecks           []string         `json:"key_checks,omitempty" yaml:"key_checks,omitempty"`
+	QualificationChecks []string         `json:"qualification_checks,omitempty" yaml:"qualification_checks,omitempty"`
+	RestorePolicy       string           `json:"restore_policy" yaml:"restore_policy"`
+	IsolatedRoot        string           `json:"isolated_root,omitempty" yaml:"isolated_root,omitempty"`
+	Assumptions         CacheAssumptions `json:"assumptions" yaml:"assumptions"`
+}
+
+type CacheAssumptions struct {
+	InputsComplete  bool   `json:"inputs_complete" yaml:"inputs_complete"`
+	OutputsComplete bool   `json:"outputs_complete" yaml:"outputs_complete"`
+	ExternalState   string `json:"external_state" yaml:"external_state"`
+	Nondeterminism  string `json:"nondeterminism" yaml:"nondeterminism"`
+	SideEffects     string `json:"side_effects" yaml:"side_effects"`
 }
 
 type Execution struct {
@@ -134,8 +154,8 @@ func (m Manifest) Validate() error {
 	if strings.TrimSpace(m.Summary) == "" {
 		return errors.New("summary is required")
 	}
-	if m.CachePolicy != "" && m.CachePolicy != "disabled" {
-		return errors.New("MVP only supports cache_policy=disabled")
+	if m.CachePolicy != "" && m.CachePolicy != "disabled" && m.CachePolicy != "observe" && m.CachePolicy != "verified" {
+		return errors.New("cache_policy must be disabled, observe, or verified")
 	}
 	if m.Execution != nil && m.Execution.Kind != "cli" {
 		return errors.New("MVP only recognizes execution.kind=cli")
@@ -176,6 +196,9 @@ func (m Manifest) Validate() error {
 			}
 		}
 	}
+	if err := m.validateCache(); err != nil {
+		return err
+	}
 	if len(m.Arguments) > 64 || len(m.Inputs) > 128 || len(m.Outputs) > 128 || len(m.Checks) > 128 || len(m.Docs) > 128 {
 		return errors.New("manifest collections exceed supported bounds")
 	}
@@ -188,6 +211,63 @@ func (m Manifest) Validate() error {
 		}
 		if len(argument.Description) > 4096 {
 			return errors.New("argument description exceeds supported bounds")
+		}
+	}
+	return nil
+}
+
+func (m Manifest) validateCache() error {
+	policy := m.CachePolicy
+	if policy == "" {
+		policy = "disabled"
+	}
+	if policy == "disabled" {
+		if m.Cache != nil {
+			return errors.New("cache configuration requires cache_policy=observe or verified")
+		}
+		return nil
+	}
+	if m.Cache == nil || m.Execution == nil || !m.Execution.TrustedForRun || m.Execution.ArtifactMode != "capture" {
+		return errors.New("cache requires trusted execution with artifact_mode=capture")
+	}
+	if len(m.Inputs) == 0 || len(m.Outputs) == 0 || m.Cache.ContractRevision == 0 || !idPattern.MatchString(m.Cache.OutputContract) {
+		return errors.New("cache requires inputs, outputs, contract_revision, and a valid output_contract")
+	}
+	if m.Cache.RestorePolicy != "missing_or_matching" && m.Cache.RestorePolicy != "replace_isolated_root" {
+		return errors.New("cache restore_policy is unsupported")
+	}
+	if m.Cache.RestorePolicy == "replace_isolated_root" {
+		root := filepath.Clean(filepath.FromSlash(m.Cache.IsolatedRoot))
+		if m.Cache.IsolatedRoot == "" || filepath.IsAbs(root) || root == "." || root == ".." || strings.HasPrefix(root, ".."+string(filepath.Separator)) || strings.ContainsAny(m.Cache.IsolatedRoot, "*?") {
+			return errors.New("replace_isolated_root requires a fixed workspace-relative isolated_root")
+		}
+		prefix := strings.TrimSuffix(filepath.ToSlash(m.Cache.IsolatedRoot), "/") + "/"
+		for _, output := range m.Outputs {
+			if !strings.HasPrefix(filepath.ToSlash(output), prefix) {
+				return errors.New("all outputs must be below isolated_root")
+			}
+		}
+	}
+	a := m.Cache.Assumptions
+	if !a.InputsComplete || !a.OutputsComplete || a.ExternalState != "none" || a.Nondeterminism != "none" || a.SideEffects != "declared_outputs_only" {
+		return errors.New("cache purity assumptions are incomplete")
+	}
+	if len(m.Cache.KeyChecks) == 0 || len(m.Cache.KeyChecks) > 64 || len(m.Cache.QualificationChecks) > 64 || (policy == "verified" && len(m.Cache.QualificationChecks) == 0) {
+		return errors.New("cache check declarations are incomplete or exceed limits")
+	}
+	preflight := make(map[string]PreflightCheck, len(m.Execution.Preflight))
+	for _, check := range m.Execution.Preflight {
+		preflight[check.ID] = check
+	}
+	for _, id := range m.Cache.KeyChecks {
+		check, ok := preflight[id]
+		if !ok || check.Kind != "executable" || check.Requirement != "required" {
+			return errors.New("cache key_checks must reference required executable preflight checks")
+		}
+	}
+	for _, id := range m.Cache.QualificationChecks {
+		if !idPattern.MatchString(id) {
+			return errors.New("cache qualification check id is invalid")
 		}
 	}
 	return nil

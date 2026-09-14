@@ -4,12 +4,12 @@
   "tools": [
     {
       "name": "catalog_query",
-      "description": "Search, inspect, enumerate, audit, or report status for the workspace tool catalog.",
+      "description": "Query the workspace catalog by search, get, list, audit, or status.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
           "byte_limit": {
-            "description": "maximum response bytes; default 65536, maximum 1048576",
+            "description": "response bytes; default 65536, max 1048576",
             "minimum": 0,
             "type": "integer"
           },
@@ -22,7 +22,7 @@
             "type": "string"
           },
           "item_limit": {
-            "description": "maximum returned items; default 50, maximum 500",
+            "description": "item limit; default 50, max 500",
             "minimum": 0,
             "type": "integer"
           },
@@ -35,7 +35,7 @@
             "type": "string"
           },
           "time_limit_ms": {
-            "description": "operation deadline in milliseconds; default 5000, maximum 30000",
+            "description": "deadline ms; default 5000, max 30000",
             "type": "integer"
           }
         },
@@ -131,6 +131,80 @@
                         "type": "object"
                       },
                       "type": "object"
+                    },
+                    "cache": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "assumptions": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "external_state": {
+                              "type": "string"
+                            },
+                            "inputs_complete": {
+                              "type": "boolean"
+                            },
+                            "nondeterminism": {
+                              "type": "string"
+                            },
+                            "outputs_complete": {
+                              "type": "boolean"
+                            },
+                            "side_effects": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "inputs_complete",
+                            "outputs_complete",
+                            "external_state",
+                            "nondeterminism",
+                            "side_effects"
+                          ],
+                          "type": "object"
+                        },
+                        "contract_revision": {
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "isolated_root": {
+                          "type": "string"
+                        },
+                        "key_checks": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": [
+                            "null",
+                            "array"
+                          ]
+                        },
+                        "output_contract": {
+                          "type": "string"
+                        },
+                        "qualification_checks": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": [
+                            "null",
+                            "array"
+                          ]
+                        },
+                        "restore_policy": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "contract_revision",
+                        "output_contract",
+                        "restore_policy",
+                        "assumptions"
+                      ],
+                      "type": [
+                        "null",
+                        "object"
+                      ]
                     },
                     "cache_policy": {
                       "type": "string"
@@ -403,7 +477,7 @@
     },
     {
       "name": "check_report_import",
-      "description": "Import a bounded workspace-local check-report.v1 without storing its raw contents.",
+      "description": "Import a bounded local check-report.v1 without storing raw contents.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -425,7 +499,7 @@
             "type": "string"
           },
           "time_limit_ms": {
-            "description": "operation deadline in milliseconds; default 5000, maximum 30000",
+            "description": "deadline ms; default 5000, max 30000",
             "type": "integer"
           }
         },
@@ -549,7 +623,7 @@
     },
     {
       "name": "checkpoint_write",
-      "description": "Create, update, or supersede a bounded task checkpoint using optimistic concurrency.",
+      "description": "Create, update, or supersede a bounded checkpoint with optimistic concurrency.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -744,7 +818,7 @@
     },
     {
       "name": "data_query",
-      "description": "Read bounded text line/byte ranges or filter and project JSONL records without losing integer precision.",
+      "description": "Read bounded text ranges or filter/project JSONL without integer loss.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -1037,7 +1111,7 @@
     },
     {
       "name": "memo_write",
-      "description": "Create, update, or supersede a bounded decision or failure memo using optimistic concurrency.",
+      "description": "Create, update, or supersede a bounded memo with optimistic concurrency.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -1207,7 +1281,7 @@
     },
     {
       "name": "path_explain",
-      "description": "Explain observable workspace, Git, link, encoding, newline, rule-scope, and basename facts for a path.",
+      "description": "Explain workspace, Git, link, encoding, newline, rule, and basename facts for a path.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -1216,7 +1290,7 @@
             "type": "string"
           },
           "byte_limit": {
-            "description": "maximum structured response bytes",
+            "description": "response byte limit",
             "minimum": 0,
             "type": "integer"
           },
@@ -1229,7 +1303,7 @@
             "type": "string"
           },
           "time_limit_ms": {
-            "description": "operation deadline in milliseconds",
+            "description": "deadline ms",
             "type": "integer"
           }
         },
@@ -1610,12 +1684,12 @@
     },
     {
       "name": "project_records",
-      "description": "Search and read durable verification, checkpoint, memo, environment, run, and artifact records without modifying them.",
+      "description": "Query durable verification, checkpoint, memo, environment, run, and artifact records.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
           "byte_limit": {
-            "description": "maximum response bytes; default 65536, maximum 1048576",
+            "description": "response bytes; default 65536, max 1048576",
             "minimum": 0,
             "type": "integer"
           },
@@ -1628,7 +1702,7 @@
             "type": "string"
           },
           "item_limit": {
-            "description": "maximum returned items; default 50, maximum 500",
+            "description": "item limit; default 50, max 500",
             "minimum": 0,
             "type": "integer"
           },
@@ -1645,7 +1719,7 @@
             "type": "string"
           },
           "time_limit_ms": {
-            "description": "operation deadline in milliseconds; default 5000, maximum 30000",
+            "description": "deadline ms; default 5000, max 30000",
             "type": "integer"
           },
           "updated_after": {
@@ -1841,7 +1915,7 @@
     },
     {
       "name": "run_execute",
-      "description": "Execute one prepared registered-capability plan after revalidating relevant inputs and identities.",
+      "description": "Execute or reuse one plan after dependency revalidation.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -1850,7 +1924,7 @@
             "type": "string"
           },
           "time_limit_ms": {
-            "description": "start deadline in milliseconds; default 5000, maximum 30000",
+            "description": "start deadline ms; default 5000, max 30000",
             "type": "integer"
           }
         },
@@ -1912,7 +1986,7 @@
     },
     {
       "name": "run_inspect",
-      "description": "Inspect a run, page bounded stdout, stderr, or retained artifacts, or request cancellation.",
+      "description": "Inspect/cancel a run or page retained streams and artifacts.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -1925,7 +1999,7 @@
             "type": "string"
           },
           "byte_limit": {
-            "description": "maximum returned stream bytes; default 65536, maximum 1048576",
+            "description": "stream bytes; default 65536, max 1048576",
             "minimum": 0,
             "type": "integer"
           },
@@ -1939,7 +2013,7 @@
             "type": "string"
           },
           "time_limit_ms": {
-            "description": "inspect deadline in milliseconds; default 5000, maximum 30000",
+            "description": "deadline ms; default 5000, max 30000",
             "type": "integer"
           }
         },
@@ -2039,7 +2113,7 @@
     },
     {
       "name": "run_prepare",
-      "description": "Validate a registered capability, observe its required environment, and create a durable execution plan.",
+      "description": "Validate a capability and create a durable environment-bound plan.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -2047,6 +2121,10 @@
             "additionalProperties": true,
             "description": "typed values declared by the capability argument schema",
             "type": "object"
+          },
+          "cache_mode": {
+            "description": "cache lookup mode: auto or bypass; default: auto",
+            "type": "string"
           },
           "capability_id": {
             "description": "registered catalog capability ID",
@@ -2061,7 +2139,7 @@
             "type": "string"
           },
           "time_limit_ms": {
-            "description": "prepare deadline in milliseconds; default 5000, maximum 30000",
+            "description": "deadline ms; default 5000, max 30000",
             "type": "integer"
           }
         },
@@ -2122,6 +2200,50 @@
                   "null",
                   "array"
                 ]
+              },
+              "cache": {
+                "additionalProperties": false,
+                "properties": {
+                  "eligible": {
+                    "type": "boolean"
+                  },
+                  "key": {
+                    "type": "string"
+                  },
+                  "mode": {
+                    "type": "string"
+                  },
+                  "policy": {
+                    "type": "string"
+                  },
+                  "qualification_refs": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": [
+                      "null",
+                      "array"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "source_run_ref": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "policy",
+                  "mode",
+                  "status",
+                  "eligible",
+                  "reason",
+                  "qualification_refs"
+                ],
+                "type": "object"
               },
               "capability_id": {
                 "type": "string"
@@ -2187,7 +2309,8 @@
               "ready",
               "timeout_sec",
               "prepared_at",
-              "execution_fingerprint"
+              "execution_fingerprint",
+              "cache"
             ],
             "type": "object"
           },
@@ -2235,12 +2358,12 @@
     },
     {
       "name": "workspace_search",
-      "description": "Search workspace filenames or UTF-8, CP949, or EUC-KR text with explicit scope, coverage, and bounded results.",
+      "description": "Search names or UTF-8, CP949, or EUC-KR text with bounded scope and coverage.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
           "byte_limit": {
-            "description": "maximum structured response bytes; default 65536, maximum 1048576",
+            "description": "response bytes; default 65536, max 1048576",
             "minimum": 0,
             "type": "integer"
           },
@@ -2289,7 +2412,7 @@
             ]
           },
           "item_limit": {
-            "description": "maximum returned items; default 50, maximum 500",
+            "description": "item limit; default 50, max 500",
             "minimum": 0,
             "type": "integer"
           },
@@ -2306,7 +2429,7 @@
             "type": "string"
           },
           "time_limit_ms": {
-            "description": "search deadline in milliseconds; default 5000, maximum 30000",
+            "description": "deadline ms; default 5000, max 30000",
             "type": "integer"
           },
           "vendor": {
