@@ -15,6 +15,10 @@
 | [Runner-Spec.md](Runner-Spec.md) | prepare/execute/inspect와 플랫폼 실행 계약 | Runner 권한이나 실행 동작이 바뀔 때 |
 | [Cache-Spec.md](Cache-Spec.md) | cache 적격성, key, 재사용, materialization 계약 | cache 외부·저장 계약이 바뀔 때 |
 | [Cache-Implementation-Plan.md](Cache-Implementation-Plan.md) | Stage 6 구현 순서와 검증 gate | cache 작업 단계가 진행되거나 재계획될 때 |
+| [Search-Adapters-Spec.md](Search-Adapters-Spec.md) | Git/symbol/frontmatter/structured-data 검색 계약 | search adapter 계약이 바뀔 때 |
+| [Search-Adapters-Implementation-Plan.md](Search-Adapters-Implementation-Plan.md) | Stage 7 구현 순서와 gate | search adapter 작업이 진행되거나 재계획될 때 |
+| [HTTP-Security-Spec.md](HTTP-Security-Spec.md) | HTTP transport, auth, scope, audit와 limit 계약 | network/security 계약이 바뀔 때 |
+| [HTTP-Implementation-Plan.md](HTTP-Implementation-Plan.md) | Stage 8 구현 순서와 gate | HTTP/Auth 작업이 진행되거나 재계획될 때 |
 | [Storage-Design.md](Storage-Design.md) | SQLite, blob, ref, cursor 저장 계약 | 영속성 구조가 바뀔 때 |
 | [Public-Release.md](Public-Release.md) | 공개 설명, topic, 최종 공개 체크리스트 | 릴리스 준비와 공개 시점 |
 | [Verification.md](Verification.md) | 완료 조건과 실행 가능한 증거 매핑 | 완료 게이트나 검증 방식이 바뀔 때 |
@@ -22,6 +26,8 @@
 | [adr/0002-record-write-boundaries.md](adr/0002-record-write-boundaries.md) | record read/write 권한과 충돌 경계 | writer 책임이나 권한 모델이 바뀔 때 |
 | [adr/0003-runner-authority-and-compatibility.md](adr/0003-runner-authority-and-compatibility.md) | Runner 권한, 실용적 gate, 호환성 결정 | 실행 승인이나 호환성 원칙이 바뀔 때 |
 | [adr/0004-conservative-cache-qualification.md](adr/0004-conservative-cache-qualification.md) | cache opt-in, qualification, false-hit 결정 | cache 승인이나 격리 원칙이 바뀔 때 |
+| [adr/0005-search-adapter-evidence-boundaries.md](adr/0005-search-adapter-evidence-boundaries.md) | 검색 evidence channel과 adapter 부재 경계 | 검색 근거 결합 방식이 바뀔 때 |
+| [adr/0006-http-resource-server-boundary.md](adr/0006-http-resource-server-boundary.md) | HTTP resource-server와 인증 책임 경계 | HTTP 인증·workspace 경계가 바뀔 때 |
 
 ## 문서 우선순위
 

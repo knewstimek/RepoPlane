@@ -224,8 +224,8 @@ MVP 이후 완료:
 MVP 동결 뒤 완료(현재 상태는 active roadmap 기준):
 
 - cache eligibility와 artifact 재사용
-
-현재 대기:
-
 - semantic/symbol/Git-history adapter
 - HTTP transport와 인증
+
+위 목록은 원 MVP 범위에서는 제외였다는 역사적 기록이다. 실제 지원 계약과 완료 상태는
+active roadmap 및 각 후속 명세를 따른다. semantic ranking은 후속 명세에서도 선택 범위다.

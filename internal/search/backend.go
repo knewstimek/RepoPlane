@@ -40,19 +40,34 @@ type BackendQuery struct {
 	Vendor        string
 	CaseSensitive bool
 	Encoding      string
+	MatchKind     string
+	Revision      string
+	Since         string
+	Until         string
+	SymbolKind    string
+	Language      string
+	PatternSyntax string
+	RootPrefix    string
 }
 
 type Match struct {
-	Path string
-	Line uint64
-	Text string
+	Path      string
+	Line      uint64
+	Text      string
+	SourceRef string
+	Basis     string
+	Channel   string
+	Revision  string
+	Validity  string
 }
 
 type BackendOutcome struct {
-	Matches  []Match
-	Complete bool
-	Warnings []string
-	Engine   string
+	Matches     []Match
+	Complete    bool
+	Warnings    []string
+	Engine      string
+	Validity    string
+	Unsupported bool
 }
 
 type Backend interface {

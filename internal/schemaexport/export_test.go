@@ -57,7 +57,7 @@ func TestCompactToolSchemaFootprintStaysBounded(t *testing.T) {
 	if err := json.Unmarshal(generated, &parsed); err != nil {
 		t.Fatal(err)
 	}
-	const maximumAllTools = 30 * 1024
+	const maximumAllTools = 32 * 1024
 	const maximumRunnerTools = 5500
 	total, runner := 0, 0
 	for _, tool := range parsed.Tools {

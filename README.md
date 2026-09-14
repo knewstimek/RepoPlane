@@ -19,9 +19,9 @@ guess where they are or read far too much to find them. RepoPlane provides five 
 | Tool | What it answers |
 |---|---|
 | `catalog_query` | What reusable tools are declared here? Are declarations missing or stale? |
-| `workspace_search` | Which filenames or lines match within this explicit scope? |
+| `workspace_search` | Which filenames, lines, Git changes, or configured symbols match this scope? |
 | `path_explain` | What is this path really, and what Git, link, encoding, newline, and rule facts apply? |
-| `data_query` | Can I read this exact text range or filter/project these JSONL records safely? |
+| `data_query` | Can I range-read or safely query JSON/JSONL/log/CSV/TSV data? |
 | `project_records` | Which verification, checkpoint, memo, environment, run, and artifact records exist? |
 
 RepoPlane does not execute catalog entries by default. Hosts may separately opt into
@@ -32,10 +32,10 @@ three tools without adding a gateway or another MCP tool.
 
 ## Highlights
 
-- Official MCP Go SDK with stdio transport
+- Official MCP Go SDK with default stdio and opt-in authenticated Streamable HTTP
 - Workspace boundary checks against lexical and symlink/junction escapes
 - Fixed, HMAC-authenticated pagination cursors with a 30-minute TTL
-- Deterministic YAML/JSON catalog indexing and bounded executable-candidate audits
+- Deterministic YAML/JSON/Markdown-frontmatter catalogs and bounded executable-candidate audits
 - Ripgrep-backed filename, exact-text, and regex search with explicit scope policies
 - Explicit UTF-8, CP949, and strict EUC-KR decoding
 - Lossless JSONL integer handling, including values larger than JavaScript's safe integer range
@@ -49,11 +49,15 @@ three tools without adding a gateway or another MCP tool.
 - Prepare/execute revalidation that ignores unrelated worktree changes
 - HMAC-keyed, qualification-gated cache reuse with observe, bypass, conflict, corruption, and
   false-hit quarantine states
+- Git-history and configured symbol-index search with independent evidence and freshness classes
+- Bounded JSON Pointer, log, CSV, and TSV queries plus strict Markdown frontmatter catalogs
+- Opt-in authenticated Streamable HTTP with scopes, Origin/Host checks, audit, and request limits
 
 ## Requirements
 
 - Go 1.26 or newer (to build from source)
 - [ripgrep](https://github.com/BurntSushi/ripgrep) available as `rg` on `PATH`
+- Git on `PATH` for the optional history adapter
 
 RepoPlane currently targets Windows and Linux.
 
@@ -130,6 +134,9 @@ Available flags:
 --catalog-root PATH     workspace-relative catalog file or directory; repeatable; default: catalog
 --candidate-root PATH   executable-candidate directory; repeatable; defaults: tools, scripts
 --rule-file NAME        rule filename searched from root to target; repeatable; default: AGENTS.md
+--symbol-index PATH     workspace-relative symbol-index.v1 or ctags JSONL; repeatable
+--transport MODE        stdio (default) or http
+--http-profile PATH     ignored local HTTP YAML profile; required for HTTP
 --enable-intention-writes  expose checkpoint_write and memo_write; default: false
 --enable-report-import     expose check_report_import; default: false
 --enable-runner          expose run_prepare, run_execute, and run_inspect; default: false
@@ -143,8 +150,12 @@ Typical tool inputs are intentionally small:
 ```json
 {"mode":"search","query":"schema validation","item_limit":10}
 {"mode":"regex","pattern":"TODO|FIXME","root":"internal","item_limit":50}
+{"mode":"git_history","pattern":"breaking change","match_kind":"commit","revision":"HEAD"}
+{"mode":"symbol","pattern":"Resolve","symbol_kind":"function","language":"Go"}
 {"path":"config/settings.yaml","encoding":"utf-8"}
 {"mode":"jsonl","ref":"source:mutable:reports/events.jsonl","fields":["id","status"]}
+{"mode":"log","dialect":"regex","pattern":"error|panic","ref":"source:mutable:logs/app.log"}
+{"mode":"json","dialect":"json-pointer","pointer":"/items","ref":"source:mutable:reports/data.json","fields":["id","status"]}
 {"mode":"list","kind":"verification","validity":"current"}
 ```
 
@@ -161,7 +172,7 @@ The importer stores a hash and bounded normalized summary, not raw report diagno
 
 ## Add a catalog entry
 
-Place YAML or JSON manifests under a configured catalog root. A minimal documentation-only entry
+Place YAML/JSON manifests or Markdown with leading YAML frontmatter under a configured catalog root. A minimal documentation-only entry
 needs an ID, revision, and summary:
 
 ```yaml
@@ -173,6 +184,9 @@ use_when:
 tags: [configuration, schema, validation]
 cache_policy: disabled
 ```
+
+For Markdown, wrap the same fields in `---` delimiters before the document body. Plain Markdown
+without frontmatter is ignored rather than reported as a broken manifest.
 
 An optional `execution` block may describe a CLI. It remains documentation-only unless the host
 enables Runner and the entry explicitly sets `trusted_for_run: true`:
@@ -221,6 +235,28 @@ Use `cache_mode: bypass` in `run_prepare` to force the normal process path for c
 comparisons. `verified` policy additionally requires a current passed verification record for each
 qualification check. A miss or rejected cache never blocks the otherwise valid Runner execution.
 
+## Optional HTTP deployment
+
+HTTP is separate from the default stdio process. Copy `examples/http-profile.local.yaml` into an
+ignored host state directory, create the referenced `repoplane.token` with at least 32 random
+URL-safe characters, and start:
+
+```sh
+repoplane --workspace WORKSPACE --state-dir STATE_DIRECTORY \
+  --transport http --http-profile STATE_DIRECTORY/http.yaml
+```
+
+The local profile binds loopback and grants read scope only. Mutation or Runner access additionally
+requires both its existing startup opt-in and the matching token scope. For a remote deployment,
+use `examples/http-profile.oauth.yaml` behind a TLS reverse proxy that connects to the loopback
+listener and preserves `Host`; set the two named credential environment variables locally.
+RepoPlane validates opaque tokens through the configured HTTPS RFC 7662 endpoint and checks expiry,
+resource/audience, and per-tool scopes. It never issues or forwards tokens.
+
+Direct non-loopback listeners require `tls.cert_file` and `tls.key_file`. Present browser Origins
+must pass the configured policy. HTTP admissions are recorded without tokens, arguments, results,
+addresses, or local paths in a separate bounded `audit.db`.
+
 ## Response semantics
 
 List and search responses use one common envelope:
@@ -246,7 +282,7 @@ ordered result set; `data_query` additionally rechecks the source hash between p
 ## Local state and removal
 
 RepoPlane stores a regenerable SQLite index and cache-entry index, a separate durable `records.db`,
-random cursor/cache authentication keys, and opt-in Runner streams/artifact blobs in `--state-dir`. It does not
+bounded HTTP `audit.db`, random cursor/cache/audit authentication keys, and opt-in Runner streams/artifact blobs in `--state-dir`. It does not
 write databases into the workspace and refuses a state directory that resolves inside it. Runner
 streams retain the wider of 14 days or the most recent 200 runs; current intention/imported record
 references protect older run streams. Raw stream/artifact bytes are never placed in record payloads.
@@ -254,7 +290,7 @@ references protect older run streams. Raw stream/artifact bytes are never placed
 To uninstall, remove the client configuration entry and binary. After no RepoPlane process is
 using it, delete the configured state directory to remove the local index and invalidate cursors.
 That deletion also permanently removes checkpoints, memos, imported verification records, run
-receipts, streams, and captured artifacts;
+receipts, streams, captured artifacts, and HTTP audit events;
 back up `records.db` first when those records must be retained. No workspace source files need
 cleanup.
 
@@ -266,7 +302,7 @@ and durable records use separate database files and domain interfaces.
 
 Public JSON Schemas are committed under [`schemas/`](schemas/). Run
 `go generate ./internal/mcpserver` after changing a tool contract; tests reject schema drift.
-The compact MCP schema set has a regression budget (30 KiB overall and 5,500 bytes for the three
+The compact MCP schema set has a regression budget (32 KiB overall and 5,500 bytes for the three
 Runner tools). Its wording is deduplicated without dropping response fields, limits, defaults, or
 state semantics; cross-tool references are avoided because each MCP tool schema must stand alone.
 
@@ -286,17 +322,21 @@ state semantics; cross-tool references are avoided because each MCP tool schema 
 - Cache materialization never overwrites a differing file. Whole-root replacement is limited to an
   untracked, input-disjoint directory explicitly owned by the capability.
 - Dirty-worktree reports without a content fingerprint are never classified as current.
-- The server does not provide authentication because the MVP transport is local stdio.
+- stdio uses the local host process boundary. Opt-in HTTP requires bearer authentication, resource
+  and scope authorization, Origin/Host checks, bounded admission, and a separate redacted audit.
 - JSONL support is deliberately limited to top-level equality filters and field projection.
-- Symbol, semantic, Git-history, XML, CSV/TSV, and arbitrary JSONPath queries are out of scope.
+- Symbol search reads only configured existing indexes; semantic search, XML, and arbitrary
+  JSONPath/JMESPath remain out of scope.
 
 See [SECURITY.md](SECURITY.md) for vulnerability reporting and
-[`docs/MVP-Spec.md`](docs/MVP-Spec.md) for the precise contract.
+[`docs/MVP-Spec.md`](docs/MVP-Spec.md), the
+[`Search adapter specification`](docs/Search-Adapters-Spec.md), and the
+[`HTTP security specification`](docs/HTTP-Security-Spec.md) for precise contracts.
 
 ## Roadmap
 
-The read-only MVP, durable Records, Execution Foundation, and Conservative Cache slices are
-complete. Adopted P1/P2 work next proceeds to Search Adapters. See the
+The read-only MVP and all adopted roadmap slices through Search Adapters and HTTP/Auth are
+complete. Ongoing work is compatibility, measured dogfooding, and release maintenance. See the
 [`full implementation roadmap`](docs/Full-Implementation-Roadmap.md), the
 [`Records specification`](docs/Records-Spec.md), and the full
 [`design document`](docs/Project-Control-Plane-MCP-Design.md).

@@ -1,6 +1,6 @@
 # RepoPlane 저장 구조와 persistence interface
 
-상태: Implemented 0.3
+상태: Implemented 0.4
 
 ## 1. 저장 계층
 
@@ -12,9 +12,12 @@ RepoPlane은 세 종류의 데이터를 구분한다.
 | 검색 색인·고정 결과·Runner cache entry | SQLite | 삭제 후 재생성 가능한 cache |
 | verification/checkpoint/memo | 별도 `records.db` | 정책에 따라 보존하는 durable record |
 | run/artifact | durable SQLite + content-addressed blob directory | 실행·재사용 evidence |
+| HTTP admission/completion | 별도 bounded `audit.db` | token·payload 없는 운영 보안 evidence |
 
 SQLite 파일과 임시 파일은 workspace 안에 숨겨서 만들지 않고 호스트가 지정한 로컬
 data directory에 둔다. `repoplane.db`는 재생성 가능하고 `records.db`는 그렇지 않다.
+`audit.db`는 별도 retention/최대 event 수를 가진 운영 기록이며 semantic record 조회에
+혼합하지 않는다.
 
 SQLite는 최초 adapter이지 서비스 계층의 계약이 아니다. 서비스는
 `internal/store`의 domain interface에만 의존하고 SQLite 구현은
@@ -144,6 +147,12 @@ Records 수직 절단은 별도 `records.db` migration으로 record, record revi
 receipt를 추가한다. `RecordReader`, `CheckpointWriter`, `MemoWriter`, `ReportImporter`를
 분리하고 수정은 expected revision compare-and-swap을 사용한다. cache DB 삭제나 재색인은
 durable record에 영향을 주지 않는다.
+
+HTTP audit는 `AuditRepository`의 admission/completion/expiry 동작만 노출한다. admission은
+request 실행 전 저장하고 실패하면 요청을 실행하지 않는다. event는 HMAC principal/resource,
+method/tool, decision/status, bounded byte count와 시각만 가지며 token, argument, result, address,
+local path를 저장하지 않는다. 기본 30일, 최대 100,000건이고 insert와 expiry 정리는 각각
+최대 256건만 삭제한다.
 
 artifact blob은 여전히 content-addressed storage 후보지만, hash가 존재한다는 사실과 byte를
 보관하고 있다는 사실을 분리한다. TTL, redaction, access policy가 확정되기 전에는

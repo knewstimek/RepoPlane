@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -16,6 +17,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -48,17 +50,20 @@ type Filter struct {
 }
 
 type Request struct {
-	Mode            string   `json:"mode,omitempty" jsonschema:"text_range or jsonl; omit when using cursor"`
+	Mode            string   `json:"mode,omitempty" jsonschema:"text_range, jsonl, json, delimited, or log; omit with cursor"`
 	Ref             string   `json:"ref,omitempty" jsonschema:"source ref returned by another RepoPlane tool"`
 	Encoding        string   `json:"encoding,omitempty" jsonschema:"utf-8, cp949, or euc-kr; defaults to utf-8"`
 	LineStart       *uint64  `json:"line_start,omitempty" jsonschema:"one-based inclusive line start"`
 	LineEnd         *uint64  `json:"line_end,omitempty" jsonschema:"one-based inclusive line end"`
 	ByteStart       *uint64  `json:"byte_start,omitempty" jsonschema:"zero-based inclusive byte start"`
 	ByteEnd         *uint64  `json:"byte_end,omitempty" jsonschema:"zero-based exclusive byte end"`
-	Dialect         string   `json:"dialect,omitempty" jsonschema:"jsonl-simple for JSONL mode"`
+	Dialect         string   `json:"dialect,omitempty" jsonschema:"jsonl-simple, json-pointer, csv, tsv, exact, or regex"`
 	Filters         []Filter `json:"filters,omitempty" jsonschema:"top-level equality filters"`
 	Fields          []string `json:"fields,omitempty" jsonschema:"top-level fields to project; empty returns all fields"`
 	MalformedPolicy string   `json:"malformed_policy,omitempty" jsonschema:"fail or skip_with_warning"`
+	Pointer         string   `json:"pointer,omitempty" jsonschema:"RFC 6901 pointer for json mode; default root"`
+	Pattern         string   `json:"pattern,omitempty" jsonschema:"exact text or RE2 pattern for log mode"`
+	CaseSensitive   bool     `json:"case_sensitive,omitempty" jsonschema:"case-sensitive log matching"`
 	Cursor          string   `json:"cursor,omitempty" jsonschema:"opaque cursor returned by an earlier data_query"`
 	ItemLimit       uint64   `json:"item_limit,omitempty"`
 	ByteLimit       uint64   `json:"byte_limit,omitempty"`
@@ -74,6 +79,7 @@ type Result struct {
 	Text        string         `json:"text,omitempty"`
 	BytesBase64 string         `json:"bytes_base64,omitempty"`
 	Record      map[string]any `json:"record,omitempty"`
+	RecordIndex uint64         `json:"record_index,omitempty"`
 }
 
 type Metadata struct {
@@ -164,9 +170,293 @@ func (s *Service) Query(ctx context.Context, request Request) (Response, error) 
 		return s.persist(ctx, request, data, results, persistedMetadata{
 			Status: status, Relation: relation, Scan: scan, Warnings: warnings, Metadata: metadata,
 		}, limits.ItemLimit, limits.ByteLimit)
+	case "json":
+		results, metadata, err := queryJSON(scanCtx, request, data)
+		if err != nil {
+			return Response{}, err
+		}
+		return s.persist(ctx, request, data, results, completeMetadata(metadata), limits.ItemLimit, limits.ByteLimit)
+	case "delimited":
+		results, metadata, status, relation, scan, warnings, err := queryDelimited(scanCtx, request, data)
+		if err != nil {
+			return Response{}, err
+		}
+		return s.persist(ctx, request, data, results, persistedMetadata{Status: status, Relation: relation, Scan: scan, Warnings: warnings, Metadata: metadata}, limits.ItemLimit, limits.ByteLimit)
+	case "log":
+		results, metadata, status, relation, scan, warnings, err := queryLog(scanCtx, request, data)
+		if err != nil {
+			return Response{}, err
+		}
+		return s.persist(ctx, request, data, results, persistedMetadata{Status: status, Relation: relation, Scan: scan, Warnings: warnings, Metadata: metadata}, limits.ItemLimit, limits.ByteLimit)
 	default:
 		return Response{}, fmt.Errorf("unsupported data query mode %q", request.Mode)
 	}
+}
+
+func queryJSON(ctx context.Context, request Request, data []byte) ([]Result, Metadata, error) {
+	if request.Dialect == "" {
+		request.Dialect = "json-pointer"
+	}
+	metadata := Metadata{Mode: "json", Dialect: request.Dialect, Encoding: request.Encoding, MissingFieldPolicy: "missing filter fields do not match; projected missing fields are null"}
+	if request.Dialect != "json-pointer" {
+		return nil, metadata, fmt.Errorf("unsupported JSON dialect %q", request.Dialect)
+	}
+	for _, filter := range request.Filters {
+		if err := validateFilter(filter); err != nil {
+			return nil, metadata, err
+		}
+	}
+	text, err := textcodec.Decode(request.Encoding, data)
+	if err != nil {
+		return nil, metadata, err
+	}
+	decoder := json.NewDecoder(strings.NewReader(text))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return nil, metadata, fmt.Errorf("decode JSON: %w", err)
+	}
+	var extra any
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		return nil, metadata, errors.New("JSON contains trailing value or data")
+	}
+	value, err = resolveJSONPointer(value, request.Pointer)
+	if err != nil {
+		return nil, metadata, err
+	}
+	values := []any{value}
+	if array, ok := value.([]any); ok {
+		values = array
+	}
+	results := make([]Result, 0, len(values))
+	var projectedBytes uint64
+	for index, item := range values {
+		if err := ctx.Err(); err != nil {
+			return nil, metadata, err
+		}
+		record, ok := item.(map[string]any)
+		if !ok {
+			record = map[string]any{"value": item}
+		}
+		if !matchesFilters(record, request.Filters) {
+			continue
+		}
+		projected := project(record, request.Fields)
+		encoded, err := json.Marshal(projected)
+		if err != nil {
+			return nil, metadata, err
+		}
+		projectedBytes += uint64(len(encoded))
+		if len(results) >= MaxDataItems || projectedBytes > MaxProjectedBytes {
+			return nil, metadata, errors.New("JSON projection exceeds supported limit")
+		}
+		results = append(results, Result{Kind: "json_value", SourceRef: request.Ref, RecordIndex: uint64(index + 1), Record: projected})
+	}
+	return results, metadata, nil
+}
+
+func resolveJSONPointer(value any, pointer string) (any, error) {
+	if pointer == "" {
+		return value, nil
+	}
+	if !strings.HasPrefix(pointer, "/") {
+		return nil, errors.New("JSON pointer must be empty or begin with /")
+	}
+	current := value
+	for _, raw := range strings.Split(pointer[1:], "/") {
+		token, err := decodePointerToken(raw)
+		if err != nil {
+			return nil, err
+		}
+		switch typed := current.(type) {
+		case map[string]any:
+			var ok bool
+			current, ok = typed[token]
+			if !ok {
+				return nil, fmt.Errorf("JSON pointer member %q is missing", token)
+			}
+		case []any:
+			index, err := strconv.ParseUint(token, 10, 64)
+			if err != nil || index >= uint64(len(typed)) {
+				return nil, fmt.Errorf("JSON pointer array index %q is invalid", token)
+			}
+			current = typed[index]
+		default:
+			return nil, fmt.Errorf("JSON pointer cannot descend through %q", token)
+		}
+	}
+	return current, nil
+}
+
+func decodePointerToken(raw string) (string, error) {
+	var result strings.Builder
+	for index := 0; index < len(raw); index++ {
+		if raw[index] != '~' {
+			result.WriteByte(raw[index])
+			continue
+		}
+		if index+1 >= len(raw) || (raw[index+1] != '0' && raw[index+1] != '1') {
+			return "", errors.New("JSON pointer contains an invalid escape")
+		}
+		index++
+		if raw[index] == '0' {
+			result.WriteByte('~')
+		} else {
+			result.WriteByte('/')
+		}
+	}
+	return result.String(), nil
+}
+
+func queryDelimited(ctx context.Context, request Request, data []byte) ([]Result, Metadata, contracts.Status, contracts.CountRelation, contracts.Scan, []contracts.Warning, error) {
+	if request.Dialect != "csv" && request.Dialect != "tsv" {
+		return nil, Metadata{}, "", "", contracts.Scan{}, nil, fmt.Errorf("delimited dialect must be csv or tsv")
+	}
+	if request.MalformedPolicy == "" {
+		request.MalformedPolicy = "fail"
+	}
+	if request.MalformedPolicy != "fail" && request.MalformedPolicy != "skip_with_warning" {
+		return nil, Metadata{}, "", "", contracts.Scan{}, nil, errors.New("malformed_policy must be fail or skip_with_warning")
+	}
+	for _, filter := range request.Filters {
+		if filter.ValueType != "string" {
+			return nil, Metadata{}, "", "", contracts.Scan{}, nil, errors.New("delimited filters require value_type=string")
+		}
+		if err := validateFilter(filter); err != nil {
+			return nil, Metadata{}, "", "", contracts.Scan{}, nil, err
+		}
+	}
+	text, err := textcodec.Decode(request.Encoding, data)
+	if err != nil {
+		return nil, Metadata{}, "", "", contracts.Scan{}, nil, err
+	}
+	reader := csv.NewReader(strings.NewReader(text))
+	if request.Dialect == "tsv" {
+		reader.Comma = '\t'
+	}
+	reader.ReuseRecord = false
+	header, err := reader.Read()
+	if err != nil {
+		return nil, Metadata{}, "", "", contracts.Scan{}, nil, fmt.Errorf("read delimited header: %w", err)
+	}
+	seen := make(map[string]struct{}, len(header))
+	for _, name := range header {
+		if name == "" {
+			return nil, Metadata{}, "", "", contracts.Scan{}, nil, errors.New("delimited header contains an empty field")
+		}
+		if _, exists := seen[name]; exists {
+			return nil, Metadata{}, "", "", contracts.Scan{}, nil, fmt.Errorf("delimited header %q is duplicated", name)
+		}
+		seen[name] = struct{}{}
+	}
+	metadata := Metadata{Mode: "delimited", Dialect: request.Dialect, Encoding: request.Encoding, MissingFieldPolicy: "missing filter fields do not match; projected missing fields are null"}
+	results := make([]Result, 0)
+	warnings := make([]contracts.Warning, 0)
+	status, relation, scanState := contracts.StatusOK, contracts.CountExact, contracts.ScanComplete
+	row := uint64(1)
+	var projectedBytes uint64
+	for {
+		if err := ctx.Err(); err != nil {
+			status, relation, scanState = contracts.StatusPartial, contracts.CountLowerBound, contracts.ScanPartial
+			warnings = append(warnings, contracts.Warning{Code: "deadline_exceeded", Message: "delimited scan deadline reached"})
+			break
+		}
+		values, err := reader.Read()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		row++
+		if err != nil {
+			if request.MalformedPolicy == "fail" {
+				return nil, metadata, "", "", contracts.Scan{}, nil, fmt.Errorf("malformed delimited record near row %d: %w", row, err)
+			}
+			status, relation, scanState = contracts.StatusPartial, contracts.CountLowerBound, contracts.ScanPartial
+			warnings = append(warnings, contracts.Warning{Code: "malformed_record", Message: fmt.Sprintf("skipped malformed record near row %d", row)})
+			continue
+		}
+		record := make(map[string]any, len(header))
+		for index, name := range header {
+			record[name] = values[index]
+		}
+		if !matchesFilters(record, request.Filters) {
+			continue
+		}
+		projected := project(record, request.Fields)
+		encoded, _ := json.Marshal(projected)
+		projectedBytes += uint64(len(encoded))
+		if len(results) >= MaxDataItems || projectedBytes > MaxProjectedBytes {
+			status, relation, scanState = contracts.StatusPartial, contracts.CountLowerBound, contracts.ScanPartial
+			warnings = append(warnings, contracts.Warning{Code: "projection_limit", Message: "delimited projection limit reached"})
+			break
+		}
+		results = append(results, Result{Kind: request.Dialect + "_record", SourceRef: request.Ref, RecordIndex: row - 1, Record: projected})
+	}
+	scope := "scope:data:" + hashString(request.Ref+"\x00"+request.Dialect)
+	return results, metadata, status, relation, contracts.Scan{State: scanState, ScopeRef: &scope}, warnings, nil
+}
+
+func queryLog(ctx context.Context, request Request, data []byte) ([]Result, Metadata, contracts.Status, contracts.CountRelation, contracts.Scan, []contracts.Warning, error) {
+	if request.Dialect == "" {
+		request.Dialect = "exact"
+	}
+	metadata := Metadata{Mode: "log", Dialect: request.Dialect, Encoding: request.Encoding}
+	if request.Pattern == "" {
+		return nil, metadata, "", "", contracts.Scan{}, nil, errors.New("pattern is required for log mode")
+	}
+	var expression *regexp.Regexp
+	if request.Dialect == "regex" {
+		pattern := request.Pattern
+		if !request.CaseSensitive {
+			pattern = "(?i:" + pattern + ")"
+		}
+		var err error
+		expression, err = regexp.Compile(pattern)
+		if err != nil {
+			return nil, metadata, "", "", contracts.Scan{}, nil, fmt.Errorf("invalid log regular expression: %w", err)
+		}
+	} else if request.Dialect != "exact" {
+		return nil, metadata, "", "", contracts.Scan{}, nil, fmt.Errorf("log dialect must be exact or regex")
+	}
+	text, err := textcodec.Decode(request.Encoding, data)
+	if err != nil {
+		return nil, metadata, "", "", contracts.Scan{}, nil, err
+	}
+	results := make([]Result, 0)
+	warnings := make([]contracts.Warning, 0)
+	status, relation, scanState := contracts.StatusOK, contracts.CountExact, contracts.ScanComplete
+	var matchedBytes uint64
+	for index, line := range strings.Split(text, "\n") {
+		if err := ctx.Err(); err != nil {
+			status, relation, scanState = contracts.StatusPartial, contracts.CountLowerBound, contracts.ScanPartial
+			warnings = append(warnings, contracts.Warning{Code: "deadline_exceeded", Message: "log scan deadline reached"})
+			break
+		}
+		line = strings.TrimSuffix(line, "\r")
+		matched := expression != nil && expression.MatchString(line)
+		if expression == nil {
+			if request.CaseSensitive {
+				matched = strings.Contains(line, request.Pattern)
+			} else {
+				matched = strings.Contains(strings.ToLower(line), strings.ToLower(request.Pattern))
+			}
+		}
+		if matched {
+			matchedBytes += uint64(len(line))
+			if matchedBytes > MaxProjectedBytes {
+				status, relation, scanState = contracts.StatusPartial, contracts.CountLowerBound, contracts.ScanPartial
+				warnings = append(warnings, contracts.Warning{Code: "projection_limit", Message: "log projection limit reached"})
+				break
+			}
+			results = append(results, Result{Kind: "log_line", SourceRef: request.Ref, Line: uint64(index + 1), Text: line})
+			if len(results) >= MaxDataItems {
+				status, relation, scanState = contracts.StatusPartial, contracts.CountLowerBound, contracts.ScanPartial
+				warnings = append(warnings, contracts.Warning{Code: "match_limit", Message: "log match limit reached"})
+				break
+			}
+		}
+	}
+	scope := "scope:data:" + hashString(request.Ref+"\x00log\x00"+request.Dialect)
+	return results, metadata, status, relation, contracts.Scan{State: scanState, ScopeRef: &scope}, warnings, nil
 }
 
 func (s *Service) readSource(ref string) ([]byte, error) {

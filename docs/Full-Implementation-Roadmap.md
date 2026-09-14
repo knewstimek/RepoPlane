@@ -1,6 +1,6 @@
 # RepoPlane Full Implementation Roadmap
 
-상태: Active 0.1
+상태: Complete 1.0
 기준선: [MVP 1.0 명세](MVP-Spec.md)
 
 ## 1. 완료 범위
@@ -30,8 +30,8 @@ RepoPlane의 "풀 구현"은 장기 설계에서 **채택된 P1/P2 기능을 모
 | 4 | Artifact/Run Receipt | run/input/output/reference, hash, 보존·redaction | blob 보존과 삭제 정책 | 완료 |
 | 5 | Prepare/Execute/Inspect | 제한된 capability 실행과 취소 | 승인 주체와 OS 격리 한계 | 완료 |
 | 6 | Conservative Cache | 검증된 순수 변환만 재사용 | eligibility와 false-hit gate | 완료 |
-| 7 | Search Adapters | Git history, symbol, frontmatter, JSON/log 확장 | 결과 evidence class | 대기 |
-| 8 | HTTP/Auth | HTTP MCP, workspace 권한, 감사와 limits | host 인증 연동 | 대기 |
+| 7 | Search Adapters | Git history, symbol, frontmatter, JSON/log 확장 | 결과 evidence class | 완료 |
+| 8 | HTTP/Auth | HTTP MCP, workspace 권한, 감사와 limits | host 인증 연동 | 완료 |
 
 Runner는 Records와 Preflight가 완료되기 전에 시작하지 않는다. Cache는 Runner와
 artifact validity가 안정된 뒤에만 시작한다. HTTP 배포는 local stdio 계약과 권한
@@ -59,10 +59,14 @@ artifact validity가 안정된 뒤에만 시작한다. HTTP 배포는 local stdi
 - [Cache-Implementation-Plan.md](Cache-Implementation-Plan.md)
 - [ADR-0004](adr/0004-conservative-cache-qualification.md)
 
-다음 문서는 해당 수직 절단을 시작할 때 작성하고 승인한다.
+7–8단계에서 작성하고 승인한 문서:
 
-- `Search-Adapters-Spec.md`
-- `HTTP-Security-Spec.md`
+- [Search-Adapters-Spec.md](Search-Adapters-Spec.md)
+- [Search-Adapters-Implementation-Plan.md](Search-Adapters-Implementation-Plan.md)
+- [HTTP-Security-Spec.md](HTTP-Security-Spec.md)
+- [HTTP-Implementation-Plan.md](HTTP-Implementation-Plan.md)
+- [ADR-0005](adr/0005-search-adapter-evidence-boundaries.md)
+- [ADR-0006](adr/0006-http-resource-server-boundary.md)
 
 빈 명세를 미리 만들지 않는다. 앞 단계에서 검증한 계약과 실패 사례를 다음 명세의
 입력으로 사용한다.
@@ -132,3 +136,28 @@ exit code만으로 verification을 passed로 만들지 않고, 요구된 check�
   고정했다. 기존 v1 receipt는 계속 읽는다.
 - MCP tool은 11개를 유지하고 cache field 추가 뒤에도 compact schema를 30 KiB 이내로
   제한한다. 독립 schema scope를 깨는 외부 `$ref`나 output schema 삭제는 사용하지 않는다.
+
+## 9. Search Adapters 완료
+
+- 기존 `catalog_query`, `workspace_search`, `data_query`만 확장하고 MCP tool은 11개를 유지한다.
+- Git commit/path/diff channel, immutable revision과 shallow/partial 상태를 분리한다.
+- symbol은 configured `symbol-index.v1`/Universal Ctags JSONL만 읽고 absent/stale/unknown을
+  빈 source 검색으로 오인하지 않는다. 범용 parser와 semantic ranking은 만들지 않는다.
+- Markdown frontmatter는 strict YAML subset이며 plain Markdown은 catalog source로 오인하지 않는다.
+- JSON Pointer, JSONL, log exact/regex, CSV/TSV가 precision, encoding, malformed와 pagination
+  계약을 공유한다.
+- 추가 contract를 포함한 compact schema는 32 KiB 이내다.
+
+## 10. HTTP/Auth 완료
+
+- stdio가 기본이며 ignored profile의 `--transport http`만 stateless Streamable HTTP를 연다.
+- local loopback bearer와 외부 HTTPS OAuth introspection을 지원하고 resource/audience, expiry,
+  Host/Origin과 tool별 scope를 확인한다. RepoPlane은 token을 발급하거나 전달하지 않는다.
+- 한 process는 한 workspace/resource만 제공한다. public listener는 direct TLS를 요구하고
+  loopback reverse proxy의 forwarded header는 권한 판단에 사용하지 않는다.
+- request body/header/rate/concurrency/shutdown을 제한하고 disconnect cancellation을 전달한다.
+- 별도 bounded `audit.db`는 HMAC identity와 admission/completion metadata만 저장하며 payload,
+  token, address와 local path를 저장하지 않는다.
+
+채택된 번호 단계는 모두 완료했다. 이후 작업은 새로운 필수 기능 단계가 아니라 protocol/SDK
+호환성 유지, 실제 작업 비교 측정, 선택 adapter와 release maintenance로 관리한다.

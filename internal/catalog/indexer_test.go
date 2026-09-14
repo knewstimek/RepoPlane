@@ -103,6 +103,31 @@ func TestIndexerMissingDefaultRootProducesEmptyCatalog(t *testing.T) {
 	}
 }
 
+func TestIndexerReadsFrontmatterAndIgnoresPlainMarkdown(t *testing.T) {
+	rootPath := t.TempDir()
+	if err := os.Mkdir(filepath.Join(rootPath, "docs"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(rootPath, "docs", "plain.md"), []byte("# Plain document\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	frontmatter := "---\nid: docs.example\nrevision: 1\nsummary: documented capability\n---\n# Details\n"
+	if err := os.WriteFile(filepath.Join(rootPath, "docs", "capability.md"), []byte(frontmatter), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	root, err := workspace.Open(rootPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generation, err := NewIndexer(root, &catalogStoreStub{}, []string{"docs"}).Build(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(generation.Items) != 1 || generation.Items[0].ID != "docs.example" || len(generation.Issues) != 0 {
+		t.Fatalf("generation=%+v", generation)
+	}
+}
+
 func TestIndexerAuditsExecutionCandidates(t *testing.T) {
 	rootPath := t.TempDir()
 	for _, directory := range []string{"catalog", "tools", "scripts"} {

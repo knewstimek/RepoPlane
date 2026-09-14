@@ -100,6 +100,13 @@ func Decode(r io.Reader, format string) (Manifest, error) {
 		err = decodeJSON(data, &manifest)
 	case ".yaml", ".yml", "yaml", "yml":
 		err = decodeYAML(data, &manifest)
+	case ".md", "md", "markdown":
+		frontmatter, extractErr := markdownFrontmatter(data)
+		if extractErr != nil {
+			err = extractErr
+		} else {
+			err = decodeYAML(frontmatter, &manifest)
+		}
 	default:
 		err = fmt.Errorf("unsupported manifest format %q", format)
 	}
@@ -129,6 +136,14 @@ func decodeJSON(data []byte, target *Manifest) error {
 }
 
 func decodeYAML(data []byte, target *Manifest) error {
+	var document yaml.Node
+	nodeDecoder := yaml.NewDecoder(bytes.NewReader(data))
+	if err := nodeDecoder.Decode(&document); err != nil {
+		return err
+	}
+	if err := validateYAMLNode(&document, 0); err != nil {
+		return err
+	}
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
 	if err := decoder.Decode(target); err != nil {
@@ -140,6 +155,59 @@ func decodeYAML(data []byte, target *Manifest) error {
 			return errors.New("multiple YAML documents")
 		}
 		return err
+	}
+	return nil
+}
+
+func markdownFrontmatter(data []byte) ([]byte, error) {
+	if bytes.HasPrefix(data, []byte("\xef\xbb\xbf")) {
+		data = data[3:]
+	}
+	if !bytes.HasPrefix(data, []byte("---\n")) && !bytes.HasPrefix(data, []byte("---\r\n")) {
+		return nil, errors.New("Markdown catalog source must begin with YAML frontmatter")
+	}
+	firstEnd := bytes.IndexByte(data, '\n')
+	if firstEnd < 0 {
+		return nil, errors.New("unterminated Markdown frontmatter")
+	}
+	start := firstEnd + 1
+	offset := start
+	for offset <= len(data) {
+		next := bytes.IndexByte(data[offset:], '\n')
+		end := len(data)
+		if next >= 0 {
+			end = offset + next
+		}
+		line := bytes.TrimSuffix(data[offset:end], []byte("\r"))
+		if bytes.Equal(line, []byte("---")) {
+			return data[start:offset], nil
+		}
+		if next < 0 {
+			break
+		}
+		offset = end + 1
+	}
+	return nil, errors.New("unterminated Markdown frontmatter")
+}
+
+func validateYAMLNode(node *yaml.Node, depth int) error {
+	if depth > 64 {
+		return errors.New("YAML nesting exceeds supported depth")
+	}
+	if node.Kind == yaml.AliasNode || node.Alias != nil {
+		return errors.New("YAML aliases are not supported")
+	}
+	allowed := map[string]bool{
+		"": true, "!!map": true, "!!seq": true, "!!str": true, "!!int": true,
+		"!!bool": true, "!!null": true, "!!float": true, "!!timestamp": true,
+	}
+	if !allowed[node.Tag] {
+		return fmt.Errorf("YAML tag %q is not supported", node.Tag)
+	}
+	for _, child := range node.Content {
+		if err := validateYAMLNode(child, depth+1); err != nil {
+			return err
+		}
 	}
 	return nil
 }

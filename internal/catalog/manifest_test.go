@@ -33,6 +33,18 @@ cache_policy: disabled
 	}
 }
 
+func TestDecodeMarkdownFrontmatterAndRejectAlias(t *testing.T) {
+	input := "---\nid: docs.tool\nrevision: 1\nsummary: documented tool\ntags: [docs]\n---\n# Body\n"
+	got, err := Decode(strings.NewReader(input), ".md")
+	if err != nil || got.ID != "docs.tool" {
+		t.Fatalf("manifest=%+v err=%v", got, err)
+	}
+	_, err = Decode(strings.NewReader("---\nid: alias.tool\nrevision: 1\nsummary: &s text\ntags: [*s]\n---\n"), ".md")
+	if !errors.Is(err, ErrManifestInvalid) {
+		t.Fatalf("alias error=%v", err)
+	}
+}
+
 func TestDecodeRejectsUnknownField(t *testing.T) {
 	const input = `id: tool.example
 revision: 1

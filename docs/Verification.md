@@ -36,6 +36,10 @@ reviewable.
 | Whole-root restore is staged and removes undeclared prior output | `TestIsolatedRootMaterializationReplacesWholeTree` on Windows/Linux |
 | Cache pins and expiry are bounded | `TestCachePinsAndExpiryAreBounded` and Runner retention tests |
 | MCP discovery remains bounded without output-schema removal | `TestCompactToolSchemaFootprintStaysBounded` |
+| Git history and symbol adapters preserve channel, absence, scope, and validity | search adapter backend/service tests |
+| Frontmatter and JSON/log/CSV/TSV parsing remains strict, bounded, and precise | catalog and data-query Stage 7 tests |
+| HTTP auth, audience, scope, Origin/Host, and official-client negotiation work | `internal/httptransport` profile/auth/E2E tests |
+| HTTP audit admission is fail-closed, redacted, and bounded | audit adapter and HTTP middleware tests |
 
 ## Release commands
 
@@ -55,5 +59,6 @@ toolchain and race runtime; race correctness is gated by the Linux CI job.
 
 The frozen MVP refuses sources larger than its documented bounded-read limits instead of silently
 streaming an unbounded fallback. Subsequent slices add opt-in records, registered execution and
-qualified cache reuse. RepoPlane still does not expose arbitrary commands or a network transport,
-authenticate users, or claim semantic/symbol/Git-history coverage.
+ qualified cache reuse. Later slices add evidence-separated search adapters and opt-in authenticated
+HTTP while keeping stdio unchanged. RepoPlane still does not expose arbitrary commands, claim
+semantic coverage, or parse source languages as a universal symbol graph.

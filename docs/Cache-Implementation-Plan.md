@@ -20,7 +20,7 @@
 | 5 | observe와 false-hit quarantine | 동일 결과 수렴, 불일치 격리 test | 완료 |
 | 6 | verified lookup/materialization | on/off byte 비교, conflict/corruption test | 완료 |
 | 7 | receipt/inspect/recovery | v1 보존, v2/reused/partial test | 완료 |
-| 8 | 통합·문서·배포 | full verify, 공개 검사, commit/push, binary 교체 | 진행 |
+| 8 | 통합·문서·배포 | full verify, 공개 검사, commit/push, binary 교체 | 완료 |
 
 schema audit는 실제 MCP list-tools 직렬화를 기준으로 한다. 서로 다른 tool schema 사이에는
 공유 `$defs` scope가 없으므로 외부 resolver를 요구하는 ref나 output schema 삭제는 축약으로

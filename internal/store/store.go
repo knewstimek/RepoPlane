@@ -29,6 +29,29 @@ type RecordRepository interface {
 	Close() error
 }
 
+// AuditRepository stores bounded HTTP admission/completion facts without
+// request arguments, response bodies, credentials, addresses, or local paths.
+type AuditRepository interface {
+	AdmitAudit(ctx context.Context, event AuditEvent) error
+	CompleteAudit(ctx context.Context, requestID, status string, responseBytes uint64, completedAt time.Time) error
+	DeleteExpiredAudit(ctx context.Context, before time.Time, limit uint64) (uint64, error)
+	Close() error
+}
+
+type AuditEvent struct {
+	RequestID     string
+	PrincipalHash string
+	WorkspaceID   string
+	Method        string
+	Tool          string
+	Decision      string
+	Status        string
+	RequestBytes  uint64
+	ResponseBytes uint64
+	StartedAt     time.Time
+	CompletedAt   time.Time
+}
+
 type RecordReader interface {
 	GetRecord(ctx context.Context, projectID, workspaceID, id string) (Record, error)
 	QueryRecords(ctx context.Context, query RecordQuery) (RecordPage, error)
