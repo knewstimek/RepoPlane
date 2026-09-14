@@ -21,8 +21,9 @@ func TestResolveExisting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != file {
-		t.Fatalf("resolved path = %q, want %q", got, file)
+	want := filepath.Join(root.Resolved(), "inside.txt")
+	if got != want {
+		t.Fatalf("resolved path = %q, want %q", got, want)
 	}
 	if root.ID() == "" || root.ID() == root.Resolved() {
 		t.Fatalf("workspace ID must be opaque, got %q", root.ID())
@@ -87,7 +88,7 @@ func TestResolveForLookupHandlesMissingLeafAndRejectsEscapingParent(t *testing.T
 		t.Fatal(err)
 	}
 	resolved, exists, err := root.ResolveForLookup("missing/leaf.txt")
-	if err != nil || exists || resolved != filepath.Join(rootPath, "missing", "leaf.txt") {
+	if err != nil || exists || resolved != filepath.Join(root.Resolved(), "missing", "leaf.txt") {
 		t.Fatalf("resolved=%q exists=%v error=%v", resolved, exists, err)
 	}
 	link := filepath.Join(rootPath, "outside-link")
