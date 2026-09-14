@@ -57,6 +57,10 @@ Git history. CI runs preflight and verify on Windows and Linux and runs `go test
 Linux. A Windows race run is not a release gate because its availability depends on the installed C
 toolchain and race runtime; race correctness is gated by the Linux CI job.
 
+Failed developer checks emit only their check ID, status, exit code, duration, summary, and bounded
+diagnostics. Workspace, temporary, and user-home paths are redacted before stderr output so CI
+failures remain actionable without publishing host-specific paths.
+
 ## Deliberate MVP limits
 
 The frozen MVP refuses sources larger than its documented bounded-read limits instead of silently

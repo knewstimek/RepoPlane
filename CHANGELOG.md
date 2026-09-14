@@ -61,3 +61,5 @@ Notable changes to RepoPlane are documented here.
 - Agent guidance now makes RepoPlane the first choice for matching discovery, registered
   verification/release, and recovery workflows while documenting explicit fallbacks to direct
   tools for absent, unsupported, or partial capabilities.
+- Developer verification now emits bounded, path-redacted details for failed checks instead of
+  leaving CI with only a generic failure status.

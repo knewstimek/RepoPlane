@@ -88,7 +88,24 @@ func run() error {
 		return operationErr
 	}
 	if report.Status != "passed" {
+		writeFailureDetails(os.Stderr, report)
 		return fmt.Errorf("%s status is %s", operation, report.Status)
 	}
 	return nil
+}
+
+func writeFailureDetails(writer interface{ Write([]byte) (int, error) }, report devtool.Report) {
+	for _, check := range report.Checks {
+		if check.Status == "passed" {
+			continue
+		}
+		exit := "none"
+		if check.ExitCode != nil {
+			exit = fmt.Sprint(*check.ExitCode)
+		}
+		_, _ = fmt.Fprintf(writer, "failed check: %s status=%s exit=%s duration_ms=%d summary=%s\n", check.ID, check.Status, exit, check.DurationMS, check.Summary)
+		if check.Diagnostics != "" {
+			_, _ = fmt.Fprintf(writer, "diagnostics for %s (bounded):\n%s\n", check.ID, check.Diagnostics)
+		}
+	}
 }
