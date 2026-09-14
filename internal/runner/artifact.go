@@ -26,7 +26,7 @@ func (s *Service) observeArtifacts(ctx context.Context, runID string, payload ru
 		if strings.HasPrefix(relative, "pattern:") || (after[relative] == payload.OutputsBefore[relative] && (payload.Cache.Key == "" || !payload.Cache.Eligible)) {
 			continue
 		}
-		path, err := s.root.ResolveExisting(filepath.FromSlash(relative))
+		path, err := s.root.ResolvePrimaryExisting(filepath.FromSlash(relative))
 		if err != nil {
 			partial = true
 			continue

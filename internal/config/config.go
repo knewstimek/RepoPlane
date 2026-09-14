@@ -64,10 +64,10 @@ func Parse(args []string, output io.Writer) (Settings, error) {
 	flags.Var(&candidates, "candidate-root", "workspace-relative executable candidate directory; repeatable")
 	flags.Var(&ruleFiles, "rule-file", "rule filename discovered from workspace root to target; repeatable")
 	flags.Var(&symbolIndexes, "symbol-index", "workspace-relative symbol-index.v1 or ctags JSONL; repeatable")
-	flags.BoolVar(&settings.EnableIntentionWrites, "enable-intention-writes", false, "expose checkpoint and memo mutation tools")
-	flags.BoolVar(&settings.EnableReportImport, "enable-report-import", false, "expose the local check-report importer")
-	flags.BoolVar(&settings.EnableRunner, "enable-runner", false, "expose registered-capability prepare, execute, and inspect tools")
-	flags.BoolVar(&settings.EnableCache, "enable-cache", false, "allow qualified Runner cache observation and reuse")
+	flags.BoolVar(&settings.EnableIntentionWrites, "enable-intention-writes", false, "pre-authorize checkpoint and memo writes without runtime prompting")
+	flags.BoolVar(&settings.EnableReportImport, "enable-report-import", false, "pre-authorize local check-report import without runtime prompting")
+	flags.BoolVar(&settings.EnableRunner, "enable-runner", false, "pre-authorize registered Runner use without runtime prompting")
+	flags.BoolVar(&settings.EnableCache, "enable-cache", false, "pre-authorize qualified Runner cache reuse; requires Runner")
 	if err := flags.Parse(args); err != nil {
 		return Settings{}, err
 	}

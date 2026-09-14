@@ -38,6 +38,7 @@ var (
 	ErrNotExecutable = errors.New("runner: capability is not executable")
 	ErrPlanStale     = errors.New("runner: plan is stale")
 	ErrRunState      = errors.New("runner: invalid run state")
+	ErrSnapshotBusy  = errors.New("runner: active process prevents memory snapshot")
 	argumentName     = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,63}$`)
 	environmentName  = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 	templateArgument = regexp.MustCompile(`\{([A-Za-z_][A-Za-z0-9_]{0,63})\}`)
@@ -66,6 +67,7 @@ type Service struct {
 	cache                store.CacheRepository
 	qualifications       qualificationResolver
 	cacheKey             []byte
+	cacheEnabled         func() bool
 	stateDir             string
 	streamByteLimit      uint64
 	artifactByteLimit    uint64
@@ -75,6 +77,22 @@ type Service struct {
 	now                  func() time.Time
 	mu                   sync.Mutex
 	running              map[string]*runningProcess
+}
+
+// SetCacheEnabled supplies the current host/session cache authorization. A nil
+// callback preserves the legacy behavior based on cache repository/key presence.
+func (s *Service) SetCacheEnabled(enabled func() bool) { s.cacheEnabled = enabled }
+
+// BeginMemorySnapshot prevents new executions while a portable memory archive
+// copies retained streams and artifacts. The caller must invoke the returned
+// release function.
+func (s *Service) BeginMemorySnapshot() (func(), error) {
+	s.mu.Lock()
+	if len(s.running) != 0 {
+		s.mu.Unlock()
+		return nil, ErrSnapshotBusy
+	}
+	return s.mu.Unlock, nil
 }
 
 func NewService(root *workspace.Root, catalogService capabilityResolver, records store.RecordRepository, cache store.CacheRepository, qualifications qualificationResolver, stateDir string, cacheKey []byte) *Service {
@@ -250,7 +268,7 @@ func (s *Service) resolveExecutable(ctx context.Context, ref string) (string, st
 	var path string
 	var err error
 	if strings.ContainsAny(ref, `/\`) {
-		path, err = s.root.ResolveExisting(filepath.FromSlash(ref))
+		path, err = s.root.ResolvePrimaryExisting(filepath.FromSlash(ref))
 	} else {
 		path, err = exec.LookPath(ref)
 	}
@@ -271,7 +289,7 @@ func (s *Service) resolveCWD(value string) (string, string, error) {
 	if filepath.IsAbs(value) {
 		return "", "", errors.New("absolute execution cwd is not allowed")
 	}
-	path, err := s.root.ResolveExisting(filepath.FromSlash(value))
+	path, err := s.root.ResolvePrimaryExisting(filepath.FromSlash(value))
 	if err != nil {
 		return "", "", err
 	}
@@ -437,7 +455,7 @@ func (s *Service) runPreflightCheck(ctx context.Context, declaration catalog.Pre
 			result.Status, result.Summary = "failed", "workspace-relative file ref is required"
 			break
 		}
-		path, err := s.root.ResolveExisting(filepath.FromSlash(declaration.Ref))
+		path, err := s.root.ResolvePrimaryExisting(filepath.FromSlash(declaration.Ref))
 		if err != nil {
 			result.Status, result.Summary = "missing", "file not found"
 			break

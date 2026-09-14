@@ -4,7 +4,22 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
-No changes yet.
+### Added
+
+- Runtime MCP elicitation for local stdio external read paths, intention writes, report import,
+  registered Runner execution, and qualified cache reuse without configuration edits or restart.
+- A stable `runtime_access` tool for inspecting, explicitly granting, and revoking ephemeral access.
+- A compact `memory_backup` runtime tool plus `repoplane memory export/restore` commands for portable
+  durable records, complete revision history, and retained Runner evidence across machine/path resets.
+
+### Changed
+
+- All 13 typed tools are stable in local discovery; legacy enable flags now pre-authorize their
+  capability instead of controlling tool exposure.
+- Workspace search, path explanation, and data query can resume after an approved read-only parent
+  path grant while catalog, importer, Runner, and cache writes remain inside the primary workspace.
+- Portable memory archives exclude profiles, tokens, keys, audit state, and regenerable cache; restore
+  refuses non-empty targets and rebinds records to the current workspace identity.
 
 ## [1.0.0] - 2026-09-15
 

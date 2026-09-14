@@ -12,9 +12,11 @@ import (
 	"repoplane/internal/catalog"
 	"repoplane/internal/dataquery"
 	"repoplane/internal/mcpserver"
+	"repoplane/internal/memorybackup"
 	"repoplane/internal/pathfacts"
 	"repoplane/internal/records"
 	"repoplane/internal/runner"
+	"repoplane/internal/runtimeaccess"
 	"repoplane/internal/search"
 )
 
@@ -58,7 +60,9 @@ func Generate(ctx context.Context) ([]byte, error) {
 		Catalog: &catalog.Service{}, Search: &search.Service{},
 		PathFacts: &pathfacts.Service{}, DataQuery: &dataquery.Service{}, Records: &records.Service{},
 		CheckpointWriter: &records.Service{}, MemoWriter: &records.Service{}, ReportImporter: &records.Service{},
-		Runner: &runner.Service{},
+		Runner:        &runner.Service{},
+		RuntimeAccess: runtimeaccess.New(nil, false, runtimeaccess.Initial{}),
+		MemoryBackup:  &memorybackup.Service{},
 	})
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
@@ -76,7 +80,7 @@ func Generate(ctx context.Context) ([]byte, error) {
 	document := document{
 		Schema: "https://json-schema.org/draft/2020-12/schema",
 		ID:     "https://repoplane.local/schemas/tools.v1.json",
-		Tools:  make([]toolSchema, 0, 11),
+		Tools:  make([]toolSchema, 0, 13),
 	}
 	for tool, err := range session.Tools(ctx, nil) {
 		if err != nil {
@@ -106,9 +110,10 @@ func GenerateFootprint(toolDocument []byte) ([]byte, error) {
 		"read":   {},
 		"writes": {},
 		"runner": {},
+		"state":  {},
 		"all":    {},
 	}
-	reads, writes, imports, runners := mcpserver.ToolNames()
+	reads, writes, imports, runners, state := mcpserver.ToolNames()
 	for _, name := range reads {
 		groups["read"][name] = true
 	}
@@ -118,6 +123,9 @@ func GenerateFootprint(toolDocument []byte) ([]byte, error) {
 	for _, name := range runners {
 		groups["runner"][name] = true
 	}
+	for _, name := range state {
+		groups["state"][name] = true
+	}
 	for _, tool := range parsed.Tools {
 		groups["all"][tool.Name] = true
 	}
@@ -125,9 +133,9 @@ func GenerateFootprint(toolDocument []byte) ([]byte, error) {
 		SchemaVersion: "tool-footprint.v1",
 		SourceSchema:  "schemas/tools.v1.json",
 		Measurement:   "compact serialized JSON bytes; not observed model tokens or client exposure",
-		Sets:          make([]footprintSet, 0, 4),
+		Sets:          make([]footprintSet, 0, 5),
 	}
-	for _, group := range []string{"read", "writes", "runner", "all"} {
+	for _, group := range []string{"read", "writes", "runner", "state", "all"} {
 		set := footprintSet{Name: group}
 		for _, tool := range parsed.Tools {
 			if !groups[group][tool.Name] {

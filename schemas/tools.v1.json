@@ -477,7 +477,7 @@
     },
     {
       "name": "check_report_import",
-      "description": "Import a bounded local check-report.v1 without storing raw contents.",
+      "description": "Import a bounded local check report; requests session import approval when needed.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -630,7 +630,7 @@
     },
     {
       "name": "checkpoint_write",
-      "description": "Create, update, or supersede a bounded checkpoint with optimistic concurrency.",
+      "description": "Create, update, or supersede a bounded checkpoint; requests session write approval when needed.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -832,7 +832,7 @@
     },
     {
       "name": "data_query",
-      "description": "Read ranges or query JSON, JSONL, logs, CSV, and TSV with bounded precision.",
+      "description": "Read ranges or query JSON, JSONL, logs, CSV, and TSV; requests session read approval for an external source.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -1141,7 +1141,7 @@
     },
     {
       "name": "memo_write",
-      "description": "Create, update, or supersede a bounded memo with optimistic concurrency.",
+      "description": "Create, update, or supersede a bounded memo; requests session write approval when needed.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -1317,8 +1317,74 @@
       }
     },
     {
+      "name": "memory_backup",
+      "description": "Export portable durable memory and retained Runner evidence without secrets or restart; requests approval for the destination directory.",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "byte_limit": {
+            "description": "maximum archive bytes; default 1073741824, max 4294967296",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "destination": {
+            "description": "existing absolute directory outside the workspace and state directory",
+            "type": "string"
+          }
+        },
+        "required": [
+          "destination"
+        ],
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "archive_bytes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "archive_name": {
+            "type": "string"
+          },
+          "files": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "portable": {
+            "type": "boolean"
+          },
+          "records": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "revisions": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "archive_name",
+          "archive_bytes",
+          "sha256",
+          "records",
+          "revisions",
+          "files",
+          "portable"
+        ],
+        "type": "object"
+      }
+    },
+    {
       "name": "path_explain",
-      "description": "Explain workspace, Git, link, encoding, newline, rule, and basename facts for a path.",
+      "description": "Explain workspace, Git, link, encoding, newline, rule, and basename facts; requests session read approval for an external path.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -1965,7 +2031,7 @@
     },
     {
       "name": "run_execute",
-      "description": "Execute or reuse one plan after dependency revalidation.",
+      "description": "Execute or reuse one plan after dependency revalidation; requests session execution approval when needed.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -2036,7 +2102,7 @@
     },
     {
       "name": "run_inspect",
-      "description": "Inspect/cancel a run or page retained streams and artifacts.",
+      "description": "Inspect/cancel a run or page retained streams and artifacts; requests session execution approval when needed.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -2163,7 +2229,7 @@
     },
     {
       "name": "run_prepare",
-      "description": "Validate a capability and create a durable environment-bound plan.",
+      "description": "Validate a capability and create a durable environment-bound plan; requests session execution approval when needed.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -2407,8 +2473,79 @@
       }
     },
     {
+      "name": "runtime_access",
+      "description": "Inspect, grant with explicit user approval, or revoke ephemeral stdio access without configuration edits or restart.",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "description": "status, grant, or revoke",
+            "type": "string"
+          },
+          "grant_id": {
+            "description": "grant ID returned by status or grant",
+            "type": "string"
+          },
+          "kind": {
+            "description": "read_path, intent_write, report_import, runner_execute, cache_reuse, or memory_export",
+            "type": "string"
+          },
+          "path": {
+            "description": "workspace-relative read path or absolute memory export destination",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "grants": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "revocable": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "revocable"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "grants"
+        ],
+        "type": "object"
+      }
+    },
+    {
       "name": "workspace_search",
-      "description": "Search names, text, Git history, or configured symbols with bounded evidence.",
+      "description": "Search names, text, Git history, or configured symbols with bounded evidence; requests session read approval for an external root.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {

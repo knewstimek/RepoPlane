@@ -59,8 +59,13 @@ func TestApplicationExposesCatalogQuery(t *testing.T) {
 	if !found["catalog_query"] || !found["workspace_search"] || !found["path_explain"] || !found["data_query"] || !found["project_records"] {
 		t.Fatalf("expected tools not exposed: %v", found)
 	}
-	if found["checkpoint_write"] || found["memo_write"] || found["check_report_import"] || found["run_prepare"] || found["run_execute"] || found["run_inspect"] {
-		t.Fatalf("mutation or execution tools exposed without host opt-in: %v", found)
+	for _, name := range []string{"runtime_access", "memory_backup", "checkpoint_write", "memo_write", "check_report_import", "run_prepare", "run_execute", "run_inspect"} {
+		if !found[name] {
+			t.Fatalf("runtime-approved tool %s not exposed: %v", name, found)
+		}
+	}
+	if len(found) != 13 {
+		t.Fatalf("tool count=%d, want 13: %v", len(found), found)
 	}
 	result, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
 		Name: "catalog_query", Arguments: map[string]any{"mode": "search", "query": "test"},
@@ -105,7 +110,7 @@ func TestApplicationExposesCatalogQuery(t *testing.T) {
 	}
 }
 
-func TestApplicationExposesExactlyThreeOptInRunnerTools(t *testing.T) {
+func TestApplicationPreservesHostGrantedRunnerAndCache(t *testing.T) {
 	workspace := t.TempDir()
 	state := t.TempDir()
 	app, err := Open(context.Background(), config.Settings{
@@ -141,11 +146,124 @@ func TestApplicationExposesExactlyThreeOptInRunnerTools(t *testing.T) {
 			t.Fatalf("%s not exposed: %v", name, found)
 		}
 	}
-	if len(found) != 8 {
-		t.Fatalf("runner should add exactly three tools to five defaults: %v", found)
+	if len(found) != 13 {
+		t.Fatalf("stable runtime tool set changed: %v", found)
 	}
 	if info, err := os.Stat(filepath.Join(state, "cache.key")); err != nil || info.Size() != 32 {
 		t.Fatalf("cache key info=%v err=%v", info, err)
+	}
+}
+
+func TestApplicationGrantsExternalReadAndWriteAtRuntime(t *testing.T) {
+	parent := t.TempDir()
+	workspace := filepath.Join(parent, "workspace")
+	if err := os.Mkdir(workspace, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(parent, "context.txt"), []byte("runtime context\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	app, err := Open(context.Background(), config.Settings{
+		Workspace: workspace, StateDir: t.TempDir(), CatalogRoots: []string{"catalog"},
+	}, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = app.Close() })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := mcpserver.New("test", app.MCPOptions()).Connect(ctx, serverTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer serverSession.Close()
+	approvals := 0
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "test"}, &mcp.ClientOptions{
+		ElicitationHandler: func(context.Context, *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+			approvals++
+			return &mcp.ElicitResult{Action: "accept"}, nil
+		},
+	})
+	session, err := client.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+
+	read, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "data_query", Arguments: map[string]any{
+		"mode": "text_range", "ref": "source:mutable:../context.txt", "line_start": 1, "line_end": 1,
+	}})
+	if err != nil || read.IsError || read.StructuredContent == nil {
+		t.Fatalf("runtime read result=%+v error=%v", read, err)
+	}
+	write, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "checkpoint_write", Arguments: map[string]any{"mode": "create", "goal": "runtime approval"}})
+	if err != nil || write.IsError || write.StructuredContent == nil {
+		t.Fatalf("runtime write result=%+v error=%v", write, err)
+	}
+	if approvals != 2 {
+		t.Fatalf("approval prompts=%d, want 2", approvals)
+	}
+}
+
+func TestApplicationExportsPortableMemoryAtRuntime(t *testing.T) {
+	base := t.TempDir()
+	workspace := filepath.Join(base, "workspace")
+	state := filepath.Join(base, "state")
+	destination := filepath.Join(base, "backup")
+	for _, directory := range []string{workspace, state, destination} {
+		if err := os.Mkdir(directory, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	app, err := Open(context.Background(), config.Settings{Workspace: workspace, StateDir: state, CatalogRoots: []string{"catalog"}}, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = app.Close() })
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := mcpserver.New("test", app.MCPOptions()).Connect(ctx, serverTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer serverSession.Close()
+	approvals := 0
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "test"}, &mcp.ClientOptions{ElicitationHandler: func(context.Context, *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+		approvals++
+		return &mcp.ElicitResult{Action: "accept"}, nil
+	}})
+	session, err := client.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+	if result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "checkpoint_write", Arguments: map[string]any{"mode": "create", "goal": "portable runtime memory"}}); err != nil || result.IsError {
+		t.Fatalf("checkpoint result=%+v err=%v", result, err)
+	}
+	result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "memory_backup", Arguments: map[string]any{"destination": destination}})
+	if err != nil || result.IsError || result.StructuredContent == nil {
+		t.Fatalf("memory backup result=%+v err=%v", result, err)
+	}
+	encoded, _ := json.Marshal(result.StructuredContent)
+	var receipt struct {
+		ArchiveName string `json:"archive_name"`
+		Records     uint64 `json:"records"`
+		Portable    bool   `json:"portable"`
+	}
+	if err := json.Unmarshal(encoded, &receipt); err != nil {
+		t.Fatal(err)
+	}
+	if receipt.ArchiveName == "" || receipt.Records != 1 || !receipt.Portable {
+		t.Fatalf("receipt=%+v", receipt)
+	}
+	if _, err := os.Stat(filepath.Join(destination, receipt.ArchiveName)); err != nil {
+		t.Fatal(err)
+	}
+	if approvals != 2 {
+		t.Fatalf("approval prompts=%d, want 2", approvals)
 	}
 }
 

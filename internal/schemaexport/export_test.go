@@ -43,7 +43,7 @@ func TestGeneratedFootprintIsCurrentAndSeparatesMeasurements(t *testing.T) {
 	if err := json.Unmarshal(footprint, &report); err != nil {
 		t.Fatal(err)
 	}
-	wantCounts := map[string]int{"read": 5, "writes": 3, "runner": 3, "all": 11}
+	wantCounts := map[string]int{"read": 6, "writes": 3, "runner": 3, "state": 1, "all": 13}
 	for _, set := range report.Sets {
 		if set.ToolCount != wantCounts[set.Name] {
 			t.Fatalf("%s tool_count=%d, want %d", set.Name, set.ToolCount, wantCounts[set.Name])
@@ -88,7 +88,7 @@ func TestCompactToolSchemaFootprintStaysBounded(t *testing.T) {
 	if err := json.Unmarshal(generated, &parsed); err != nil {
 		t.Fatal(err)
 	}
-	const maximumAllTools = 32 * 1024
+	const maximumAllTools = 34 * 1024
 	const maximumRunnerTools = 5500
 	total, runner := 0, 0
 	for _, tool := range parsed.Tools {

@@ -99,7 +99,7 @@ func (i *Indexer) Build(ctx context.Context) (store.CatalogGeneration, error) {
 		if err := ctx.Err(); err != nil {
 			return store.CatalogGeneration{}, err
 		}
-		absolute, err := i.root.ResolveExisting(relative)
+		absolute, err := i.root.ResolvePrimaryExisting(relative)
 		if err != nil {
 			issues = append(issues, issue("source_unavailable", sourceRef(relative, ""), err))
 			continue
@@ -238,7 +238,7 @@ func (i *Indexer) auditCandidates(ctx context.Context, items []store.CatalogItem
 		fingerprints := make([]executionSourceFingerprint, 0, len(sources))
 		for _, path := range sources {
 			registered[path] = struct{}{}
-			absolute, resolveErr := i.root.ResolveExisting(filepath.FromSlash(path))
+			absolute, resolveErr := i.root.ResolvePrimaryExisting(filepath.FromSlash(path))
 			if resolveErr != nil {
 				issues = append(issues, textIssue(
 					"missing_source", item.SourceRef,
@@ -345,7 +345,7 @@ func combinedExecutionFingerprint(fingerprints []executionSourceFingerprint) str
 func (i *Indexer) candidatePaths(ctx context.Context) ([]string, error) {
 	seen := make(map[string]struct{})
 	for _, configured := range i.candidateRoots {
-		absolute, err := i.root.ResolveExisting(configured)
+		absolute, err := i.root.ResolvePrimaryExisting(configured)
 		if errors.Is(err, fs.ErrNotExist) {
 			continue
 		}
@@ -440,7 +440,7 @@ func (i *Indexer) manifestPaths(ctx context.Context) ([]string, error) {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		absolute, err := i.root.ResolveExisting(configured)
+		absolute, err := i.root.ResolvePrimaryExisting(configured)
 		if errors.Is(err, fs.ErrNotExist) {
 			continue
 		}
@@ -531,7 +531,7 @@ func manifestLikeButUnsupported(path string) bool {
 func (i *Indexer) unsupportedManifestPaths(ctx context.Context) ([]string, error) {
 	seen := make(map[string]struct{})
 	for _, configured := range i.catalogRoots {
-		absolute, err := i.root.ResolveExisting(configured)
+		absolute, err := i.root.ResolvePrimaryExisting(configured)
 		if errors.Is(err, fs.ErrNotExist) {
 			continue
 		}

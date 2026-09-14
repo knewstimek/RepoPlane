@@ -26,7 +26,39 @@ type RecordRepository interface {
 	MemoWriter
 	ReportImporter
 	ObservationWriter
+	RecordTransfer
 	Close() error
+}
+
+// RecordTransfer exports and restores the complete logical durable-record
+// history. Restore rebases project/workspace ownership to the caller-supplied
+// identity and is intentionally restricted to an empty target identity.
+type RecordTransfer interface {
+	ExportRecords(ctx context.Context, projectID, workspaceID string, limit uint64) (RecordArchive, error)
+	RestoreRecords(ctx context.Context, projectID, workspaceID string, archive RecordArchive) error
+}
+
+type RecordArchive struct {
+	Records   []Record         `json:"records"`
+	Revisions []RecordRevision `json:"revisions"`
+	Imports   []ReportReceipt  `json:"imports"`
+}
+
+type RecordRevision struct {
+	RecordID     string          `json:"record_id"`
+	Revision     uint64          `json:"revision"`
+	UpdatedAt    time.Time       `json:"updated_at"`
+	Payload      json.RawMessage `json:"payload"`
+	EvidenceRefs []string        `json:"evidence_refs"`
+	Validity     string          `json:"validity"`
+	Supersedes   string          `json:"supersedes,omitempty"`
+}
+
+type ReportReceipt struct {
+	SourceHash     string    `json:"source_hash"`
+	ParserRevision string    `json:"parser_revision"`
+	RecordID       string    `json:"record_id"`
+	ImportedAt     time.Time `json:"imported_at"`
 }
 
 // AuditRepository stores bounded HTTP admission/completion facts without

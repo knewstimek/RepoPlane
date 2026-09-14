@@ -102,7 +102,7 @@ func Handler(version string, options mcpserver.Options, profile Profile, verifie
 	mux := http.NewServeMux()
 	mux.Handle(profile.Endpoint, exactPath(profile.Endpoint, handler))
 	if profile.Auth.Mode == "oauth_introspection" {
-		metadata := &oauthex.ProtectedResourceMetadata{Resource: profile.ResourceURI, AuthorizationServers: profile.Auth.AuthorizationServers, ScopesSupported: []string{mcpserver.ScopeRead, mcpserver.ScopeIntentWrite, mcpserver.ScopeReportImport, mcpserver.ScopeRunnerExecute}, BearerMethodsSupported: []string{"header"}, ResourceName: "RepoPlane"}
+		metadata := &oauthex.ProtectedResourceMetadata{Resource: profile.ResourceURI, AuthorizationServers: profile.Auth.AuthorizationServers, ScopesSupported: []string{mcpserver.ScopeRead, mcpserver.ScopeIntentWrite, mcpserver.ScopeReportImport, mcpserver.ScopeRunnerExecute, mcpserver.ScopeStateExport}, BearerMethodsSupported: []string{"header"}, ResourceName: "RepoPlane"}
 		metadataHandler := auth.ProtectedResourceMetadataHandler(metadata)
 		mux.Handle("/.well-known/oauth-protected-resource", metadataHandler)
 		mux.Handle("/.well-known/oauth-protected-resource/", metadataHandler)

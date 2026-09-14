@@ -12,6 +12,8 @@ const (
 	ToolRunPrepare        = "run_prepare"
 	ToolRunExecute        = "run_execute"
 	ToolRunInspect        = "run_inspect"
+	ToolRuntimeAccess     = "runtime_access"
+	ToolMemoryBackup      = "memory_backup"
 )
 
 const (
@@ -19,14 +21,17 @@ const (
 	ScopeIntentWrite   = "repoplane.intent.write"
 	ScopeReportImport  = "repoplane.report.import"
 	ScopeRunnerExecute = "repoplane.runner.execute"
+	ScopeStateExport   = "repoplane.state.export"
 )
 
 // RequiredScope is the single source for the external tool authorization map.
 // Unknown tools fail closed.
 func RequiredScope(tool string) (string, bool) {
 	switch tool {
-	case ToolCatalogQuery, ToolWorkspaceSearch, ToolPathExplain, ToolDataQuery, ToolProjectRecords:
+	case ToolCatalogQuery, ToolWorkspaceSearch, ToolPathExplain, ToolDataQuery, ToolProjectRecords, ToolRuntimeAccess:
 		return ScopeRead, true
+	case ToolMemoryBackup:
+		return ScopeStateExport, true
 	case ToolCheckpointWrite, ToolMemoWrite:
 		return ScopeIntentWrite, true
 	case ToolCheckReportImport:
@@ -39,9 +44,10 @@ func RequiredScope(tool string) (string, bool) {
 }
 
 // ToolNames returns the stable public tool names in authorization classes.
-func ToolNames() (reads, writes, imports, runner []string) {
-	return []string{ToolCatalogQuery, ToolWorkspaceSearch, ToolPathExplain, ToolDataQuery, ToolProjectRecords},
+func ToolNames() (reads, writes, imports, runner, state []string) {
+	return []string{ToolCatalogQuery, ToolWorkspaceSearch, ToolPathExplain, ToolDataQuery, ToolProjectRecords, ToolRuntimeAccess},
 		[]string{ToolCheckpointWrite, ToolMemoWrite},
 		[]string{ToolCheckReportImport},
-		[]string{ToolRunPrepare, ToolRunExecute, ToolRunInspect}
+		[]string{ToolRunPrepare, ToolRunExecute, ToolRunInspect},
+		[]string{ToolMemoryBackup}
 }

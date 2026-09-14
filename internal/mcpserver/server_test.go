@@ -14,6 +14,7 @@ import (
 	"repoplane/internal/cursor"
 	"repoplane/internal/dataquery"
 	"repoplane/internal/records"
+	"repoplane/internal/runtimeaccess"
 	"repoplane/internal/store"
 	"repoplane/internal/workspace"
 )
@@ -61,6 +62,9 @@ func TestPublicErrorUsesStableSanitizedCodes(t *testing.T) {
 		{store.ErrNotFound, "record_not_found"},
 		{store.ErrConflict, "revision_conflict"},
 		{records.ErrReportInvalid, "report_invalid"},
+		{runtimeaccess.ErrDisabled, "runtime_access_unavailable"},
+		{runtimeaccess.ErrDeclined, "permission_denied"},
+		{runtimeaccess.ErrPending, "runtime_approval_invalid"},
 		{contracts.ErrLimitExceeded, "limit_exceeded"},
 		{errors.New("ref is required"), "invalid_argument"},
 		{errors.New("database exploded at a host path"), "internal_error"},
@@ -73,7 +77,7 @@ func TestPublicErrorUsesStableSanitizedCodes(t *testing.T) {
 }
 
 func TestRequiredScopeCoversEveryPublicTool(t *testing.T) {
-	reads, writes, imports, runners := ToolNames()
+	reads, writes, imports, runners, state := ToolNames()
 	tests := []struct {
 		names []string
 		scope string
@@ -82,6 +86,7 @@ func TestRequiredScopeCoversEveryPublicTool(t *testing.T) {
 		{writes, ScopeIntentWrite},
 		{imports, ScopeReportImport},
 		{runners, ScopeRunnerExecute},
+		{state, ScopeStateExport},
 	}
 	seen := map[string]bool{}
 	for _, test := range tests {
@@ -95,8 +100,8 @@ func TestRequiredScopeCoversEveryPublicTool(t *testing.T) {
 			}
 		}
 	}
-	if len(seen) != 11 {
-		t.Fatalf("covered tools=%d, want 11", len(seen))
+	if len(seen) != 13 {
+		t.Fatalf("covered tools=%d, want 13", len(seen))
 	}
 	if _, ok := RequiredScope("unknown"); ok {
 		t.Fatal("unknown tool did not fail closed")

@@ -103,6 +103,40 @@ func TestRecordRepositoryImportIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestRecordRepositoryTransferPreservesHistoryAndRebindsWorkspace(t *testing.T) {
+	source := openRecordRepository(t)
+	record := testRecord("checkpoint", "checkpoint_transfer")
+	created, err := source.CreateCheckpoint(context.Background(), store.RecordCreate{Record: record})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := source.UpdateCheckpoint(context.Background(), store.RecordUpdate{ProjectID: "project", WorkspaceID: "workspace", ID: created.ID, ExpectedRevision: 1, Payload: json.RawMessage(`{"value":"two"}`), EvidenceRefs: []string{"record:evidence"}, Validity: "current"}); err != nil {
+		t.Fatal(err)
+	}
+	archive, err := source.ExportRecords(context.Background(), "project", "workspace", 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(archive.Records) != 1 || len(archive.Revisions) != 2 {
+		t.Fatalf("archive records=%d revisions=%d", len(archive.Records), len(archive.Revisions))
+	}
+	target := openRecordRepository(t)
+	if err := target.RestoreRecords(context.Background(), "new-project", "new-workspace", archive); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := target.GetRecord(context.Background(), "new-project", "new-workspace", created.ID)
+	if err != nil || restored.Revision != 2 || string(restored.Payload) != `{"value":"two"}` {
+		t.Fatalf("restored=%+v err=%v", restored, err)
+	}
+	var revisions int
+	if err := target.db.QueryRow(`SELECT COUNT(*) FROM record_revisions WHERE record_id=?`, created.ID).Scan(&revisions); err != nil || revisions != 2 {
+		t.Fatalf("revision count=%d err=%v", revisions, err)
+	}
+	if err := target.RestoreRecords(context.Background(), "new-project", "new-workspace", archive); !errors.Is(err, store.ErrConflict) {
+		t.Fatalf("non-empty restore error=%v", err)
+	}
+}
+
 func TestRecordRepositoryObservationWriterIsKindScoped(t *testing.T) {
 	repository := openRecordRepository(t)
 	record := testRecord("run", "run_00000000000000000000000000000001")

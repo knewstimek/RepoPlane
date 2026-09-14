@@ -1,6 +1,7 @@
 package sqlite
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -157,6 +158,227 @@ func (r *RecordRepository) QueryRecords(ctx context.Context, query store.RecordQ
 		return store.RecordPage{}, fmt.Errorf("iterate durable records: %w", err)
 	}
 	return result, nil
+}
+
+func (r *RecordRepository) ExportRecords(ctx context.Context, projectID, workspaceID string, limit uint64) (store.RecordArchive, error) {
+	if projectID == "" || workspaceID == "" || limit == 0 || limit > 100_000 {
+		return store.RecordArchive{}, store.ErrConflict
+	}
+	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return store.RecordArchive{}, fmt.Errorf("begin durable record export: %w", err)
+	}
+	defer tx.Rollback()
+	var recordCount, revisionCount, importCount uint64
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM records WHERE project_id=? AND workspace_id=?`, projectID, workspaceID).Scan(&recordCount); err != nil {
+		return store.RecordArchive{}, fmt.Errorf("count exported records: %w", err)
+	}
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM record_revisions rr JOIN records r ON r.id=rr.record_id WHERE r.project_id=? AND r.workspace_id=?`, projectID, workspaceID).Scan(&revisionCount); err != nil {
+		return store.RecordArchive{}, fmt.Errorf("count exported revisions: %w", err)
+	}
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM report_imports WHERE project_id=? AND workspace_id=?`, projectID, workspaceID).Scan(&importCount); err != nil {
+		return store.RecordArchive{}, fmt.Errorf("count exported imports: %w", err)
+	}
+	if recordCount+revisionCount+importCount > limit {
+		return store.RecordArchive{}, fmt.Errorf("durable record export exceeds item limit: %w", store.ErrConflict)
+	}
+	archive := store.RecordArchive{Records: make([]store.Record, 0, recordCount), Revisions: make([]store.RecordRevision, 0, revisionCount), Imports: make([]store.ReportReceipt, 0, importCount)}
+	rows, err := tx.QueryContext(ctx, recordSelect+` WHERE project_id=? AND workspace_id=? ORDER BY id`, projectID, workspaceID)
+	if err != nil {
+		return store.RecordArchive{}, fmt.Errorf("export durable records: %w", err)
+	}
+	for rows.Next() {
+		record, scanErr := scanRecord(rows)
+		if scanErr != nil {
+			_ = rows.Close()
+			return store.RecordArchive{}, scanErr
+		}
+		archive.Records = append(archive.Records, record)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return store.RecordArchive{}, fmt.Errorf("iterate exported records: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return store.RecordArchive{}, fmt.Errorf("close exported records: %w", err)
+	}
+	rows, err = tx.QueryContext(ctx, `SELECT rr.record_id, rr.revision, rr.updated_at, rr.payload_json, rr.evidence_json, rr.validity, rr.supersedes
+		FROM record_revisions rr JOIN records r ON r.id=rr.record_id
+		WHERE r.project_id=? AND r.workspace_id=? ORDER BY rr.record_id, rr.revision`, projectID, workspaceID)
+	if err != nil {
+		return store.RecordArchive{}, fmt.Errorf("export durable revisions: %w", err)
+	}
+	for rows.Next() {
+		var item store.RecordRevision
+		var updated int64
+		var payload, evidence []byte
+		if err := rows.Scan(&item.RecordID, &item.Revision, &updated, &payload, &evidence, &item.Validity, &item.Supersedes); err != nil {
+			_ = rows.Close()
+			return store.RecordArchive{}, fmt.Errorf("scan exported revision: %w", err)
+		}
+		item.UpdatedAt = time.Unix(0, updated).UTC()
+		item.Payload = append(json.RawMessage(nil), payload...)
+		if err := json.Unmarshal(evidence, &item.EvidenceRefs); err != nil {
+			_ = rows.Close()
+			return store.RecordArchive{}, fmt.Errorf("decode exported revision evidence: %w", err)
+		}
+		archive.Revisions = append(archive.Revisions, item)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return store.RecordArchive{}, fmt.Errorf("iterate exported revisions: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return store.RecordArchive{}, fmt.Errorf("close exported revisions: %w", err)
+	}
+	rows, err = tx.QueryContext(ctx, `SELECT source_hash, parser_revision, record_id, imported_at FROM report_imports WHERE project_id=? AND workspace_id=? ORDER BY source_hash, parser_revision`, projectID, workspaceID)
+	if err != nil {
+		return store.RecordArchive{}, fmt.Errorf("export report receipts: %w", err)
+	}
+	for rows.Next() {
+		var item store.ReportReceipt
+		var imported int64
+		if err := rows.Scan(&item.SourceHash, &item.ParserRevision, &item.RecordID, &imported); err != nil {
+			_ = rows.Close()
+			return store.RecordArchive{}, fmt.Errorf("scan exported report receipt: %w", err)
+		}
+		item.ImportedAt = time.Unix(0, imported).UTC()
+		archive.Imports = append(archive.Imports, item)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return store.RecordArchive{}, fmt.Errorf("iterate exported report receipts: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return store.RecordArchive{}, fmt.Errorf("close exported report receipts: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return store.RecordArchive{}, fmt.Errorf("finish durable record export: %w", err)
+	}
+	return archive, nil
+}
+
+func (r *RecordRepository) RestoreRecords(ctx context.Context, projectID, workspaceID string, archive store.RecordArchive) error {
+	if projectID == "" || workspaceID == "" || len(archive.Records)+len(archive.Revisions)+len(archive.Imports) > 100_000 {
+		return store.ErrConflict
+	}
+	if err := validateRecordArchive(archive); err != nil {
+		return err
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin durable record restore: %w", err)
+	}
+	defer tx.Rollback()
+	var existing uint64
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM records WHERE project_id=? AND workspace_id=?`, projectID, workspaceID).Scan(&existing); err != nil {
+		return fmt.Errorf("check restore target: %w", err)
+	}
+	if existing != 0 {
+		return fmt.Errorf("restore target already has durable records: %w", store.ErrConflict)
+	}
+	recordIDs := make(map[string]struct{}, len(archive.Records))
+	for _, record := range archive.Records {
+		record.ProjectID, record.WorkspaceID = projectID, workspaceID
+		recordIDs[record.ID] = struct{}{}
+		evidence, _ := json.Marshal(record.EvidenceRefs)
+		if _, err := tx.ExecContext(ctx, `INSERT INTO records(id, kind, schema_version, project_id, workspace_id, revision, source, writer_class, validity, created_at, updated_at, payload_json, evidence_json, supersedes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			record.ID, record.Kind, record.SchemaVersion, record.ProjectID, record.WorkspaceID, record.Revision, record.Source, record.WriterClass, record.Validity, unixNano(record.CreatedAt), unixNano(record.UpdatedAt), []byte(record.Payload), evidence, record.Supersedes); err != nil {
+			return fmt.Errorf("restore durable record: %w", err)
+		}
+	}
+	for _, revision := range archive.Revisions {
+		if _, ok := recordIDs[revision.RecordID]; !ok || revision.Revision == 0 || revision.UpdatedAt.IsZero() || !json.Valid(revision.Payload) || len(revision.Payload) > 64*1024 || len(revision.EvidenceRefs) > 128 || revision.Validity == "" {
+			return fmt.Errorf("restore revision is invalid: %w", store.ErrConflict)
+		}
+		evidence, _ := json.Marshal(revision.EvidenceRefs)
+		if _, err := tx.ExecContext(ctx, `INSERT INTO record_revisions(record_id, revision, updated_at, payload_json, evidence_json, validity, supersedes) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			revision.RecordID, revision.Revision, unixNano(revision.UpdatedAt), []byte(revision.Payload), evidence, revision.Validity, revision.Supersedes); err != nil {
+			return fmt.Errorf("restore durable revision: %w", err)
+		}
+	}
+	for _, receipt := range archive.Imports {
+		if _, ok := recordIDs[receipt.RecordID]; !ok || receipt.SourceHash == "" || receipt.ParserRevision == "" || receipt.ImportedAt.IsZero() {
+			return fmt.Errorf("restore report receipt is invalid: %w", store.ErrConflict)
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO report_imports(project_id, workspace_id, source_hash, parser_revision, record_id, imported_at) VALUES (?, ?, ?, ?, ?, ?)`,
+			projectID, workspaceID, receipt.SourceHash, receipt.ParserRevision, receipt.RecordID, unixNano(receipt.ImportedAt)); err != nil {
+			return fmt.Errorf("restore report receipt: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit durable record restore: %w", err)
+	}
+	return nil
+}
+
+func validateRecordArchive(archive store.RecordArchive) error {
+	records := make(map[string]store.Record, len(archive.Records))
+	ownerProject, ownerWorkspace := "", ""
+	for _, record := range archive.Records {
+		if record.ID == "" || record.Kind == "" || record.SchemaVersion == "" || record.ProjectID == "" || record.WorkspaceID == "" || record.Revision == 0 || record.Source == "" || record.WriterClass == "" || record.Validity == "" || record.CreatedAt.IsZero() || record.UpdatedAt.IsZero() || !json.Valid(record.Payload) || len(record.Payload) > 64*1024 || len(record.EvidenceRefs) > 128 {
+			return fmt.Errorf("restore record is invalid: %w", store.ErrConflict)
+		}
+		if ownerProject == "" {
+			ownerProject, ownerWorkspace = record.ProjectID, record.WorkspaceID
+		}
+		if record.ProjectID != ownerProject || record.WorkspaceID != ownerWorkspace {
+			return fmt.Errorf("restore archive has mixed ownership: %w", store.ErrConflict)
+		}
+		if _, duplicate := records[record.ID]; duplicate {
+			return fmt.Errorf("restore record ID is duplicated: %w", store.ErrConflict)
+		}
+		records[record.ID] = record
+	}
+	revisions := make(map[string]map[uint64]store.RecordRevision, len(records))
+	for _, revision := range archive.Revisions {
+		if _, ok := records[revision.RecordID]; !ok || revision.Revision == 0 || revision.UpdatedAt.IsZero() || !json.Valid(revision.Payload) || len(revision.Payload) > 64*1024 || len(revision.EvidenceRefs) > 128 || revision.Validity == "" {
+			return fmt.Errorf("restore revision is invalid: %w", store.ErrConflict)
+		}
+		byNumber := revisions[revision.RecordID]
+		if byNumber == nil {
+			byNumber = make(map[uint64]store.RecordRevision)
+			revisions[revision.RecordID] = byNumber
+		}
+		if _, duplicate := byNumber[revision.Revision]; duplicate {
+			return fmt.Errorf("restore revision is duplicated: %w", store.ErrConflict)
+		}
+		byNumber[revision.Revision] = revision
+	}
+	for id, record := range records {
+		byNumber := revisions[id]
+		if uint64(len(byNumber)) != record.Revision {
+			return fmt.Errorf("restore revision history is incomplete: %w", store.ErrConflict)
+		}
+		for revision := uint64(1); revision <= record.Revision; revision++ {
+			if _, ok := byNumber[revision]; !ok {
+				return fmt.Errorf("restore revision history is incomplete: %w", store.ErrConflict)
+			}
+		}
+		latest := byNumber[record.Revision]
+		if !latest.UpdatedAt.Equal(record.UpdatedAt) || !bytes.Equal(latest.Payload, record.Payload) || latest.Validity != record.Validity || latest.Supersedes != record.Supersedes || !equalStrings(latest.EvidenceRefs, record.EvidenceRefs) {
+			return fmt.Errorf("restore current record disagrees with revision history: %w", store.ErrConflict)
+		}
+	}
+	for _, receipt := range archive.Imports {
+		record, ok := records[receipt.RecordID]
+		if !ok || record.Kind != "verification" || receipt.SourceHash == "" || receipt.ParserRevision == "" || receipt.ImportedAt.IsZero() {
+			return fmt.Errorf("restore report receipt is invalid: %w", store.ErrConflict)
+		}
+	}
+	return nil
+}
+
+func equalStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func (r *RecordRepository) CreateCheckpoint(ctx context.Context, create store.RecordCreate) (store.Record, error) {

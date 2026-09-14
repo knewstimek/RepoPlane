@@ -98,3 +98,16 @@ func TestStdioNegotiationHasNoOutputPollution(t *testing.T) {
 		t.Fatalf("unexpected server diagnostics: %q", stderr.String())
 	}
 }
+
+func TestParseMemoryArgsKeepsServerConfiguration(t *testing.T) {
+	transfer, remaining, err := parseMemoryArgs([]string{"--destination", `D:\\backup`, "--byte-limit=4096", "--workspace", "WORKSPACE"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if transfer.destination != `D:\\backup` || transfer.byteLimit != 4096 {
+		t.Fatalf("transfer=%+v", transfer)
+	}
+	if len(remaining) != 2 || remaining[0] != "--workspace" || remaining[1] != "WORKSPACE" {
+		t.Fatalf("remaining=%v", remaining)
+	}
+}
