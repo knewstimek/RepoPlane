@@ -165,11 +165,11 @@ Typical tool inputs are intentionally small:
 These correspond to `catalog_query`, `workspace_search`, `path_explain`, `data_query`, and
 `project_records` in that order. Pass only `cursor` plus optional limits for a next-page request.
 
-For coding agents, RepoPlane is the first choice where it has a matching repository-control
+For coding agents, RepoPlane MCP is the first choice where it has a matching repository-control
 capability: structured discovery, registered verification/release execution, and durable task
 recovery. It is not a universal replacement for `rg`, `git`, or focused package tests. Use those
-direct tools when RepoPlane reports `unsupported`/`partial` or has no matching capability, and make
-the fallback reason explicit so later sessions do not repeat the same probe.
+direct tools when RepoPlane MCP reports `unsupported`/`partial` or has no matching capability, and
+make the fallback reason explicit so later sessions do not repeat the same probe.
 
 With report import enabled, a local verification report can be linked to a versioned checklist:
 
@@ -208,8 +208,19 @@ cache_policy: disabled
 For Markdown, wrap the same fields in `---` delimiters before the document body. Plain Markdown
 without frontmatter is ignored rather than reported as a broken manifest.
 
-An optional `execution` block may describe a CLI. It remains documentation-only unless the host
-enables Runner and the entry explicitly sets `trusted_for_run: true`:
+### What Runner is
+
+Runner is RepoPlane MCP's opt-in executor for pre-registered capabilities. It is not a general
+shell and does not accept an executable, argv array, or shell command from an MCP request. A catalog
+entry must define the executable, argument template, working directory, inputs, outputs, limits,
+and `trusted_for_run: true`; the host must also start RepoPlane with `--enable-runner` and the MCP
+client must approve the tool call. Runner then uses `prepare → execute → inspect` to validate the
+environment, execute at most one prepared plan, and retain bounded status, stream, and artifact
+evidence. Leave Runner disabled when repository discovery and records are all that is needed.
+
+An optional `execution` block describes such a registered CLI capability. It remains
+documentation-only unless the host enables Runner and the entry explicitly sets
+`trusted_for_run: true`:
 
 ```yaml
 execution:
@@ -313,6 +324,21 @@ That deletion also permanently removes checkpoints, memos, imported verification
 receipts, streams, captured artifacts, and HTTP audit events;
 back up `records.db` first when those records must be retained. No workspace source files need
 cleanup.
+
+### Back up and restore local state
+
+`durable` means records survive client restarts and deletion of the regenerable index; it does not
+make a machine reset recoverable by itself. Git-tracked catalogs, rules, and documentation return
+with the repository, but checkpoints, memos, imported verification results, run receipts, retained
+streams/artifacts, audit data, and local keys are lost if `--state-dir` is not backed up.
+
+For a consistent backup, stop Codex and every RepoPlane MCP server using the state directory, then
+copy the **entire** state directory to encrypted storage. Back up ignored host profiles and secrets
+separately in a password manager or other encrypted store; never commit either backup. Temporary
+workspace output under `.tmp/` does not need preservation. Restore the complete state directory
+before starting RepoPlane MCP and, where possible, restore the repository at the same absolute
+workspace path so its workspace identity still matches the records. A `records.db`-only copy keeps
+semantic records but may omit retained Runner streams, artifacts, keys, cache, and audit state.
 
 ## Architecture
 
