@@ -59,8 +59,8 @@ func TestApplicationExposesCatalogQuery(t *testing.T) {
 	if !found["catalog_query"] || !found["workspace_search"] || !found["path_explain"] || !found["data_query"] || !found["project_records"] {
 		t.Fatalf("expected tools not exposed: %v", found)
 	}
-	if found["checkpoint_write"] || found["memo_write"] || found["check_report_import"] {
-		t.Fatalf("mutation tools exposed without host opt-in: %v", found)
+	if found["checkpoint_write"] || found["memo_write"] || found["check_report_import"] || found["run_prepare"] || found["run_execute"] || found["run_inspect"] {
+		t.Fatalf("mutation or execution tools exposed without host opt-in: %v", found)
 	}
 	result, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
 		Name: "catalog_query", Arguments: map[string]any{"mode": "search", "query": "test"},
@@ -102,6 +102,46 @@ func TestApplicationExposesCatalogQuery(t *testing.T) {
 	}
 	if dataResult.IsError || dataResult.StructuredContent == nil {
 		t.Fatalf("data_query failed: %+v", dataResult)
+	}
+}
+
+func TestApplicationExposesExactlyThreeOptInRunnerTools(t *testing.T) {
+	workspace := t.TempDir()
+	app, err := Open(context.Background(), config.Settings{
+		Workspace: workspace, StateDir: t.TempDir(), CatalogRoots: []string{"catalog"}, EnableRunner: true,
+	}, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = app.Close() })
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := mcpserver.New("test", app.MCPOptions()).Connect(ctx, serverTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer serverSession.Close()
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "test"}, nil)
+	session, err := client.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+	found := map[string]bool{}
+	for tool, err := range session.Tools(ctx, nil) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		found[tool.Name] = true
+	}
+	for _, name := range []string{"run_prepare", "run_execute", "run_inspect"} {
+		if !found[name] {
+			t.Fatalf("%s not exposed: %v", name, found)
+		}
+	}
+	if len(found) != 8 {
+		t.Fatalf("runner should add exactly three tools to five defaults: %v", found)
 	}
 }
 

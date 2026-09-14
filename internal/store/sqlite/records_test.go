@@ -103,6 +103,32 @@ func TestRecordRepositoryImportIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestRecordRepositoryObservationWriterIsKindScoped(t *testing.T) {
+	repository := openRecordRepository(t)
+	record := testRecord("run", "run_00000000000000000000000000000001")
+	record.Source = "observed"
+	record.WriterClass = "server"
+	created, err := repository.CreateObservation(context.Background(), store.RecordCreate{Record: record})
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, err := repository.UpdateObservation(context.Background(), "run", store.RecordUpdate{
+		ProjectID: created.ProjectID, WorkspaceID: created.WorkspaceID, ID: created.ID,
+		ExpectedRevision: 1, Payload: json.RawMessage(`{"value":"terminal"}`), EvidenceRefs: []string{}, Validity: "current",
+	})
+	if err != nil || updated.Revision != 2 {
+		t.Fatalf("observation update=%+v err=%v", updated, err)
+	}
+	for _, kind := range []string{"checkpoint", "verification", "custom"} {
+		invalid := testRecord(kind, kind+"_server")
+		invalid.Source = "observed"
+		invalid.WriterClass = "server"
+		if _, err := repository.CreateObservation(context.Background(), store.RecordCreate{Record: invalid}); !errors.Is(err, store.ErrConflict) {
+			t.Fatalf("server observation accepted kind %q: %v", kind, err)
+		}
+	}
+}
+
 func TestRecordRepositoryScopesReadsToWorkspace(t *testing.T) {
 	repository := openRecordRepository(t)
 	created, err := repository.CreateMemo(context.Background(), store.RecordCreate{Record: testRecord("memo", "memo_1")})

@@ -1,5 +1,5 @@
 id: dev.verify
-revision: 1
+revision: 2
 summary: Run bounded schema, test, vet, and build checks and write check-report.v1
 use_when:
   - before completing an implementation change
@@ -10,8 +10,15 @@ execution:
   executable_ref: go
   cwd: .
   argv_template: [run, ./cmd/repoplane-dev, verify]
-  trusted_for_run: false
+  trusted_for_run: true
+  timeout_sec: 600
+  artifact_mode: metadata
+  preflight:
+    - {id: go.version, kind: executable, ref: go, requirement: required, argv: [version]}
+    - {id: git.repository, kind: git, requirement: required}
+    - {id: rg.version, kind: executable, ref: rg, requirement: required, argv: [--version]}
+inputs: [go.mod, go.sum, "**/*.go", "schemas/**", "catalog/**", "checks/**"]
 outputs: [.tmp/reports/verify.json]
 checks: [repository.verify]
-docs: [docs/Full-Implementation-Roadmap.md, docs/Records-Spec.md]
+docs: [docs/Full-Implementation-Roadmap.md, docs/Records-Spec.md, docs/Runner-Spec.md]
 cache_policy: disabled

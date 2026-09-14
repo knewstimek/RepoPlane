@@ -22,11 +22,12 @@ guess where they are or read far too much to find them. RepoPlane provides five 
 | `workspace_search` | Which filenames or lines match within this explicit scope? |
 | `path_explain` | What is this path really, and what Git, link, encoding, newline, and rule facts apply? |
 | `data_query` | Can I read this exact text range or filter/project these JSONL records safely? |
-| `project_records` | Which verification, checkpoint, and memo records exist and are they current? |
+| `project_records` | Which verification, checkpoint, memo, environment, run, and artifact records exist? |
 
-RepoPlane never executes catalog entries. Hosts may opt into the separate `checkpoint_write`,
-`memo_write`, and `check_report_import` tools. Runner, artifact cache, and network transport remain
-out of scope.
+RepoPlane does not execute catalog entries by default. Hosts may separately opt into
+`checkpoint_write`/`memo_write`, `check_report_import`, and the registered-capability Runner. The
+Runner adds exactly `run_prepare`, `run_execute`, and `run_inspect`; arbitrary commands and cache
+reuse remain out of scope.
 
 ## Highlights
 
@@ -42,6 +43,9 @@ out of scope.
 - A durable `records.db` separated from the regenerable search cache
 - Idempotent `check-report.v1` import with checklist revision and conservative freshness
 - Optimistic concurrency for checkpoint and memo updates
+- Capability-scoped environment preflight with secret values withheld
+- Durable run receipts and bounded stdout, stderr, and captured-artifact inspection
+- Prepare/execute revalidation that ignores unrelated worktree changes
 
 ## Requirements
 
@@ -94,9 +98,9 @@ placeholder values with local paths; the state directory must be outside the wor
 }
 ```
 
-The configuration above keeps RepoPlane read-only. To expose checkpoint/memo writes and local
-verification-report import in Codex, add the opt-in flags to the user-level MCP entry and restart
-Codex:
+The configuration above keeps RepoPlane read-only. To expose checkpoint/memo writes, local
+verification-report import, and registered capability execution in Codex, add the independent
+opt-in flags to the user-level MCP entry and restart Codex:
 
 ```toml
 [mcp_servers.repoplane]
@@ -106,11 +110,13 @@ args = [
   "--state-dir", "STATE_DIRECTORY",
   "--enable-intention-writes",
   "--enable-report-import",
+  "--enable-runner",
 ]
 ```
 
-Enabling these flags exposes the tools; it does not invoke them automatically. Use them only for a
-trusted workspace and keep the state directory outside that workspace.
+Enabling these flags exposes the tools; it does not invoke them automatically. Runner execution
+still requires the MCP client's tool approval and a catalog entry with `trusted_for_run: true`.
+Use them only for a trusted workspace and keep the state directory outside that workspace.
 
 Available flags:
 
@@ -122,6 +128,7 @@ Available flags:
 --rule-file NAME        rule filename searched from root to target; repeatable; default: AGENTS.md
 --enable-intention-writes  expose checkpoint_write and memo_write; default: false
 --enable-report-import     expose check_report_import; default: false
+--enable-runner          expose run_prepare, run_execute, and run_inspect; default: false
 ```
 
 MCP frames are the only data written to stdout. Startup failures and diagnostics go to stderr.
@@ -162,8 +169,28 @@ tags: [configuration, schema, validation]
 cache_policy: disabled
 ```
 
-An optional `execution` block may describe a CLI, but RepoPlane only indexes and audits it. The
-`trusted_for_run` field is informational and never grants execution permission.
+An optional `execution` block may describe a CLI. It remains documentation-only unless the host
+enables Runner and the entry explicitly sets `trusted_for_run: true`:
+
+```yaml
+execution:
+  kind: cli
+  executable_ref: go
+  cwd: .
+  argv_template: [test, ./...]
+  trusted_for_run: true
+  timeout_sec: 300
+  artifact_mode: metadata
+  preflight:
+    - {id: go.version, kind: executable, ref: go, requirement: required, argv: [version]}
+inputs: [go.mod, go.sum, "**/*.go"]
+outputs: [.tmp/reports/verify.json]
+```
+
+Call `catalog_query(mode=get)` to obtain the current capability revision, then
+`run_prepare` with that ID/revision. Execute the returned plan ID once with `run_execute`; use
+`run_inspect` for status, cancellation, bounded stdout/stderr ranges, or a retained artifact ref.
+Preflight runs during prepare—there is intentionally no fourth environment execution tool.
 
 ## Response semantics
 
@@ -189,13 +216,16 @@ ordered result set; `data_query` additionally rechecks the source hash between p
 
 ## Local state and removal
 
-RepoPlane stores a regenerable SQLite index, a separate durable `records.db`, and a random
-cursor-authentication key in `--state-dir`. It does not write databases into the workspace and
-refuses a state directory that resolves inside it.
+RepoPlane stores a regenerable SQLite index, a separate durable `records.db`, a random
+cursor-authentication key, and opt-in Runner streams/artifact blobs in `--state-dir`. It does not
+write databases into the workspace and refuses a state directory that resolves inside it. Runner
+streams retain the wider of 14 days or the most recent 200 runs; current intention/imported record
+references protect older run streams. Raw stream/artifact bytes are never placed in record payloads.
 
 To uninstall, remove the client configuration entry and binary. After no RepoPlane process is
 using it, delete the configured state directory to remove the local index and invalidate cursors.
-That deletion also permanently removes checkpoints, memos, and imported verification records;
+That deletion also permanently removes checkpoints, memos, imported verification records, run
+receipts, streams, and captured artifacts;
 back up `records.db` first when those records must be retained. No workspace source files need
 cleanup.
 
@@ -214,7 +244,11 @@ Public JSON Schemas are committed under [`schemas/`](schemas/). Run
 - Requests cannot escape the resolved workspace through `..`, symlinks, or junctions.
 - RepoPlane controls ripgrep arguments and never builds a shell command from a query.
 - Reads, process output, result counts, response bytes, record sizes, and deadlines are bounded.
-- Record mutation and report import tools are hidden unless explicitly enabled by the host.
+- Record mutation, report import, and Runner tools are hidden unless explicitly enabled by the host.
+- Runner accepts registered capability IDs and typed arguments, never request-supplied executables,
+  argv arrays, or shell strings. It records environment-variable presence without values.
+- Captured output is raw trusted-tool output and is not content-redacted automatically; use
+  `metadata` mode for sensitive outputs and never pass credentials as catalog arguments.
 - Dirty-worktree reports without a content fingerprint are never classified as current.
 - The server does not provide authentication because the MVP transport is local stdio.
 - JSONL support is deliberately limited to top-level equality filters and field projection.
@@ -225,9 +259,9 @@ See [SECURITY.md](SECURITY.md) for vulnerability reporting and
 
 ## Roadmap
 
-The read-only MVP and the Records/Verification and Checkpoint/Memo/Importer slices are complete.
-Adopted P1/P2 work now proceeds with Environment Preflight; a central orchestrator and general
-integration graph are not required. See the
+The read-only MVP, durable Records, Environment Preflight, Artifact/Run Receipt, and
+Prepare/Execute/Inspect slices are complete. Adopted P1/P2 work next proceeds to Conservative
+Cache; cache reuse is not part of the current Runner release. See the
 [`full implementation roadmap`](docs/Full-Implementation-Roadmap.md), the
 [`Records specification`](docs/Records-Spec.md), and the full
 [`design document`](docs/Project-Control-Plane-MCP-Design.md).

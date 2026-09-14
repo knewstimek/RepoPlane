@@ -19,6 +19,7 @@ var (
 	ErrManifestTooLarge = errors.New("catalog: manifest exceeds size limit")
 	ErrManifestInvalid  = errors.New("catalog: invalid manifest")
 	idPattern           = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
+	argumentNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,63}$`)
 )
 
 type Manifest struct {
@@ -38,11 +39,22 @@ type Manifest struct {
 }
 
 type Execution struct {
-	Kind          string   `json:"kind" yaml:"kind"`
-	ExecutableRef string   `json:"executable_ref" yaml:"executable_ref"`
-	CWD           string   `json:"cwd" yaml:"cwd"`
-	ArgvTemplate  []string `json:"argv_template" yaml:"argv_template"`
-	TrustedForRun bool     `json:"trusted_for_run" yaml:"trusted_for_run"`
+	Kind          string           `json:"kind" yaml:"kind"`
+	ExecutableRef string           `json:"executable_ref" yaml:"executable_ref"`
+	CWD           string           `json:"cwd" yaml:"cwd"`
+	ArgvTemplate  []string         `json:"argv_template" yaml:"argv_template"`
+	TrustedForRun bool             `json:"trusted_for_run" yaml:"trusted_for_run"`
+	TimeoutSec    uint64           `json:"timeout_sec,omitempty" yaml:"timeout_sec,omitempty"`
+	ArtifactMode  string           `json:"artifact_mode,omitempty" yaml:"artifact_mode,omitempty"`
+	Preflight     []PreflightCheck `json:"preflight,omitempty" yaml:"preflight,omitempty"`
+}
+
+type PreflightCheck struct {
+	ID          string   `json:"id" yaml:"id"`
+	Kind        string   `json:"kind" yaml:"kind"`
+	Ref         string   `json:"ref,omitempty" yaml:"ref,omitempty"`
+	Requirement string   `json:"requirement,omitempty" yaml:"requirement,omitempty"`
+	Argv        []string `json:"argv,omitempty" yaml:"argv,omitempty"`
 }
 
 type Argument struct {
@@ -127,6 +139,56 @@ func (m Manifest) Validate() error {
 	}
 	if m.Execution != nil && m.Execution.Kind != "cli" {
 		return errors.New("MVP only recognizes execution.kind=cli")
+	}
+	if m.Execution != nil {
+		if strings.TrimSpace(m.Execution.ExecutableRef) == "" {
+			return errors.New("execution.executable_ref is required")
+		}
+		if len(m.Execution.ArgvTemplate) > 256 || m.Execution.TimeoutSec > 24*60*60 {
+			return errors.New("execution limits exceed supported bounds")
+		}
+		if m.Execution.ArtifactMode != "" && m.Execution.ArtifactMode != "metadata" && m.Execution.ArtifactMode != "capture" {
+			return errors.New("execution.artifact_mode must be metadata or capture")
+		}
+		if len(m.Execution.Preflight) > 64 {
+			return errors.New("execution.preflight exceeds supported bounds")
+		}
+		seen := make(map[string]struct{}, len(m.Execution.Preflight))
+		for _, check := range m.Execution.Preflight {
+			if !idPattern.MatchString(check.ID) {
+				return errors.New("preflight id is invalid")
+			}
+			if _, exists := seen[check.ID]; exists {
+				return errors.New("preflight id must be unique")
+			}
+			seen[check.ID] = struct{}{}
+			if check.Kind != "executable" && check.Kind != "file" && check.Kind != "environment" && check.Kind != "git" && check.Kind != "platform" {
+				return errors.New("preflight kind is unsupported")
+			}
+			if check.Requirement != "" && check.Requirement != "required" && check.Requirement != "recommended" && check.Requirement != "informational" {
+				return errors.New("preflight requirement is unsupported")
+			}
+			if len(check.Ref) > 4096 || len(check.Argv) > 32 {
+				return errors.New("preflight declaration exceeds supported bounds")
+			}
+			if len(check.Argv) > 0 && check.Kind != "executable" {
+				return errors.New("preflight argv is only valid for executable checks")
+			}
+		}
+	}
+	if len(m.Arguments) > 64 || len(m.Inputs) > 128 || len(m.Outputs) > 128 || len(m.Checks) > 128 || len(m.Docs) > 128 {
+		return errors.New("manifest collections exceed supported bounds")
+	}
+	for name, argument := range m.Arguments {
+		if !argumentNamePattern.MatchString(name) {
+			return errors.New("argument name is invalid")
+		}
+		if argument.Type != "string" && argument.Type != "project_path" && argument.Type != "boolean" && argument.Type != "bool" && argument.Type != "integer" {
+			return errors.New("argument type is unsupported")
+		}
+		if len(argument.Description) > 4096 {
+			return errors.New("argument description exceeds supported bounds")
+		}
 	}
 	return nil
 }

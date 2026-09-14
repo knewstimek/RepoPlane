@@ -41,3 +41,21 @@
   contract changes.
 - Keep Runner and cache reuse out of scope until their roadmap prerequisites and specifications
   are complete.
+
+## Verification discipline
+
+- After editing a package, compile and test that affected package before starting the repository
+  suite. Run the full verification workflow only after the focused checks are stable and rerun it
+  once after the final code or schema change.
+- Never start a second copy of a hanging or failed test command. First confirm the original tool
+  session and its child process tree have exited; if they have not, diagnose or stop that verified
+  tree before retrying.
+- Do not rerun an unchanged failing command. Classify the failure as product code, test fixture,
+  host/toolchain, or safety-policy related, make a relevant change or choose the documented
+  supported environment, then run one focused check.
+- Check host support before optional race, sanitizer, cross-runtime, or platform-specific test
+  modes. A mode assigned to CI must not be improvised on an unsupported local host as a release
+  gate; record the limitation and rely on the declared CI job.
+- Keep a bounded count of failed verification invocations during a goal and report the count and
+  classifications when any occurred. Do not present one command's repeated package errors as
+  independent failures.

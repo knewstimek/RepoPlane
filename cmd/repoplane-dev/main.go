@@ -49,7 +49,10 @@ func run() error {
 		return errors.New("unexpected positional arguments")
 	}
 	if len(requiredFiles) == 0 && operation == "preflight" {
-		requiredFiles = []string{"go.mod", "schemas/tools.v1.json"}
+		requiredFiles = []string{
+			"go.mod", "schemas/tools.v1.json", "schemas/environment-record.v1.schema.json",
+			"schemas/run-receipt.v1.schema.json", "schemas/artifact-record.v1.schema.json",
+		}
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()

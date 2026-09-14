@@ -18,6 +18,7 @@ import (
 	"repoplane/internal/mcpserver"
 	"repoplane/internal/pathfacts"
 	"repoplane/internal/records"
+	"repoplane/internal/runner"
 	"repoplane/internal/search"
 	"repoplane/internal/store"
 	storesqlite "repoplane/internal/store/sqlite"
@@ -35,8 +36,10 @@ type Application struct {
 	pathFacts             *pathfacts.Service
 	dataQuery             *dataquery.Service
 	records               *records.Service
+	runner                *runner.Service
 	enableIntentionWrites bool
 	enableReportImport    bool
+	enableRunner          bool
 }
 
 func Open(ctx context.Context, settings config.Settings, version string) (*Application, error) {
@@ -102,10 +105,19 @@ func Open(ctx context.Context, settings config.Settings, version string) (*Appli
 	pathService := pathfacts.NewService(root, searchBackend, settings.RuleFiles)
 	dataService := dataquery.NewService(root, repository, codec)
 	recordService := records.NewService(root, recordRepository, repository, codec)
+	var runnerService *runner.Service
+	if settings.EnableRunner {
+		service.EnableExecution()
+		runnerService = runner.NewService(root, service, recordRepository, settings.StateDir)
+		if err := runnerService.Recover(ctx); err != nil {
+			return fail(err)
+		}
+	}
 	return &Application{
 		version: version, repository: repository, recordRepository: recordRepository, catalog: service,
 		search: searchService, pathFacts: pathService, dataQuery: dataService, records: recordService,
-		enableIntentionWrites: settings.EnableIntentionWrites, enableReportImport: settings.EnableReportImport,
+		runner: runnerService, enableIntentionWrites: settings.EnableIntentionWrites,
+		enableReportImport: settings.EnableReportImport, enableRunner: settings.EnableRunner,
 	}, nil
 }
 
@@ -146,11 +158,18 @@ func (a *Application) MCPOptions() mcpserver.Options {
 	if a.enableReportImport {
 		options.ReportImporter = a.records
 	}
+	if a.enableRunner {
+		options.Runner = a.runner
+	}
 	return options
 }
 
 func (a *Application) Close() error {
-	return errors.Join(a.repository.Close(), a.recordRepository.Close())
+	var runnerErr error
+	if a.runner != nil {
+		runnerErr = a.runner.Close()
+	}
+	return errors.Join(runnerErr, a.repository.Close(), a.recordRepository.Close())
 }
 
 func loadOrCreateKey(path string) ([]byte, error) {

@@ -165,6 +165,9 @@
                             "array"
                           ]
                         },
+                        "artifact_mode": {
+                          "type": "string"
+                        },
                         "cwd": {
                           "type": "string"
                         },
@@ -173,6 +176,47 @@
                         },
                         "kind": {
                           "type": "string"
+                        },
+                        "preflight": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "argv": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": [
+                                  "null",
+                                  "array"
+                                ]
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "ref": {
+                                "type": "string"
+                              },
+                              "requirement": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "kind"
+                            ],
+                            "type": "object"
+                          },
+                          "type": [
+                            "null",
+                            "array"
+                          ]
+                        },
+                        "timeout_sec": {
+                          "minimum": 0,
+                          "type": "integer"
                         },
                         "trusted_for_run": {
                           "type": "boolean"
@@ -1566,7 +1610,7 @@
     },
     {
       "name": "project_records",
-      "description": "Search and read durable verification, checkpoint, and memo records without modifying them.",
+      "description": "Search and read durable verification, checkpoint, memo, environment, run, and artifact records without modifying them.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -1589,7 +1633,7 @@
             "type": "integer"
           },
           "kind": {
-            "description": "record kind filter: verification, checkpoint, or memo",
+            "description": "record kind filter: verification, checkpoint, memo, environment, run, or artifact",
             "type": "string"
           },
           "mode": {
@@ -1597,7 +1641,7 @@
             "type": "string"
           },
           "source": {
-            "description": "source filter: imported, user_asserted, or llm_proposed",
+            "description": "source filter: observed, imported, user_asserted, or llm_proposed",
             "type": "string"
           },
           "time_limit_ms": {
@@ -1790,6 +1834,400 @@
           "truncated",
           "next_cursor",
           "snapshot_ref",
+          "warnings"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "run_execute",
+      "description": "Execute one prepared registered-capability plan after revalidating relevant inputs and identities.",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "plan_id": {
+            "description": "prepared run plan ID",
+            "type": "string"
+          },
+          "time_limit_ms": {
+            "description": "start deadline in milliseconds; default 5000, maximum 30000",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "plan_id"
+        ],
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "run_id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "required": [
+                "code",
+                "message",
+                "ref"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "run_id",
+          "state",
+          "warnings"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "run_inspect",
+      "description": "Inspect a run, page bounded stdout, stderr, or retained artifacts, or request cancellation.",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "description": "status, stdout, stderr, artifact, or cancel; default status",
+            "type": "string"
+          },
+          "artifact_ref": {
+            "description": "artifact record ref required by the artifact action",
+            "type": "string"
+          },
+          "byte_limit": {
+            "description": "maximum returned stream bytes; default 65536, maximum 1048576",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "offset": {
+            "description": "zero-based stream byte offset",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "run_id": {
+            "description": "prepared or started run ID",
+            "type": "string"
+          },
+          "time_limit_ms": {
+            "description": "inspect deadline in milliseconds; default 5000, maximum 30000",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "run": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "status": {
+            "type": "string"
+          },
+          "stream": {
+            "additionalProperties": false,
+            "properties": {
+              "availability": {
+                "type": "string"
+              },
+              "bytes_base64": {
+                "type": "string"
+              },
+              "eof": {
+                "type": "boolean"
+              },
+              "next_offset": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "offset": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "ref": {
+                "type": "string"
+              },
+              "truncated": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "ref",
+              "offset",
+              "next_offset",
+              "bytes_base64",
+              "eof",
+              "truncated",
+              "availability"
+            ],
+            "type": [
+              "null",
+              "object"
+            ]
+          },
+          "warnings": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "required": [
+                "code",
+                "message",
+                "ref"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "run",
+          "warnings"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "run_prepare",
+      "description": "Validate a registered capability, observe its required environment, and create a durable execution plan.",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "arguments": {
+            "additionalProperties": true,
+            "description": "typed values declared by the capability argument schema",
+            "type": "object"
+          },
+          "capability_id": {
+            "description": "registered catalog capability ID",
+            "type": "string"
+          },
+          "capability_revision": {
+            "description": "selected catalog capability revision",
+            "type": "string"
+          },
+          "configuration": {
+            "description": "bounded execution configuration name; default: default",
+            "type": "string"
+          },
+          "time_limit_ms": {
+            "description": "prepare deadline in milliseconds; default 5000, maximum 30000",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "capability_id",
+          "capability_revision"
+        ],
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "checks": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "identity": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "requirement": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "requirement",
+                "status",
+                "summary"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "plan": {
+            "additionalProperties": false,
+            "properties": {
+              "argv": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "capability_id": {
+                "type": "string"
+              },
+              "capability_revision": {
+                "type": "string"
+              },
+              "configuration": {
+                "type": "string"
+              },
+              "cwd": {
+                "type": "string"
+              },
+              "executable_identity": {
+                "type": "string"
+              },
+              "execution_fingerprint": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "input_hashes": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              "output_paths": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "preflight_record_ref": {
+                "type": "string"
+              },
+              "prepared_at": {
+                "type": "string"
+              },
+              "ready": {
+                "type": "boolean"
+              },
+              "timeout_sec": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "capability_id",
+              "capability_revision",
+              "configuration",
+              "argv",
+              "cwd",
+              "executable_identity",
+              "input_hashes",
+              "output_paths",
+              "preflight_record_ref",
+              "ready",
+              "timeout_sec",
+              "prepared_at",
+              "execution_fingerprint"
+            ],
+            "type": "object"
+          },
+          "status": {
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "required": [
+                "code",
+                "message",
+                "ref"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "plan",
+          "checks",
           "warnings"
         ],
         "type": "object"

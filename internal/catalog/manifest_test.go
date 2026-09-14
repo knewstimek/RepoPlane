@@ -65,3 +65,32 @@ func TestValidateRequiredFields(t *testing.T) {
 		}
 	}
 }
+
+func TestDecodeExecutionPolicyIsAdditive(t *testing.T) {
+	const input = `
+id: build.test
+revision: 2
+summary: run tests
+execution:
+  kind: cli
+  executable_ref: go
+  cwd: .
+  argv_template: [test, ./...]
+  trusted_for_run: true
+  timeout_sec: 300
+  artifact_mode: metadata
+  preflight:
+    - id: go.version
+      kind: executable
+      ref: go
+      requirement: required
+      argv: [version]
+`
+	got, err := Decode(strings.NewReader(input), "yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Execution == nil || got.Execution.TimeoutSec != 300 || len(got.Execution.Preflight) != 1 {
+		t.Fatalf("unexpected execution policy: %+v", got.Execution)
+	}
+}

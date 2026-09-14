@@ -50,12 +50,25 @@ type QueryResult struct {
 type QueryResponse = contracts.Response[QueryResult]
 
 type Service struct {
-	workspaceID string
-	repository  store.Repository
-	indexer     *Indexer
-	cursors     *cursor.Codec
-	now         func() time.Time
-	refreshMu   sync.Mutex
+	workspaceID      string
+	repository       store.Repository
+	indexer          *Indexer
+	cursors          *cursor.Codec
+	now              func() time.Time
+	executionEnabled bool
+	refreshMu        sync.Mutex
+}
+
+// EnableExecution marks trusted declarations available for this host process.
+// It must be called during application composition, before serving requests.
+func (s *Service) EnableExecution() { s.executionEnabled = true }
+
+type Capability struct {
+	Manifest             Manifest
+	Revision             string
+	SourceRef            string
+	ExecutionFingerprint string
+	GenerationID         string
 }
 
 func NewService(workspaceID string, repository store.Repository, indexer *Indexer, cursors *cursor.Codec) *Service {
@@ -66,6 +79,25 @@ func NewService(workspaceID string, repository store.Repository, indexer *Indexe
 		cursors:     cursors,
 		now:         time.Now,
 	}
+}
+
+// ResolveCapability refreshes the catalog and returns one immutable execution declaration.
+func (s *Service) ResolveCapability(ctx context.Context, id string) (Capability, error) {
+	s.refreshMu.Lock()
+	meta, err := s.indexer.Refresh(ctx)
+	s.refreshMu.Unlock()
+	if err != nil {
+		return Capability{}, fmt.Errorf("refresh catalog: %w", err)
+	}
+	item, err := s.repository.GetCatalogItem(ctx, s.workspaceID, meta.ID, id)
+	if err != nil {
+		return Capability{}, err
+	}
+	var manifest Manifest
+	if err := json.Unmarshal(item.Document, &manifest); err != nil {
+		return Capability{}, fmt.Errorf("decode stored manifest %q: %w", item.ID, err)
+	}
+	return Capability{Manifest: manifest, Revision: item.Revision, SourceRef: item.SourceRef, ExecutionFingerprint: item.ExecutionFingerprint, GenerationID: meta.ID}, nil
 }
 
 func (s *Service) Query(ctx context.Context, request QueryRequest) (QueryResponse, error) {
@@ -127,7 +159,7 @@ func (s *Service) search(ctx context.Context, meta store.CatalogGenerationMeta, 
 	}
 	results := make([]QueryResult, 0, len(page.Matches))
 	for _, match := range page.Matches {
-		result, err := queryResult(match.Item, false)
+		result, err := queryResult(match.Item, false, s.executionEnabled)
 		if err != nil {
 			return QueryResponse{}, err
 		}
@@ -148,7 +180,7 @@ func (s *Service) get(ctx context.Context, meta store.CatalogGenerationMeta, id 
 	if err != nil {
 		return QueryResponse{}, err
 	}
-	result, err := queryResult(item, true)
+	result, err := queryResult(item, true, s.executionEnabled)
 	if err != nil {
 		return QueryResponse{}, err
 	}
@@ -300,14 +332,14 @@ func (s *Service) readPage(ctx context.Context, setID string, from, itemLimit, b
 	return QueryResponse{}, ErrResponseTooLarge
 }
 
-func queryResult(item store.CatalogItem, includeManifest bool) (QueryResult, error) {
+func queryResult(item store.CatalogItem, includeManifest, executionEnabled bool) (QueryResult, error) {
 	var manifest Manifest
 	if err := json.Unmarshal(item.Document, &manifest); err != nil {
 		return QueryResult{}, fmt.Errorf("decode stored manifest %q: %w", item.ID, err)
 	}
 	result := QueryResult{
 		Kind: "catalog_item", ID: item.ID, Revision: item.Revision, Summary: manifest.Summary,
-		ExecutionAvailable: false, SourceRef: item.SourceRef,
+		ExecutionAvailable: executionEnabled && manifest.Execution != nil && manifest.Execution.TrustedForRun, SourceRef: item.SourceRef,
 	}
 	if includeManifest {
 		result.Manifest = &manifest

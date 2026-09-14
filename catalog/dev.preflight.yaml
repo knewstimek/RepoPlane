@@ -1,5 +1,5 @@
 id: dev.preflight
-revision: 1
+revision: 2
 summary: Check local tools, Git state, required files, and environment-variable presence without returning values
 use_when:
   - before repository verification or implementation work
@@ -9,7 +9,14 @@ execution:
   executable_ref: go
   cwd: .
   argv_template: [run, ./cmd/repoplane-dev, preflight]
-  trusted_for_run: false
+  trusted_for_run: true
+  timeout_sec: 120
+  artifact_mode: metadata
+  preflight:
+    - {id: go.version, kind: executable, ref: go, requirement: required, argv: [version]}
+    - {id: git.repository, kind: git, requirement: required}
+    - {id: rg.version, kind: executable, ref: rg, requirement: required, argv: [--version]}
+inputs: [go.mod, go.sum, "cmd/repoplane-dev/**/*.go", "internal/devtool/**/*.go"]
 outputs: [.tmp/reports/preflight.json]
-docs: [docs/Full-Implementation-Roadmap.md]
+docs: [docs/Full-Implementation-Roadmap.md, docs/Preflight-Spec.md]
 cache_policy: disabled
