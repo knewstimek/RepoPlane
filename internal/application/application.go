@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -165,6 +166,9 @@ func pathInside(root, candidate string) (bool, error) {
 	candidateVolume := filepath.VolumeName(absolute)
 	if !strings.EqualFold(rootVolume, candidateVolume) {
 		return false, nil
+	}
+	if runtime.GOOS == "windows" {
+		rootAbsolute, absolute = strings.ToLower(rootAbsolute), strings.ToLower(absolute)
 	}
 	relative, err := filepath.Rel(rootAbsolute, absolute)
 	if err != nil {
