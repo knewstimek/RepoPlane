@@ -45,9 +45,9 @@ var (
 type QueryRequest struct {
 	Mode         string `json:"mode,omitempty" jsonschema:"record operation: search, list, or get; omit when using cursor"`
 	ID           string `json:"id,omitempty" jsonschema:"opaque record ID; required for get"`
-	Kind         string `json:"kind,omitempty" jsonschema:"record kind filter: verification, checkpoint, or memo"`
+	Kind         string `json:"kind,omitempty" jsonschema:"record kind filter: verification, checkpoint, memo, environment, run, or artifact"`
 	Validity     string `json:"validity,omitempty" jsonschema:"validity filter: current, stale, unknown, or superseded"`
-	Source       string `json:"source,omitempty" jsonschema:"source filter: imported, user_asserted, or llm_proposed"`
+	Source       string `json:"source,omitempty" jsonschema:"source filter: observed, imported, user_asserted, or llm_proposed"`
 	UpdatedAfter string `json:"updated_after,omitempty" jsonschema:"RFC3339 lower bound for record update time"`
 	Cursor       string `json:"cursor,omitempty" jsonschema:"opaque cursor from an earlier project_records query"`
 	ItemLimit    uint64 `json:"item_limit,omitempty" jsonschema:"maximum returned items; default 50, maximum 500"`
@@ -364,7 +364,7 @@ func (s *Service) result(record store.Record, current *subjectObservation) (Reco
 }
 
 func validateFilters(request QueryRequest) error {
-	if request.Kind != "" && request.Kind != "verification" && request.Kind != "checkpoint" && request.Kind != "memo" {
+	if request.Kind != "" && request.Kind != "verification" && request.Kind != "checkpoint" && request.Kind != "memo" && request.Kind != "environment" && request.Kind != "run" && request.Kind != "artifact" {
 		return errors.New("invalid record kind")
 	}
 	if request.Validity != "" && request.Validity != "current" && request.Validity != "stale" && request.Validity != "unknown" && request.Validity != "superseded" {

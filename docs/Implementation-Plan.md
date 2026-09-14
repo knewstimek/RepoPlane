@@ -217,12 +217,12 @@ Records의 다음 결정은 이후 [ADR-0002](adr/0002-record-write-boundaries.m
 MVP 이후 완료:
 
 - `project_records`, verification, checkpoint/memo/importer
+- 환경 preflight
+- 실행 영수증과 artifact provenance
+- `run_prepare`, `run_execute`, `run_inspect`
 
 현재 대기:
 
-- 실행 영수증과 artifact provenance
-- `run_prepare`, `run_execute`, `run_inspect`
-- 환경 preflight
 - cache eligibility와 artifact 재사용
 - semantic/symbol/Git-history adapter
 - HTTP transport와 인증

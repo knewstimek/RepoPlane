@@ -26,9 +26,9 @@ RepoPlane의 "풀 구현"은 장기 설계에서 **채택된 P1/P2 기능을 모
 |---:|---|---|---|---|
 | 1 | Records/Verification | durable record 조회, verification validity | write 권한과 revision 계약 | 완료 |
 | 2 | Checkpoint/Memo/Importer | 의도 기록, 실패·결정 메모, CI report import | writer 종류와 provenance | 완료 |
-| 3 | Environment Preflight | executable/SDK/Git/config 전제조건 관찰 | 허용 probe와 비밀정보 경계 | 대기 |
-| 4 | Artifact/Run Receipt | run/input/output/reference, hash, 보존·redaction | blob 보존과 삭제 정책 | 대기 |
-| 5 | Prepare/Execute/Inspect | 제한된 capability 실행과 취소 | 승인 주체와 OS 격리 한계 | 대기 |
+| 3 | Environment Preflight | executable/SDK/Git/config 전제조건 관찰 | 허용 probe와 비밀정보 경계 | 완료 |
+| 4 | Artifact/Run Receipt | run/input/output/reference, hash, 보존·redaction | blob 보존과 삭제 정책 | 완료 |
+| 5 | Prepare/Execute/Inspect | 제한된 capability 실행과 취소 | 승인 주체와 OS 격리 한계 | 완료 |
 | 6 | Conservative Cache | 검증된 순수 변환만 재사용 | eligibility와 false-hit gate | 대기 |
 | 7 | Search Adapters | Git history, symbol, frontmatter, JSON/log 확장 | 결과 evidence class | 대기 |
 | 8 | HTTP/Auth | HTTP MCP, workspace 권한, 감사와 limits | host 인증 연동 | 대기 |
@@ -46,11 +46,15 @@ artifact validity가 안정된 뒤에만 시작한다. HTTP 배포는 local stdi
   Checkpoint/Memo/Importer 수직 절단의 외부·저장 계약
 - [ADR-0002](adr/0002-record-write-boundaries.md): read/write 책임과 충돌 정책
 
+3–5단계에서 작성하고 승인한 문서:
+
+- [Preflight-Spec.md](Preflight-Spec.md)
+- [Artifact-Provenance-Spec.md](Artifact-Provenance-Spec.md)
+- [Runner-Spec.md](Runner-Spec.md)
+- [ADR-0003](adr/0003-runner-authority-and-compatibility.md)
+
 다음 문서는 해당 수직 절단을 시작할 때 작성하고 승인한다.
 
-- `Preflight-Spec.md`
-- `Artifact-Provenance-Spec.md`
-- `Runner-Spec.md`
 - `Cache-Spec.md`
 - `Search-Adapters-Spec.md`
 - `HTTP-Security-Spec.md`
@@ -94,3 +98,17 @@ artifact validity가 안정된 뒤에만 시작한다. HTTP 배포는 local stdi
 Records importer는 같은 report schema를 입력으로 사용한다. 자동화의 존재나
 exit code만으로 verification을 passed로 만들지 않고, 요구된 check와 report completeness를
 함께 검사한다.
+
+## 7. Execution Foundation 완료
+
+3–5단계는 하나의 호환성 우선 수직 절단으로 완료했다.
+
+- 조회 tool 다섯 개는 기본 노출을 유지하고 Runner opt-in 시 실행 tool 세 개만 추가한다.
+- environment preflight는 `run_prepare`에 포함하며 별도 실행 tool을 만들지 않는다.
+- required check만 실행을 막고 recommended/informational 결과는 명시적 warning으로 남긴다.
+- run/environment/artifact record는 기존 `records.db` v1에 additive kind로 저장한다.
+- plan은 manifest revision, executable identity와 선언 input만 재검사하므로 무관한 변경은
+  실행을 막지 않는다.
+- stdout/stderr pagination, timeout/cancel/restart interruption, artifact 한도·누락·변조,
+  stream retention과 reference 보호를 회귀 test로 고정했다.
+- Windows batch wrapper와 POSIX shebang은 OS adapter 뒤에서 실행하고 cache는 사용하지 않는다.

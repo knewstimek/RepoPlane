@@ -14,6 +14,7 @@ import (
 	"repoplane/internal/mcpserver"
 	"repoplane/internal/pathfacts"
 	"repoplane/internal/records"
+	"repoplane/internal/runner"
 	"repoplane/internal/search"
 )
 
@@ -35,6 +36,7 @@ func Generate(ctx context.Context) ([]byte, error) {
 		Catalog: &catalog.Service{}, Search: &search.Service{},
 		PathFacts: &pathfacts.Service{}, DataQuery: &dataquery.Service{}, Records: &records.Service{},
 		CheckpointWriter: &records.Service{}, MemoWriter: &records.Service{}, ReportImporter: &records.Service{},
+		Runner: &runner.Service{},
 	})
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
@@ -52,7 +54,7 @@ func Generate(ctx context.Context) ([]byte, error) {
 	document := document{
 		Schema: "https://json-schema.org/draft/2020-12/schema",
 		ID:     "https://repoplane.local/schemas/tools.v1.json",
-		Tools:  make([]toolSchema, 0, 8),
+		Tools:  make([]toolSchema, 0, 11),
 	}
 	for tool, err := range session.Tools(ctx, nil) {
 		if err != nil {

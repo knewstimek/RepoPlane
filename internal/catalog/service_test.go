@@ -104,6 +104,21 @@ func TestServiceRanksExactIDFirstAndGetReturnsManifest(t *testing.T) {
 	}
 }
 
+func TestExecutionAvailabilityRequiresHostAndManifestOptIn(t *testing.T) {
+	service, _ := newServiceFixture(t, map[string]string{
+		"runner.yaml": "id: test.run\nrevision: 1\nsummary: runner\nexecution:\n  kind: cli\n  executable_ref: go\n  cwd: .\n  argv_template: [version]\n  trusted_for_run: true\n",
+	})
+	result, err := service.Query(context.Background(), QueryRequest{Mode: "get", ID: "test.run"})
+	if err != nil || len(result.Items) != 1 || result.Items[0].ExecutionAvailable {
+		t.Fatalf("execution available without host opt-in: response=%+v err=%v", result, err)
+	}
+	service.EnableExecution()
+	result, err = service.Query(context.Background(), QueryRequest{Mode: "get", ID: "test.run"})
+	if err != nil || len(result.Items) != 1 || !result.Items[0].ExecutionAvailable {
+		t.Fatalf("execution unavailable after both opt-ins: response=%+v err=%v", result, err)
+	}
+}
+
 func TestServiceAuditReportsManifestFailures(t *testing.T) {
 	service, _ := newServiceFixture(t, map[string]string{
 		"one.yaml":     "id: duplicate.tool\nrevision: 1\nsummary: one\n",

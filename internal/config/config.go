@@ -18,6 +18,7 @@ type Settings struct {
 	RuleFiles             []string
 	EnableIntentionWrites bool
 	EnableReportImport    bool
+	EnableRunner          bool
 }
 
 type stringList []string
@@ -57,6 +58,7 @@ func Parse(args []string, output io.Writer) (Settings, error) {
 	flags.Var(&ruleFiles, "rule-file", "rule filename discovered from workspace root to target; repeatable")
 	flags.BoolVar(&settings.EnableIntentionWrites, "enable-intention-writes", false, "expose checkpoint and memo mutation tools")
 	flags.BoolVar(&settings.EnableReportImport, "enable-report-import", false, "expose the local check-report importer")
+	flags.BoolVar(&settings.EnableRunner, "enable-runner", false, "expose registered-capability prepare, execute, and inspect tools")
 	if err := flags.Parse(args); err != nil {
 		return Settings{}, err
 	}

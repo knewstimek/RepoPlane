@@ -1,5 +1,5 @@
 id: dev.public-release-check
-revision: 1
+revision: 2
 summary: Scan the tracked tree and Git history for unreviewed public-release privacy findings
 use_when:
   - before a public push or release
@@ -9,7 +9,12 @@ execution:
   executable_ref: go
   cwd: .
   argv_template: [run, ./cmd/repoplane-dev, public-release-check]
-  trusted_for_run: false
+  trusted_for_run: true
+  timeout_sec: 300
+  artifact_mode: metadata
+  preflight:
+    - {id: go.version, kind: executable, ref: go, requirement: required, argv: [version]}
+    - {id: git.repository, kind: git, requirement: required}
 outputs: [.tmp/reports/public-release-check.json]
-docs: [docs/Public-Release.md, AGENTS.md]
+docs: [docs/Public-Release.md, docs/Runner-Spec.md, AGENTS.md]
 cache_policy: disabled

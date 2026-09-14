@@ -36,14 +36,14 @@ verification 유효성, CI report import 계약을 정의한다. 현재 read-onl
 | Writer | 허용 record | 금지 사항 |
 |---|---|---|
 | trusted importer | imported check result와 source receipt | checkpoint·memo 작성, report 의미 추측 |
-| future server/runner writer | 서버가 직접 관찰한 lifecycle event | 사용자 목표·실패 원인 작성 |
+| server/runner writer | 서버가 직접 관찰한 environment/run/artifact event | 사용자 목표·실패 원인 작성 |
 | intention writer | checkpoint·memo 생성/수정/supersede | run/check 관찰값 위조 |
-| future runner writer | 자신이 실행한 run/output/check event | 다른 writer의 intention 수정 |
 
-외부 tool은 조회 전용 `project_records`, opt-in `checkpoint_write`, `memo_write`,
-`check_report_import`로 고정한다. 하나의 범용 `record_write(kind, payload)`를 제공하지
-않는다. `--enable-intention-writes`와 `--enable-report-import`는 서로 독립적이며 기본값은
-비활성화다.
+Record 외부 tool은 조회 전용 `project_records`, opt-in `checkpoint_write`, `memo_write`,
+`check_report_import`로 고정한다. Runner가 활성화되면 별도 실행 계약의 세 tool이 server
+관찰 record를 만들지만 하나의 범용 `record_write(kind, payload)`는 제공하지 않는다.
+`--enable-intention-writes`, `--enable-report-import`, `--enable-runner`는 서로 독립적이며
+기본값은 비활성화다.
 
 ## 3. 공통 record 계약
 
@@ -67,6 +67,8 @@ payload, evidence_refs[], supersedes?, validity
 `project_records`는 `mode=search|get|list`와 고정 snapshot cursor를 제공한다. filter는
 최소한 `kind`, `validity`, `source`, `updated_after`를 지원한다. `project_id`와
 `workspace_id`는 요청에서 받지 않고 host가 연 서버의 고정 scope를 사용한다.
+지원 kind는 verification/checkpoint/memo에 environment/run/artifact를 additive하게
+포함한다.
 
 응답은 기존 공통 envelope를 재사용하며 다음을 지킨다.
 

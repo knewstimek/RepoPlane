@@ -25,6 +25,7 @@ type RecordRepository interface {
 	CheckpointWriter
 	MemoWriter
 	ReportImporter
+	ObservationWriter
 	Close() error
 }
 
@@ -45,6 +46,13 @@ type MemoWriter interface {
 
 type ReportImporter interface {
 	ImportVerification(ctx context.Context, create RecordCreate, sourceHash, parserRevision string) (record Record, duplicate bool, err error)
+}
+
+// ObservationWriter persists server-observed environment, run, and artifact
+// facts. It is deliberately separate from user intention writers.
+type ObservationWriter interface {
+	CreateObservation(ctx context.Context, create RecordCreate) (Record, error)
+	UpdateObservation(ctx context.Context, kind string, update RecordUpdate) (Record, error)
 }
 
 type Record struct {

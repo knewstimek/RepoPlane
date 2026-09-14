@@ -213,6 +213,24 @@ func (r *RecordRepository) ImportVerification(ctx context.Context, create store.
 	return create.Record, false, nil
 }
 
+func (r *RecordRepository) CreateObservation(ctx context.Context, create store.RecordCreate) (store.Record, error) {
+	if !observationKind(create.Record.Kind) || create.Record.WriterClass != "server" || create.Record.Source != "observed" {
+		return store.Record{}, store.ErrConflict
+	}
+	return r.create(ctx, create.Record)
+}
+
+func (r *RecordRepository) UpdateObservation(ctx context.Context, kind string, update store.RecordUpdate) (store.Record, error) {
+	if !observationKind(kind) {
+		return store.Record{}, store.ErrConflict
+	}
+	return r.update(ctx, kind, update)
+}
+
+func observationKind(kind string) bool {
+	return kind == "environment" || kind == "run" || kind == "artifact"
+}
+
 func (r *RecordRepository) create(ctx context.Context, record store.Record) (store.Record, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {

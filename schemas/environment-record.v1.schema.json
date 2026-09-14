@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://repoplane.local/schemas/environment-record.v1.schema.json",
+  "title": "RepoPlane capability environment observation",
+  "type": "object",
+  "required": ["capability_id", "capability_revision", "configuration", "checks", "ready", "observed_at"],
+  "properties": {
+    "capability_id": { "type": "string", "maxLength": 128 },
+    "capability_revision": { "type": "string", "maxLength": 128 },
+    "configuration": { "type": "string", "maxLength": 128 },
+    "checks": {
+      "type": "array",
+      "maxItems": 66,
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "requirement", "status", "summary"],
+        "properties": {
+          "id": { "type": "string", "maxLength": 128 },
+          "kind": { "enum": ["executable", "file", "environment", "git", "platform"] },
+          "requirement": { "enum": ["required", "recommended", "informational"] },
+          "status": { "enum": ["passed", "failed", "missing", "unknown"] },
+          "summary": { "type": "string", "maxLength": 4096 },
+          "identity": { "type": "string", "maxLength": 256 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "ready": { "type": "boolean" },
+    "observed_at": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}
