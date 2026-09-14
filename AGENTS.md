@@ -28,6 +28,11 @@
   `old_repoplane_<timestamp>.exe` before copying the replacement, and leave that backup in place
   until no process is using it. Then report the completion time and elapsed time; for goal-tracked
   work, also report the goal's aggregate token usage.
+- When a feature or roadmap slice changes status, perform a bounded documentation-consistency pass
+  across README, `Unreleased`, the active roadmap, the documentation index, and any frozen plan
+  that still names the feature as next, deferred, or incomplete. Preserve historical plans by
+  labeling their old status and linking to the active roadmap instead of silently rewriting
+  history. Configuration flags and opt-in tools must include a copyable host configuration example.
 - Go services depend on domain interfaces in `internal/store`, not directly on SQL or a concrete
   database adapter.
 - Keep MCP stdout free of diagnostics; write diagnostics only to stderr.

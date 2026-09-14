@@ -17,6 +17,9 @@ Notable changes to RepoPlane are documented here.
 ### Changed
 
 - CI and contributor guidance now use the repository verification workflow.
+- Documentation workflow now requires roadmap-status consistency checks and copyable host examples
+  for opt-in tools.
+- Codex setup guidance now shows how to enable checkpoint, memo, and report-import tools.
 - Windows update guidance now rotates an in-use MCP executable before installing its replacement.
 - README, security, storage, and verification documentation describe the Records capabilities and
   their opt-in write boundaries.
