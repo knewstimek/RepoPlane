@@ -58,3 +58,6 @@ Notable changes to RepoPlane are documented here.
   one fail-closed source; generic toolbox routing and conversation-dependent tool lists remain out.
 - Record responses remain full by default; callers can explicitly remove repeated payload bytes
   without losing revision, validity, evidence, pagination, duplicate, or warning semantics.
+- Agent guidance now makes RepoPlane the first choice for matching discovery, registered
+  verification/release, and recovery workflows while documenting explicit fallbacks to direct
+  tools for absent, unsupported, or partial capabilities.
