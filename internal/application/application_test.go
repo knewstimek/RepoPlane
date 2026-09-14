@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -169,5 +170,18 @@ func TestApplicationRejectsStateInsideWorkspace(t *testing.T) {
 	}, "test")
 	if err == nil || !strings.Contains(err.Error(), "outside the workspace") {
 		t.Fatalf("error=%v, want state boundary rejection", err)
+	}
+}
+
+func TestPathInsideTreatsDifferentWindowsVolumesAsOutside(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows volume semantics")
+	}
+	inside, err := pathInside(`C:\workspace`, `D:\state`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inside {
+		t.Fatal("a path on another volume must be outside the workspace")
 	}
 }

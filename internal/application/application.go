@@ -97,11 +97,20 @@ func Open(ctx context.Context, settings config.Settings, version string) (*Appli
 }
 
 func pathInside(root, candidate string) (bool, error) {
+	rootAbsolute, err := filepath.Abs(root)
+	if err != nil {
+		return false, err
+	}
 	absolute, err := filepath.Abs(candidate)
 	if err != nil {
 		return false, err
 	}
-	relative, err := filepath.Rel(root, absolute)
+	rootVolume := filepath.VolumeName(rootAbsolute)
+	candidateVolume := filepath.VolumeName(absolute)
+	if !strings.EqualFold(rootVolume, candidateVolume) {
+		return false, nil
+	}
+	relative, err := filepath.Rel(rootAbsolute, absolute)
 	if err != nil {
 		return false, err
 	}
