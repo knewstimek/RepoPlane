@@ -2,6 +2,7 @@
 package runtimeaccess
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
@@ -12,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"repoplane/internal/runtimeconfig"
 	"repoplane/internal/workspace"
 )
 
@@ -66,6 +68,7 @@ type pending struct {
 	kind      string
 	path      string
 	readPlan  *workspace.ReadGrantPlan
+	config    *runtimeconfig.Request
 	expiresAt time.Time
 }
 
@@ -101,6 +104,12 @@ func (s *Service) Enabled(kind string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.enabled[kind]
+}
+
+func (s *Service) Available() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.allowed
 }
 
 func (s *Service) GrantedPath(kind, path string) bool {
@@ -186,6 +195,76 @@ func (s *Service) Begin(kind, path string) (token, message string, err error) {
 		message = fmt.Sprintf("Allow RepoPlane capability %q for this MCP process?", kind)
 	}
 	return token, message, nil
+}
+
+// BeginConfig binds a validated configuration proposal to a one-shot approval.
+func (s *Service) BeginConfig(request runtimeconfig.Request) (token, message string, err error) {
+	if !s.allowed {
+		return "", "", ErrDisabled
+	}
+	if err := runtimeconfig.Validate(request); err != nil || request.Action == runtimeconfig.ActionStatus {
+		return "", "", ErrInvalid
+	}
+	token, err = randomToken()
+	if err != nil {
+		return "", "", err
+	}
+	now := s.now().UTC()
+	s.mu.Lock()
+	for id, item := range s.pending {
+		if !item.expiresAt.After(now) {
+			delete(s.pending, id)
+		}
+	}
+	if len(s.pending) >= maxPending {
+		s.mu.Unlock()
+		return "", "", errors.New("runtime access approval queue is full")
+	}
+	copyRequest := request
+	copyRequest.Values = append([]string(nil), request.Values...)
+	s.pending[token] = pending{config: &copyRequest, expiresAt: now.Add(pendingTTL)}
+	s.mu.Unlock()
+	message = fmt.Sprintf("Allow RepoPlane runtime configuration action %q on %q", request.Action, request.Target)
+	if len(request.Values) != 0 {
+		message += fmt.Sprintf(" with values %q", request.Values)
+	}
+	return token, message + " for this MCP process?", nil
+}
+
+// CompleteConfig consumes a proposal token and applies the exact stored request.
+func (s *Service) CompleteConfig(ctx context.Context, token string, accepted bool, controller runtimeconfig.Controller) (runtimeconfig.Response, error) {
+	if !s.allowed {
+		return runtimeconfig.Response{}, ErrDisabled
+	}
+	now := s.now().UTC()
+	s.mu.Lock()
+	item, ok := s.pending[token]
+	delete(s.pending, token)
+	s.mu.Unlock()
+	if !ok || !item.expiresAt.After(now) || item.config == nil {
+		return runtimeconfig.Response{}, ErrPending
+	}
+	if !accepted {
+		return runtimeconfig.Response{}, ErrDeclined
+	}
+	if controller == nil {
+		return runtimeconfig.Response{}, runtimeconfig.ErrUnavailable
+	}
+	return controller.Apply(ctx, *item.config)
+}
+
+// RebindRoot moves path authority to a replacement workspace. Capability
+// grants remain active, while path grants and pending proposals are discarded.
+func (s *Service) RebindRoot(root *workspace.Root) {
+	s.mu.Lock()
+	s.root = root
+	for id, grant := range s.grants {
+		if grant.Kind == KindReadPath {
+			delete(s.grants, id)
+		}
+	}
+	s.pending = make(map[string]pending)
+	s.mu.Unlock()
 }
 
 // Complete consumes one server-issued approval token and applies it only when

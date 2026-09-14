@@ -43,7 +43,7 @@ func TestGeneratedFootprintIsCurrentAndSeparatesMeasurements(t *testing.T) {
 	if err := json.Unmarshal(footprint, &report); err != nil {
 		t.Fatal(err)
 	}
-	wantCounts := map[string]int{"read": 6, "writes": 3, "runner": 3, "state": 1, "all": 13}
+	wantCounts := map[string]int{"read": 6, "writes": 3, "runner": 3, "state": 2, "all": 14}
 	for _, set := range report.Sets {
 		if set.ToolCount != wantCounts[set.Name] {
 			t.Fatalf("%s tool_count=%d, want %d", set.Name, set.ToolCount, wantCounts[set.Name])

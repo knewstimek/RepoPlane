@@ -2544,6 +2544,67 @@
       }
     },
     {
+      "name": "runtime_config",
+      "description": "Inspect or change live sources, workspace, state, or HTTP without restarting stdio.",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "changed": {
+            "type": "boolean"
+          },
+          "configuration": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "null",
+                "array"
+              ]
+            },
+            "type": "object"
+          },
+          "refreshed": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "changed",
+          "refreshed",
+          "configuration"
+        ],
+        "type": "object"
+      }
+    },
+    {
       "name": "workspace_search",
       "description": "Search names, text, Git history, or configured symbols with bounded evidence; requests session read approval for an external root.",
       "input_schema": {

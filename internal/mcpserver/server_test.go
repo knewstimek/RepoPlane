@@ -15,9 +15,53 @@ import (
 	"repoplane/internal/dataquery"
 	"repoplane/internal/records"
 	"repoplane/internal/runtimeaccess"
+	"repoplane/internal/runtimeconfig"
 	"repoplane/internal/store"
 	"repoplane/internal/workspace"
 )
+
+type testRuntimeConfig struct{}
+
+func (testRuntimeConfig) Status(context.Context) (runtimeconfig.Response, error) {
+	return runtimeconfig.Response{}, nil
+}
+func (testRuntimeConfig) Apply(context.Context, runtimeconfig.Request) (runtimeconfig.Response, error) {
+	return runtimeconfig.Response{}, nil
+}
+
+func TestRuntimeConfigurationIsListedButUnavailableOnHTTPAuthority(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := New("test", Options{RuntimeAccess: runtimeaccess.New(nil, false, runtimeaccess.Initial{}), RuntimeConfig: testRuntimeConfig{}}).Connect(ctx, serverTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer serverSession.Close()
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "test"}, nil)
+	session, err := client.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+	found := false
+	for tool, err := range session.Tools(ctx, nil) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		found = found || tool.Name == ToolRuntimeConfig
+	}
+	if !found {
+		t.Fatal("runtime_config is missing from stable discovery")
+	}
+	result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: ToolRuntimeConfig, Arguments: map[string]any{"action": "status"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.IsError {
+		t.Fatalf("HTTP-authority runtime configuration succeeded: %+v", result)
+	}
+}
 
 func TestServerNegotiatesInMemory(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -65,6 +109,8 @@ func TestPublicErrorUsesStableSanitizedCodes(t *testing.T) {
 		{runtimeaccess.ErrDisabled, "runtime_access_unavailable"},
 		{runtimeaccess.ErrDeclined, "permission_denied"},
 		{runtimeaccess.ErrPending, "runtime_approval_invalid"},
+		{runtimeconfig.ErrUnavailable, "runtime_configuration_unavailable"},
+		{runtimeconfig.ErrBusy, "runtime_configuration_busy"},
 		{contracts.ErrLimitExceeded, "limit_exceeded"},
 		{errors.New("ref is required"), "invalid_argument"},
 		{errors.New("database exploded at a host path"), "internal_error"},
@@ -100,8 +146,8 @@ func TestRequiredScopeCoversEveryPublicTool(t *testing.T) {
 			}
 		}
 	}
-	if len(seen) != 13 {
-		t.Fatalf("covered tools=%d, want 13", len(seen))
+	if len(seen) != 14 {
+		t.Fatalf("covered tools=%d, want 14", len(seen))
 	}
 	if _, ok := RequiredScope("unknown"); ok {
 		t.Fatal("unknown tool did not fail closed")

@@ -5,9 +5,11 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -52,30 +54,67 @@ func contains(values []string, wanted string) bool {
 }
 
 func Run(ctx context.Context, version string, options mcpserver.Options, profile Profile, verifier auth.TokenVerifier, audit store.AuditRepository, auditKey []byte) error {
-	handler, err := Handler(version, options, profile, verifier, audit, auditKey)
+	running, err := Start(version, options, profile, verifier, audit, auditKey)
 	if err != nil {
 		return err
 	}
-	server := &http.Server{Addr: profile.Listen, Handler: handler, ReadHeaderTimeout: profile.ReadHeaderTimeout(), ReadTimeout: profile.ReadTimeout(), IdleTimeout: profile.IdleTimeout(), MaxHeaderBytes: 32 * 1024}
-	errCh := make(chan error, 1)
-	go func() {
-		if profile.TLS.CertFile != "" {
-			errCh <- server.ListenAndServeTLS(profile.TLS.CertFile, profile.TLS.KeyFile)
-		} else {
-			errCh <- server.ListenAndServe()
-		}
-	}()
+	defer running.Close(context.Background())
 	select {
-	case err := <-errCh:
-		if errors.Is(err, http.ErrServerClosed) {
-			return nil
-		}
+	case err := <-running.Done():
 		return err
 	case <-ctx.Done():
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), profile.ShutdownTimeout())
 		defer cancel()
-		return server.Shutdown(shutdownCtx)
+		return running.Close(shutdownCtx)
 	}
+}
+
+// Running is a bound HTTP transport that can be stopped independently from
+// the stdio MCP connection which created it.
+type Running struct {
+	server *http.Server
+	done   chan error
+}
+
+// Start validates the handler and binds the listen address before returning.
+func Start(version string, options mcpserver.Options, profile Profile, verifier auth.TokenVerifier, audit store.AuditRepository, auditKey []byte) (*Running, error) {
+	handler, err := Handler(version, options, profile, verifier, audit, auditKey)
+	if err != nil {
+		return nil, err
+	}
+	if profile.TLS.CertFile != "" {
+		if _, err := tls.LoadX509KeyPair(profile.TLS.CertFile, profile.TLS.KeyFile); err != nil {
+			return nil, fmt.Errorf("load HTTP TLS identity: %w", err)
+		}
+	}
+	listener, err := net.Listen("tcp", profile.Listen)
+	if err != nil {
+		return nil, fmt.Errorf("listen HTTP transport: %w", err)
+	}
+	server := &http.Server{Addr: profile.Listen, Handler: handler, ReadHeaderTimeout: profile.ReadHeaderTimeout(), ReadTimeout: profile.ReadTimeout(), IdleTimeout: profile.IdleTimeout(), MaxHeaderBytes: 32 * 1024}
+	running := &Running{server: server, done: make(chan error, 1)}
+	go func() {
+		if profile.TLS.CertFile != "" {
+			err = server.ServeTLS(listener, profile.TLS.CertFile, profile.TLS.KeyFile)
+		} else {
+			err = server.Serve(listener)
+		}
+		if errors.Is(err, http.ErrServerClosed) {
+			err = nil
+		}
+		running.done <- err
+		close(running.done)
+	}()
+	return running, nil
+}
+
+func (r *Running) Done() <-chan error { return r.done }
+
+func (r *Running) Close(ctx context.Context) error {
+	if r == nil || r.server == nil {
+		return nil
+	}
+	return r.server.Shutdown(ctx)
 }
 
 func Handler(version string, options mcpserver.Options, profile Profile, verifier auth.TokenVerifier, audit store.AuditRepository, auditKey []byte) (http.Handler, error) {

@@ -1,14 +1,50 @@
 package runtimeaccess
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"repoplane/internal/runtimeconfig"
 	"repoplane/internal/workspace"
 )
+
+type recordingConfigurator struct{ calls []runtimeconfig.Request }
+
+func (c *recordingConfigurator) Status(context.Context) (runtimeconfig.Response, error) {
+	return runtimeconfig.Response{}, nil
+}
+func (c *recordingConfigurator) Apply(_ context.Context, request runtimeconfig.Request) (runtimeconfig.Response, error) {
+	c.calls = append(c.calls, request)
+	return runtimeconfig.Response{Status: "ok", Changed: true}, nil
+}
+
+func TestConfigurationApprovalIsExactOneShot(t *testing.T) {
+	root, err := workspace.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := New(root, true, Initial{})
+	wanted := runtimeconfig.Request{Action: "add", Target: "catalog_root", Values: []string{"catalog"}}
+	token, _, err := service.BeginConfig(wanted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wanted.Values[0] = "tampered-after-begin"
+	controller := &recordingConfigurator{}
+	if _, err := service.CompleteConfig(context.Background(), token, true, controller); err != nil {
+		t.Fatal(err)
+	}
+	if len(controller.calls) != 1 || controller.calls[0].Values[0] != "catalog" {
+		t.Fatalf("calls=%+v", controller.calls)
+	}
+	if _, err := service.CompleteConfig(context.Background(), token, true, controller); !errors.Is(err, ErrPending) {
+		t.Fatalf("reused token err=%v", err)
+	}
+}
 
 func TestGrantRequiresServerIssuedApprovalAndIsRevocable(t *testing.T) {
 	parent := t.TempDir()

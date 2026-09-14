@@ -12,9 +12,144 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"repoplane/internal/catalog"
 	"repoplane/internal/config"
 	"repoplane/internal/mcpserver"
+	"repoplane/internal/runtimeconfig"
+	"repoplane/internal/search"
 )
+
+func TestApplicationReconfiguresSourcesWorkspaceStateAndHTTPAtRuntime(t *testing.T) {
+	base := t.TempDir()
+	workspaceOne := filepath.Join(base, "workspace-one")
+	workspaceTwo := filepath.Join(base, "workspace-two")
+	stateOne := filepath.Join(base, "state-one")
+	stateTwo := filepath.Join(base, "state-two")
+	for _, directory := range []string{workspaceOne, workspaceTwo, stateOne, stateTwo, filepath.Join(workspaceOne, "catalog"), filepath.Join(workspaceOne, "extra"), filepath.Join(workspaceOne, "tools")} {
+		if err := os.MkdirAll(directory, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(workspaceOne, "catalog", "one.yaml"), []byte("id: test.one\nrevision: 1\nsummary: one\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(workspaceOne, "extra", "two.yaml"), []byte("id: test.two\nrevision: 1\nsummary: two\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(workspaceOne, "RULES.md"), []byte("runtime rules\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(workspaceOne, "symbols.jsonl"), []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(workspaceTwo, "marker.txt"), []byte("second workspace\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	app, err := Open(context.Background(), config.Settings{Workspace: workspaceOne, StateDir: stateOne, CatalogRoots: []string{"catalog"}, CandidateRoots: []string{}, RuleFiles: []string{"AGENTS.md"}}, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = app.Close() })
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	for _, request := range []runtimeconfig.Request{
+		{Action: "add", Target: "catalog_root", Values: []string{"extra"}},
+		{Action: "add", Target: "candidate_root", Values: []string{"tools"}},
+		{Action: "add", Target: "rule_file", Values: []string{"RULES.md"}},
+		{Action: "add", Target: "symbol_index", Values: []string{"symbols.jsonl"}},
+	} {
+		response, err := app.Apply(ctx, request)
+		if err != nil || !response.Changed || !response.Refreshed {
+			t.Fatalf("request=%+v response=%+v err=%v", request, response, err)
+		}
+	}
+	query, err := app.router.Query(ctx, catalog.QueryRequest{Mode: "search", Query: "test.two"})
+	if err != nil || len(query.Items) != 1 {
+		t.Fatalf("catalog result=%+v err=%v", query, err)
+	}
+	status, err := app.Status(ctx)
+	if err != nil || len(status.Configuration["catalog_root"]) != 2 || len(status.Configuration["candidate_root"]) != 1 || len(status.Configuration["rule_file"]) != 2 || len(status.Configuration["symbol_index"]) != 1 {
+		t.Fatalf("status=%+v err=%v", status, err)
+	}
+	if response, err := app.Apply(ctx, runtimeconfig.Request{Action: "remove", Target: "candidate_root", Values: []string{"tools"}}); err != nil || !response.Changed {
+		t.Fatalf("remove response=%+v err=%v", response, err)
+	}
+	if response, err := app.Apply(ctx, runtimeconfig.Request{Action: "replace", Target: "rule_file", Values: []string{"RULES.md"}}); err != nil || !response.Changed {
+		t.Fatalf("replace response=%+v err=%v", response, err)
+	}
+	if response, err := app.Apply(ctx, runtimeconfig.Request{Action: "refresh", Target: "symbol_index"}); err != nil || response.Changed || !response.Refreshed {
+		t.Fatalf("refresh response=%+v err=%v", response, err)
+	}
+	if response, err := app.Apply(ctx, runtimeconfig.Request{Action: "select", Target: "state_dir", Values: []string{stateTwo}}); err != nil || !response.Changed {
+		t.Fatalf("state response=%+v err=%v", response, err)
+	}
+	if _, err := os.Stat(filepath.Join(stateTwo, "records.db")); err != nil {
+		t.Fatal(err)
+	}
+	if response, err := app.Apply(ctx, runtimeconfig.Request{Action: "select", Target: "workspace", Values: []string{workspaceTwo}}); err != nil || !response.Changed {
+		t.Fatalf("workspace response=%+v err=%v", response, err)
+	}
+	searchResult, err := app.router.SearchQuery(ctx, search.Request{Mode: "exact", Pattern: "second workspace"})
+	if err != nil || len(searchResult.Items) != 1 {
+		t.Fatalf("search=%+v err=%v", searchResult, err)
+	}
+
+	tokenPath := filepath.Join(base, "token")
+	profilePath := filepath.Join(base, "http.yaml")
+	if err := os.WriteFile(tokenPath, []byte(strings.Repeat("a", 32)+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	profile := "listen: 127.0.0.1:0\nendpoint: /mcp\nresource_uri: http://127.0.0.1/mcp\nallowed_hosts: [127.0.0.1]\nallowed_origins: []\nauth:\n  mode: local_token\n  token_file: " + filepath.ToSlash(tokenPath) + "\n  scopes: [repoplane.read]\nlimits:\n  body_bytes: 1048576\n  concurrent_requests: 4\n  per_principal: 2\n  requests_per_minute: 60\naudit:\n  retention_days: 30\n"
+	if err := os.WriteFile(profilePath, []byte(profile), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if response, err := app.Apply(ctx, runtimeconfig.Request{Action: "start", Target: "http_transport", Values: []string{profilePath}}); err != nil || len(response.Configuration["http_transport"]) != 1 {
+		t.Fatalf("HTTP start=%+v err=%v", response, err)
+	}
+	if response, err := app.Apply(ctx, runtimeconfig.Request{Action: "stop", Target: "http_transport"}); err != nil || len(response.Configuration["http_transport"]) != 0 {
+		t.Fatalf("HTTP stop=%+v err=%v", response, err)
+	}
+}
+
+func TestRuntimeConfigurationUsesOneShotMCPApproval(t *testing.T) {
+	workspace := t.TempDir()
+	if err := os.Mkdir(filepath.Join(workspace, "extra"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	app, err := Open(context.Background(), config.Settings{Workspace: workspace, StateDir: t.TempDir(), CatalogRoots: []string{}}, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = app.Close() })
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := mcpserver.New("test", app.MCPOptions()).Connect(ctx, serverTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer serverSession.Close()
+	approvals := 0
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "test"}, &mcp.ClientOptions{ElicitationHandler: func(context.Context, *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+		approvals++
+		return &mcp.ElicitResult{Action: "accept"}, nil
+	}})
+	session, err := client.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+	result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "runtime_config", Arguments: map[string]any{"action": "add", "target": "catalog_root", "values": []string{"extra"}}})
+	if err != nil || result.IsError || result.StructuredContent == nil || approvals != 1 {
+		t.Fatalf("result=%+v approvals=%d err=%v", result, approvals, err)
+	}
+	status, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "runtime_config", Arguments: map[string]any{"action": "status"}})
+	if err != nil || status.IsError || approvals != 1 {
+		t.Fatalf("status=%+v approvals=%d err=%v", status, approvals, err)
+	}
+}
 
 func TestApplicationExposesCatalogQuery(t *testing.T) {
 	workspace := t.TempDir()
@@ -59,13 +194,13 @@ func TestApplicationExposesCatalogQuery(t *testing.T) {
 	if !found["catalog_query"] || !found["workspace_search"] || !found["path_explain"] || !found["data_query"] || !found["project_records"] {
 		t.Fatalf("expected tools not exposed: %v", found)
 	}
-	for _, name := range []string{"runtime_access", "memory_backup", "checkpoint_write", "memo_write", "check_report_import", "run_prepare", "run_execute", "run_inspect"} {
+	for _, name := range []string{"runtime_access", "runtime_config", "memory_backup", "checkpoint_write", "memo_write", "check_report_import", "run_prepare", "run_execute", "run_inspect"} {
 		if !found[name] {
 			t.Fatalf("runtime-approved tool %s not exposed: %v", name, found)
 		}
 	}
-	if len(found) != 13 {
-		t.Fatalf("tool count=%d, want 13: %v", len(found), found)
+	if len(found) != 14 {
+		t.Fatalf("tool count=%d, want 14: %v", len(found), found)
 	}
 	result, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
 		Name: "catalog_query", Arguments: map[string]any{"mode": "search", "query": "test"},
@@ -146,7 +281,7 @@ func TestApplicationPreservesHostGrantedRunnerAndCache(t *testing.T) {
 			t.Fatalf("%s not exposed: %v", name, found)
 		}
 	}
-	if len(found) != 13 {
+	if len(found) != 14 {
 		t.Fatalf("stable runtime tool set changed: %v", found)
 	}
 	if info, err := os.Stat(filepath.Join(state, "cache.key")); err != nil || info.Size() != 32 {

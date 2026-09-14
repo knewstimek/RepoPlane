@@ -18,6 +18,7 @@ import (
 	"repoplane/internal/records"
 	"repoplane/internal/runner"
 	"repoplane/internal/runtimeaccess"
+	"repoplane/internal/runtimeconfig"
 	"repoplane/internal/search"
 	"repoplane/internal/store"
 	"repoplane/internal/textcodec"
@@ -32,18 +33,41 @@ var ErrAuthorizationDenied = errors.New("mcpserver: authorization denied")
 // feature milestones; constructing the server itself has no workspace side
 // effects.
 type Options struct {
-	Catalog          *catalog.Service
-	Search           *search.Service
-	PathFacts        *pathfacts.Service
-	DataQuery        *dataquery.Service
-	Records          *records.Service
-	CheckpointWriter *records.Service
-	MemoWriter       *records.Service
-	ReportImporter   *records.Service
-	Runner           *runner.Service
-	RuntimeAccess    *runtimeaccess.Service
-	MemoryBackup     *memorybackup.Service
-	Authorize        func(context.Context, string) error
+	Catalog interface {
+		Query(context.Context, catalog.QueryRequest) (catalog.QueryResponse, error)
+	}
+	Search interface {
+		Query(context.Context, search.Request) (search.Response, error)
+	}
+	PathFacts interface {
+		Explain(context.Context, pathfacts.Request) (pathfacts.Response, error)
+	}
+	DataQuery interface {
+		Query(context.Context, dataquery.Request) (dataquery.Response, error)
+	}
+	Records interface {
+		Query(context.Context, records.QueryRequest) (records.QueryResponse, error)
+	}
+	CheckpointWriter interface {
+		WriteCheckpoint(context.Context, records.CheckpointRequest) (records.MutationResponse, error)
+	}
+	MemoWriter interface {
+		WriteMemo(context.Context, records.MemoRequest) (records.MutationResponse, error)
+	}
+	ReportImporter interface {
+		ImportReport(context.Context, records.ImportRequest) (records.MutationResponse, error)
+	}
+	Runner interface {
+		Prepare(context.Context, runner.PrepareRequest) (runner.PrepareResponse, error)
+		Execute(context.Context, runner.ExecuteRequest) (runner.ExecuteResponse, error)
+		Inspect(context.Context, runner.InspectRequest) (runner.InspectResponse, error)
+	}
+	RuntimeAccess *runtimeaccess.Service
+	RuntimeConfig runtimeconfig.Controller
+	MemoryBackup  interface {
+		Export(context.Context, memorybackup.Request) (memorybackup.Response, error)
+	}
+	Authorize func(context.Context, string) error
 }
 
 func New(version string, provided ...Options) *mcp.Server {
@@ -231,6 +255,34 @@ func New(version string, provided ...Options) *mcp.Server {
 			}
 		})
 	}
+	if options.RuntimeConfig != nil && options.RuntimeAccess != nil {
+		destructive := true
+		mcp.AddTool(server, &mcp.Tool{Name: ToolRuntimeConfig, Description: "Inspect or change live sources, workspace, state, or HTTP without restarting stdio.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false}}, func(ctx context.Context, req *mcp.CallToolRequest, input runtimeconfig.Request) (*mcp.CallToolResult, runtimeconfig.Response, error) {
+			if err := authorize(ctx, options, ToolRuntimeConfig); err != nil {
+				return nil, runtimeconfig.Response{}, publicError(err)
+			}
+			if !options.RuntimeAccess.Available() {
+				return nil, runtimeconfig.Response{}, publicError(runtimeconfig.ErrUnavailable)
+			}
+			if input.Action == runtimeconfig.ActionStatus {
+				output, err := options.RuntimeConfig.Status(ctx)
+				return nil, output, publicError(err)
+			}
+			if req.Params.RequestState == "" {
+				token, message, err := options.RuntimeAccess.BeginConfig(input)
+				if err != nil {
+					return nil, runtimeconfig.Response{}, publicError(err)
+				}
+				return approvalResult(token, message), runtimeconfig.Response{}, nil
+			}
+			accepted, err := approvalAccepted(req)
+			if err != nil {
+				return nil, runtimeconfig.Response{}, publicError(err)
+			}
+			output, err := options.RuntimeAccess.CompleteConfig(ctx, req.Params.RequestState, accepted, options.RuntimeConfig)
+			return nil, output, publicError(err)
+		})
+	}
 	return server
 }
 
@@ -362,6 +414,10 @@ func publicError(err error) error {
 		code = "permission_denied"
 	case errors.Is(err, runtimeaccess.ErrPending):
 		code = "runtime_approval_invalid"
+	case errors.Is(err, runtimeconfig.ErrUnavailable):
+		code = "runtime_configuration_unavailable"
+	case errors.Is(err, runtimeconfig.ErrBusy):
+		code = "runtime_configuration_busy"
 	case errors.Is(err, memorybackup.ErrDestination):
 		code = "backup_destination_invalid"
 	case errors.Is(err, memorybackup.ErrNotIdle):

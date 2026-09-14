@@ -9,9 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
-
-	"github.com/modelcontextprotocol/go-sdk/auth"
 
 	"repoplane/internal/catalog"
 	"repoplane/internal/config"
@@ -33,25 +32,44 @@ import (
 const cursorKeyBytes = 32
 
 type Application struct {
-	version          string
-	repository       store.Repository
-	recordRepository store.RecordRepository
-	catalog          *catalog.Service
-	search           *search.Service
-	pathFacts        *pathfacts.Service
-	dataQuery        *dataquery.Service
-	records          *records.Service
-	runner           *runner.Service
-	runtimeAccess    *runtimeaccess.Service
-	memoryBackup     *memorybackup.Service
-	transport        string
-	httpProfile      *httptransport.Profile
-	httpVerifier     auth.TokenVerifier
-	auditRepository  store.AuditRepository
-	auditKey         []byte
+	version         string
+	mu              sync.Mutex
+	settings        config.Settings
+	router          *serviceRouter
+	runtimeAccess   *runtimeaccess.Service
+	httpRunning     *httptransport.Running
+	httpProfile     *httptransport.Profile
+	httpProfilePath string
+	auditRepository store.AuditRepository
 }
 
 func Open(ctx context.Context, settings config.Settings, version string) (*Application, error) {
+	if settings.Transport == "http" {
+		profile, err := httptransport.LoadProfile(settings.HTTPProfile)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := httptransport.TokenVerifier(profile); err != nil {
+			return nil, err
+		}
+	}
+	var runtimeAccess *runtimeaccess.Service
+	bundle, err := buildBundle(ctx, settings, func() bool {
+		return runtimeAccess != nil && runtimeAccess.Enabled(runtimeaccess.KindCache)
+	})
+	if err != nil {
+		return nil, err
+	}
+	settings.Workspace = bundle.root.Resolved()
+	settings.StateDir, _ = filepath.Abs(settings.StateDir)
+	runtimeAccess = runtimeaccess.New(bundle.root, settings.Transport != "http", runtimeaccess.Initial{
+		IntentWrite: settings.EnableIntentionWrites, ReportImport: settings.EnableReportImport,
+		Runner: settings.EnableRunner, Cache: settings.EnableCache,
+	})
+	return &Application{version: version, settings: settings, router: &serviceRouter{current: bundle}, runtimeAccess: runtimeAccess}, nil
+}
+
+func buildBundle(ctx context.Context, settings config.Settings, cacheEnabled func() bool) (*serviceBundle, error) {
 	root, err := workspace.Open(settings.Workspace)
 	if err != nil {
 		return nil, err
@@ -82,7 +100,7 @@ func Open(ctx context.Context, settings config.Settings, version string) (*Appli
 		_ = repository.Close()
 		return nil, err
 	}
-	fail := func(err error) (*Application, error) {
+	fail := func(err error) (*serviceBundle, error) {
 		_ = repository.Close()
 		_ = recordRepository.Close()
 		return nil, err
@@ -115,53 +133,23 @@ func Open(ctx context.Context, settings config.Settings, version string) (*Appli
 	pathService := pathfacts.NewService(root, searchBackend, settings.RuleFiles)
 	dataService := dataquery.NewService(root, repository, codec)
 	recordService := records.NewService(root, recordRepository, repository, codec)
-	runtimeAccess := runtimeaccess.New(root, settings.Transport != "http", runtimeaccess.Initial{
-		IntentWrite: settings.EnableIntentionWrites, ReportImport: settings.EnableReportImport,
-		Runner: settings.EnableRunner, Cache: settings.EnableCache,
-	})
 	service.EnableExecution()
 	cacheKey, err := loadOrCreateKey(filepath.Join(settings.StateDir, "cache.key"))
 	if err != nil {
 		return fail(err)
 	}
 	runnerService := runner.NewService(root, service, recordRepository, repository, recordService, settings.StateDir, cacheKey)
-	runnerService.SetCacheEnabled(func() bool { return runtimeAccess.Enabled(runtimeaccess.KindCache) })
+	if cacheEnabled == nil {
+		cacheEnabled = func() bool { return false }
+	}
+	runnerService.SetCacheEnabled(cacheEnabled)
 	if err := runnerService.Recover(ctx); err != nil {
 		return fail(err)
 	}
-	var httpProfile *httptransport.Profile
-	var httpVerifier auth.TokenVerifier
-	var auditRepository store.AuditRepository
-	var auditKey []byte
-	if settings.Transport == "http" {
-		profile, err := httptransport.LoadProfile(settings.HTTPProfile)
-		if err != nil {
-			return fail(err)
-		}
-		verifier, err := httptransport.TokenVerifier(profile)
-		if err != nil {
-			return fail(err)
-		}
-		auditRepository, err = storesqlite.OpenAudit(ctx, filepath.Join(settings.StateDir, "audit.db"))
-		if err != nil {
-			return fail(err)
-		}
-		auditKey, err = loadOrCreateKey(filepath.Join(settings.StateDir, "audit.key"))
-		if err != nil {
-			_ = auditRepository.Close()
-			return fail(err)
-		}
-		_, _ = auditRepository.DeleteExpiredAudit(ctx, time.Now().UTC().AddDate(0, 0, -profile.Audit.RetentionDays), 256)
-		httpProfile, httpVerifier = &profile, verifier
-	}
 	memoryService := memorybackup.New(root, recordRepository, runnerService, settings.StateDir)
-	return &Application{
-		version: version, repository: repository, recordRepository: recordRepository, catalog: service,
+	return &serviceBundle{root: root, repository: repository, recordRepository: recordRepository, catalog: service,
 		search: searchService, pathFacts: pathService, dataQuery: dataService, records: recordService,
-		runner: runnerService, runtimeAccess: runtimeAccess, memoryBackup: memoryService,
-		transport: settings.Transport, httpProfile: httpProfile, httpVerifier: httpVerifier,
-		auditRepository: auditRepository, auditKey: auditKey,
-	}, nil
+		runner: runnerService, memoryBackup: memoryService}, nil
 }
 
 func pathInside(root, candidate string) (bool, error) {
@@ -186,39 +174,56 @@ func pathInside(root, candidate string) (bool, error) {
 }
 
 func (a *Application) Run(ctx context.Context) error {
-	if a.transport == "http" {
-		return httptransport.Run(ctx, a.version, a.MCPOptions(), *a.httpProfile, a.httpVerifier, a.auditRepository, a.auditKey)
+	if a.settings.Transport == "http" {
+		a.mu.Lock()
+		err := a.startHTTPLocked(ctx, a.settings.HTTPProfile)
+		running := a.httpRunning
+		a.mu.Unlock()
+		if err != nil {
+			return err
+		}
+		select {
+		case err := <-running.Done():
+			return err
+		case <-ctx.Done():
+			a.mu.Lock()
+			err = a.stopHTTPLocked()
+			a.mu.Unlock()
+			return err
+		}
 	}
 	return mcpserver.RunStdio(ctx, a.version, a.MCPOptions())
 }
 
 func (a *Application) MCPOptions() mcpserver.Options {
 	options := mcpserver.Options{
-		Catalog: a.catalog, Search: a.search, PathFacts: a.pathFacts, DataQuery: a.dataQuery,
-		Records: a.records, CheckpointWriter: a.records, MemoWriter: a.records, ReportImporter: a.records,
-		Runner: a.runner, RuntimeAccess: a.runtimeAccess, MemoryBackup: a.memoryBackup,
+		Catalog: a.router, Search: searchRoute{a.router}, PathFacts: a.router, DataQuery: dataRoute{a.router},
+		Records: recordsRoute{a.router}, CheckpointWriter: a.router, MemoWriter: a.router, ReportImporter: a.router,
+		Runner: a.router, RuntimeAccess: a.runtimeAccess, RuntimeConfig: a, MemoryBackup: a.router,
 	}
 	return options
 }
 
 func (a *Application) ExportMemory(ctx context.Context, request memorybackup.Request) (memorybackup.Response, error) {
-	return a.memoryBackup.Export(ctx, request)
+	return a.router.Export(ctx, request)
 }
 
 func (a *Application) RestoreMemory(ctx context.Context, archive string, byteLimit uint64) (memorybackup.Response, error) {
-	return a.memoryBackup.Restore(ctx, archive, byteLimit)
+	return a.router.Restore(ctx, archive, byteLimit)
 }
 
 func (a *Application) Close() error {
-	var runnerErr error
-	if a.runner != nil {
-		runnerErr = a.runner.Close()
+	a.mu.Lock()
+	httpErr := a.stopHTTPLocked()
+	a.mu.Unlock()
+	a.router.mu.Lock()
+	bundle := a.router.current
+	a.router.current = nil
+	a.router.mu.Unlock()
+	if bundle == nil {
+		return httpErr
 	}
-	var auditErr error
-	if a.auditRepository != nil {
-		auditErr = a.auditRepository.Close()
-	}
-	return errors.Join(runnerErr, auditErr, a.repository.Close(), a.recordRepository.Close())
+	return errors.Join(httpErr, bundle.close())
 }
 
 func loadOrCreateKey(path string) ([]byte, error) {
