@@ -9,7 +9,7 @@ execution:
   kind: cli
   executable_ref: gh
   cwd: .
-  argv_template: [release, list, --limit, "20", --json, tagName,name,isDraft,isPrerelease,publishedAt,isLatest]
+  argv_template: [release, list, --limit, "20", --json, "tagName,name,isDraft,isPrerelease,publishedAt,isLatest"]
   trusted_for_run: true
   timeout_sec: 30
   artifact_mode: metadata
