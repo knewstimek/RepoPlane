@@ -61,6 +61,20 @@ go build -trimpath -o bin/repoplane ./cmd/repoplane
 
 On Windows, use `bin/repoplane.exe` as the output path if desired.
 
+To update an installed Windows binary that may still be serving an MCP session, build the
+replacement first, resolve the current installation from `PATH`, then rotate and replace it:
+
+```powershell
+go build -trimpath -o bin/repoplane.exe ./cmd/repoplane
+$installed = (Get-Command repoplane -CommandType Application).Source
+$backup = Join-Path (Split-Path $installed) ("old_repoplane_{0}.exe" -f (Get-Date -Format yyyyMMddHHmmss))
+Move-Item -LiteralPath $installed -Destination $backup
+Copy-Item -LiteralPath bin/repoplane.exe -Destination $installed
+```
+
+New MCP sessions use the replacement. Remove the rotated binary only after the older process has
+exited.
+
 ## Configure an MCP client
 
 Build the binary, place it on `PATH`, then add a stdio server entry to your MCP client. Replace the
