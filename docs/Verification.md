@@ -15,7 +15,7 @@ the scope of each claim remains reviewable.
 | UTF-8, BOM, CP949, EUC-KR, and mixed newlines preserve stated semantics | textcodec tests and path-facts encoding/newline tests |
 | Large JSON integers retain precision | `TestJSONLPreservesLargeIntegerProjectionAndPagination` |
 | Oversized and malformed JSONL records follow explicit policies | `TestJSONLOversizedRecordHasExplicitPolicy`, malformed skip/fail tests |
-| Lexical, symlink, and junction workspace escapes are rejected | workspace root tests, including the Windows junction test |
+| Lexical, symlink, and junction workspace escapes are rejected | workspace root tests, including the Windows junction test; application tests also cover an external state directory on another Windows volume |
 | Link facts remain observations | path-facts symlink, junction, and hardlink tests |
 | MCP stdout contains protocol frames only | child-process stdio test |
 | Public schemas match the registered tools | schema generation drift and cursor-only contract tests |
