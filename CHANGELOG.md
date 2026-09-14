@@ -63,3 +63,5 @@ Notable changes to RepoPlane are documented here.
   tools for absent, unsupported, or partial capabilities.
 - Developer verification now emits bounded, path-redacted details for failed checks instead of
   leaving CI with only a generic failure status.
+- The combined symbol/Git adapter fixture now uses the same canonical workspace root as production,
+  avoiding false workspace-escape failures under Windows runner junction paths.
