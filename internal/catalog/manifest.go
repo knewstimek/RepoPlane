@@ -21,6 +21,7 @@ var (
 	ErrManifestInvalid  = errors.New("catalog: invalid manifest")
 	idPattern           = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
 	argumentNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,63}$`)
+	unknownFieldPattern = regexp.MustCompile(`field ([^ ]+) not found`)
 )
 
 type Manifest struct {
@@ -147,6 +148,9 @@ func decodeYAML(data []byte, target *Manifest) error {
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
 	if err := decoder.Decode(target); err != nil {
+		if unknownFieldInFlowMapping(err, &document) {
+			return fmt.Errorf("%w; flow-style mappings treat commas as field separators, so quote scalar values that contain commas", err)
+		}
 		return err
 	}
 	var extra any
@@ -157,6 +161,30 @@ func decodeYAML(data []byte, target *Manifest) error {
 		return err
 	}
 	return nil
+}
+
+func unknownFieldInFlowMapping(err error, node *yaml.Node) bool {
+	match := unknownFieldPattern.FindStringSubmatch(err.Error())
+	if len(match) != 2 {
+		return false
+	}
+	return flowMappingContainsKey(node, match[1])
+}
+
+func flowMappingContainsKey(node *yaml.Node, field string) bool {
+	if node.Kind == yaml.MappingNode && node.Style&yaml.FlowStyle != 0 {
+		for index := 0; index+1 < len(node.Content); index += 2 {
+			if node.Content[index].Value == field {
+				return true
+			}
+		}
+	}
+	for _, child := range node.Content {
+		if flowMappingContainsKey(child, field) {
+			return true
+		}
+	}
+	return false
 }
 
 func markdownFrontmatter(data []byte) ([]byte, error) {

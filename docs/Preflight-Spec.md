@@ -1,6 +1,6 @@
 # RepoPlane Environment Preflight Specification
 
-상태: Accepted 1.1
+상태: Accepted 1.2
 
 ## 1. 목적과 표면
 
@@ -22,6 +22,12 @@ preflight를 수행해 environment record와 plan에 연결하고, 과거 결과
 | `environment` | 환경변수 존재 | 이름과 present 여부; 값은 금지 |
 | `git` | repository, HEAD, dirty 상태 | commit과 dirty; remote/identity는 금지 |
 | `platform` | OS와 architecture | 정규화된 GOOS/GOARCH |
+
+`git` 검사는 RepoPlane workspace root가 아니라 manifest에서 resolve된 실제 execution
+`cwd`를 기준으로 가장 가까운 상위 Git worktree를 찾는다. 따라서 workspace가 여러
+프로젝트를 담는 상위 directory이고 capability의 `cwd`가 `code/` 같은 하위 repository를
+가리키는 경우에도 그 repository의 HEAD와 dirty 상태를 관찰한다. Workspace 밖으로
+나가는 `cwd`는 기존 path boundary에서 먼저 거부한다.
 
 검사 requirement는 `required`, `recommended`, `informational`이다. `required`의
 `failed`/`missing`/`unknown`만 plan을 실행 불가로 만든다. 나머지는 경고로 보존하며

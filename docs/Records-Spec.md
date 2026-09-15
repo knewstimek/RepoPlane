@@ -63,6 +63,9 @@ payload, evidence_refs[], supersedes?, validity
 - ID와 ref는 opaque하며 클라이언트가 파싱하지 않는다.
 - timestamp는 정렬 보조 정보이며 인과관계나 writer identity의 증거가 아니다.
 - `source`는 `observed`, `imported`, `user_asserted`, `llm_proposed`를 구분한다.
+- `observed`는 server/runner writer가 직접 생성한 environment/run/artifact에만 사용한다.
+  클라이언트가 관찰 record를 읽고 작성한 checkpoint는 `user_asserted`이며 원 관찰은
+  `evidence_refs`로 연결한다. Intention writer가 `observed`를 주장할 수는 없다.
 - `workspace_id`가 없는 project-level 선언과 특정 worktree 관찰을 혼합하지 않는다.
 - 삭제 대신 필요한 종류에서 tombstone/superseded 상태를 사용한다. 물리 삭제는 보존
   정책과 감사 계약이 생긴 뒤 별도 명세로 다룬다.
@@ -102,6 +105,10 @@ result set에 저장되어 cursor-only 다음 page에서도 유지된다.
 Checkpoint, memo와 report import는 `response_view=receipt`로 방금 보낸 payload의 응답
 반복을 생략할 수 있다. 기본값 `full`은 기존 계약을 유지한다. receipt도 ID, revision,
 validity, evidence, duplicate와 warning을 유지하며 `payload_complete=false`를 명시한다.
+`duplicate`는 importer가 같은 source identity와 content를 다시 받은 경우만 true다.
+Checkpoint와 memo write는 문장의 의미상 중복·모순을 판정하지 않으므로 false가 semantic
+overlap 부재를 뜻하지 않는다. 기존 memo의 변경은 ID와 `expected_revision`을 사용한
+`update` 또는 `supersede`로 명시한다.
 
 ## 5. Optimistic concurrency
 
