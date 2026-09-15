@@ -76,6 +76,12 @@ Download versioned Windows and Linux archives plus `SHA256SUMS.txt` from the
 before installation. Release archives contain the `repoplane` MCP server; `rg` and optional Git
 remain host dependencies.
 
+Maintainers publish a prepared release with the guarded `Release` workflow after the exact `main`
+commit passes CI. Supply `version`; `notes_file` may be omitted to use the canonical tracked
+`docs/releases/vVERSION.md`. RepoPlane Runner exposes the same dispatch as `release.dispatch` with
+both typed arguments explicit and `publish=true`, so release logs stay in Actions and the MCP
+response remains compact. Manual workflow runs default to a build-only dry run.
+
 From a repository checkout:
 
 ```sh
