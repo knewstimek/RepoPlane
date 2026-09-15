@@ -4,8 +4,6 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
-## [1.1.1] - 2026-09-16
-
 ### Added
 
 - An implementation-ready draft and staged evaluation plan for an opt-in five-toolbox MCP surface
