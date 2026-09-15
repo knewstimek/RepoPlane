@@ -1,6 +1,6 @@
 # RepoPlane Release Notes Specification
 
-상태: Accepted 1.0
+상태: Accepted 1.1
 
 ## 1. 목적
 
@@ -69,3 +69,25 @@ release에 올린 byte를 대상으로 다시 검증한다.
 tag push와 asset 업로드는 외부 변경이므로 capability 조회 권한이나 schema handle만으로
 승인된 것으로 간주하지 않으며 사용자의 명시적 릴리스 의도 아래 수행한다.
 
+## 7. 자동 게시
+
+`.github/workflows/release.yml`은 `main`의 특정 commit에 대해 성공한 `CI` run을 재사용하고,
+선언된 두 platform archive의 build, checksum, annotated tag, GitHub Release와 게시 후 byte
+검증을 한 번의 guarded workflow로 수행한다. `CI`의 branch filter는 tag push에서 같은 test를
+다시 실행하지 않는다. `main` push CI에는 complete reachable-history 공개 검사가 포함된다.
+
+수동 dispatch는 `version`과 선택적인 `notes_file`을 받는다. `notes_file`을 생략하면
+`docs/releases/vVERSION.md`를 사용하며, 현재 계약에서는 다른 경로를 거부한다. note는 이전
+릴리스와 같은 필수 section 순서와 changelog 링크를 가져야 한다. 따라서 본문을 shell/JSON
+인자로 복사하지 않고 추적된 원본만 게시한다.
+
+```text
+gh workflow run release.yml --ref main -f version=1.0.4 \
+  -f notes_file=docs/releases/v1.0.4.md -f publish=true
+```
+
+RepoPlane Runner에서는 `release.dispatch`에 같은 두 typed argument를 전달할 수 있다. workflow
+dispatch 자체가 외부 변경 승인이며, workflow는 tag가 이미 같은 commit을 가리키는 경우
+재사용하고 게시 asset과 note를 검증된 결과로 복구할 수 있다.
+GitHub UI의 `publish` 기본값은 `false`여서 실제 tag나 release 없이 동일 build를 점검할 수
+있고, `release.dispatch`는 사용자의 Runner 승인을 받은 뒤 `publish=true`로 dispatch한다.

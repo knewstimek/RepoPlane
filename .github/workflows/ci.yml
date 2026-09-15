@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: ["**"]
   pull_request:
 
 permissions:
@@ -32,6 +33,22 @@ jobs:
         run: go run ./cmd/repoplane-dev preflight
       - name: Verify
         run: go run ./cmd/repoplane-dev verify
+
+  public-release-check:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: Check tracked tree and reachable history
+        run: go run ./cmd/repoplane-dev public-release-check
 
   race:
     runs-on: ubuntu-latest

@@ -30,3 +30,9 @@ opt-in registered execution.
 - Create an annotated SemVer tag only from a clean commit whose required GitHub Actions jobs passed.
 - Publish a non-draft, non-prerelease GitHub Release from the same tag and tracked notes, then verify
   its tag, assets, checksums, and displayed metadata through the GitHub API.
+
+The guarded `.github/workflows/release.yml` automates the steps from successful `main` CI through
+asset verification and publication. Dispatch it with a stable `version`; `notes_file` is optional
+and defaults to the canonical tracked `docs/releases/vVERSION.md`. The registered
+`release.dispatch` capability exposes the same operation with both values explicit and publication
+enabled. Manual workflow dispatch defaults to a build-only dry run unless `publish=true` is selected.

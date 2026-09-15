@@ -1,0 +1,40 @@
+id: release.dispatch
+revision: 1
+summary: Dispatch the guarded GitHub release workflow for one tracked version and note
+use_when:
+  - publishing a prepared stable release after its main CI run succeeds
+tags: [release, github, publish]
+execution:
+  kind: cli
+  executable_ref: gh
+  cwd: .
+  argv_template:
+    - workflow
+    - run
+    - release.yml
+    - --ref
+    - main
+    - --field
+    - version={version}
+    - --field
+    - notes_file={notes_file}
+    - --field
+    - publish=true
+  trusted_for_run: true
+  timeout_sec: 30
+  artifact_mode: metadata
+  preflight:
+    - {id: gh.version, kind: executable, ref: gh, requirement: required, argv: [--version]}
+    - {id: git.repository, kind: git, requirement: required}
+arguments:
+  version:
+    type: string
+    required: true
+    description: Stable SemVer with or without the leading v
+  notes_file:
+    type: project_path
+    required: true
+    description: Canonical tracked note such as docs/releases/v1.0.4.md
+inputs: [.github/workflows/release.yml, CHANGELOG.md, docs/releases/**]
+docs: [docs/Release-Notes-Spec.md, docs/Public-Release.md]
+cache_policy: disabled

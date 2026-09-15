@@ -59,6 +59,12 @@ Git history. CI runs preflight and verify on Windows and Linux and runs `go test
 Linux. A Windows race run is not a release gate because its availability depends on the installed C
 toolchain and race runtime; race correctness is gated by the Linux CI job.
 
+For `main` pushes, CI also runs `public-release-check` from a full-history checkout. The guarded
+`Release` workflow requires that exact commit's CI run to succeed, so it does not rerun the same
+Windows, Ubuntu, and Linux race jobs. Tag pushes are excluded from CI; release publication instead
+builds the declared archives, verifies their embedded version and checksums, and retains a compact
+post-publication receipt.
+
 Failed developer checks emit only their check ID, status, exit code, duration, summary, and bounded
 diagnostics. Workspace, temporary, and user-home paths are redacted before stderr output so CI
 failures remain actionable without publishing host-specific paths.

@@ -4,6 +4,16 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+### Added
+
+- A guarded `Release` workflow and typed `release.dispatch` capability that publish the canonical
+  tracked release note, declared platform archives, checksums, annotated tag, and compact receipt.
+
+### Changed
+
+- Main-branch CI now includes the complete public-release privacy scan, while tag pushes no longer
+  repeat the same Windows, Ubuntu, and Linux race jobs.
+
 ## [1.0.3] - 2026-09-15
 
 ### Added
