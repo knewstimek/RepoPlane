@@ -206,6 +206,73 @@ func TestCompactRecordOptionsRejectInvalidValues(t *testing.T) {
 	}
 }
 
+func TestRecordSearchReturnsCompactDiscoveryAndSupportsExplicitProjection(t *testing.T) {
+	service, _ := testService(t)
+	content := "Windows executable replacement " + strings.Repeat("detail ", 200)
+	created, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "create", MemoKind: "resolved_failure", Scope: "release/windows", Configuration: "amd64", Content: content, ResponseView: "receipt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "create", MemoKind: "decision", Scope: "docs", Content: "unrelated network policy", ResponseView: "receipt"}); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := service.Query(context.Background(), QueryRequest{Mode: "search", Kind: "memo", Query: "windows executable", Validity: "current", ItemLimit: 5, ByteLimit: 4096})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Items) != 1 || result.Items[0].ID != created.Record.ID || result.Items[0].PayloadComplete {
+		t.Fatalf("compact search=%+v", result)
+	}
+	payload := result.Items[0].Payload
+	if payload["scope"] != "release/windows" || payload["preview"] == "" {
+		t.Fatalf("discovery payload=%+v", payload)
+	}
+	if _, exists := payload["content"]; exists {
+		t.Fatal("default search returned full memo content")
+	}
+	encoded, _ := json.Marshal(result)
+	if len(encoded) >= len(content) {
+		t.Fatalf("compact search bytes=%d content bytes=%d", len(encoded), len(content))
+	}
+
+	projected, err := service.Query(context.Background(), QueryRequest{Mode: "search", Kind: "memo", Query: "windows", PayloadFields: []string{"content"}, ItemLimit: 5})
+	if err != nil || len(projected.Items) != 1 || projected.Items[0].Payload["content"] != content {
+		t.Fatalf("explicit search projection=%+v err=%v", projected, err)
+	}
+}
+
+func TestRecordSearchRequiresBoundedQuery(t *testing.T) {
+	service, _ := testService(t)
+	if _, err := service.Query(context.Background(), QueryRequest{Mode: "search", Kind: "memo"}); err == nil {
+		t.Fatal("search without query was accepted")
+	}
+	if _, err := service.Query(context.Background(), QueryRequest{Mode: "list", Query: "memo"}); err == nil {
+		t.Fatal("list with query was accepted")
+	}
+	if _, err := service.Query(context.Background(), QueryRequest{Mode: "search", Query: strings.Repeat("x", 513)}); !errors.Is(err, contracts.ErrLimitExceeded) {
+		t.Fatalf("oversized query error=%v", err)
+	}
+	if _, err := service.Query(context.Background(), QueryRequest{Mode: "search", Query: strings.Repeat("x", 129)}); !errors.Is(err, contracts.ErrLimitExceeded) {
+		t.Fatalf("oversized term error=%v", err)
+	}
+}
+
+func TestDiscoveryValuesAreDeterministicallyBounded(t *testing.T) {
+	preview := compactPreview("  하나\n둘  "+strings.Repeat("셋", 400), 320)
+	if len([]rune(preview)) != 320 || !strings.HasPrefix(preview, "하나 둘 셋") || !strings.HasSuffix(preview, "…") {
+		t.Fatalf("preview=%q runes=%d", preview, len([]rune(preview)))
+	}
+	values := make([]any, 12)
+	for index := range values {
+		values[index] = strings.Repeat("x", 400)
+	}
+	compact, ok := compactDiscoveryValue(values).([]any)
+	if !ok || len(compact) != 8 || len([]rune(compact[0].(string))) != 320 {
+		t.Fatalf("compact values=%+v", compact)
+	}
+}
+
 func TestImportReportIsIdempotentAndBecomesStale(t *testing.T) {
 	service, root := testService(t)
 	commit := strings.TrimSpace(runGit(t, root, "rev-parse", "HEAD"))

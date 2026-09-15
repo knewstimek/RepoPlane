@@ -206,6 +206,7 @@ Typical tool inputs are intentionally small:
 {"mode":"jsonl","ref":"source:mutable:reports/events.jsonl","fields":["id","status"]}
 {"mode":"log","dialect":"regex","pattern":"error|panic","ref":"source:mutable:logs/app.log"}
 {"mode":"json","dialect":"json-pointer","pointer":"/items","ref":"source:mutable:reports/data.json","fields":["id","status"]}
+{"mode":"search","kind":"memo","validity":"current","query":"windows executable replacement","item_limit":5,"byte_limit":6000}
 {"mode":"list","kind":"verification","validity":"current","payload_fields":["check_id","status","configuration"]}
 ```
 
@@ -226,12 +227,18 @@ With report import enabled, a local verification report can be linked to a versi
 
 The importer stores a hash and bounded normalized summary, not raw report diagnostics.
 
-Record reads return the full payload by default. For discovery, `payload_fields` selects exact
-top-level fields without replacing stored values with a summary; `payload_complete` tells whether
-the full payload was returned. Checkpoint, memo, and report-import writes also preserve their full
-response by default. Pass `"response_view":"receipt"` when the caller only needs the record ID,
-revision, validity, evidence, duplicate state, and warnings and does not need its submitted payload
-echoed back:
+`project_records(mode=search)` requires bounded lexical `query` text and searches record identity,
+metadata, and textual payload values. Results are relevance ordered and compact by default; memo
+results include scope, kind, configuration, and a deterministic content `preview` of at most 320
+characters. Other discovery strings are also capped at 320 characters and arrays at eight items.
+Use the returned ID with `mode=get` only for records whose full payload is needed.
+`mode=list` and `mode=get` remain full by default. An explicit `payload_fields` selection overrides
+the compact search projection and returns those exact stored top-level fields;
+`payload_complete` tells whether the full payload was returned.
+
+Checkpoint, memo, and report-import writes preserve their full response by default. Pass
+`"response_view":"receipt"` when the caller only needs the record ID, revision, validity, evidence,
+duplicate state, and warnings and does not need its submitted payload echoed back:
 
 Record only consequential failures whose cause and remedy can prevent repeated work; include the
 invalidation condition, and leave one-off typos or noise out of durable memos.

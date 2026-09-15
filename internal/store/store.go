@@ -149,6 +149,7 @@ type RecordQuery struct {
 	Validity     string
 	Source       string
 	UpdatedAfter time.Time
+	Terms        []string
 	Limit        uint64
 }
 

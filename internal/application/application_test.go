@@ -446,6 +446,10 @@ func TestApplicationExposesOptInRecordWriters(t *testing.T) {
 	if err != nil || query.IsError || query.StructuredContent == nil {
 		t.Fatalf("record query result=%+v error=%v", query, err)
 	}
+	search, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "project_records", Arguments: map[string]any{"mode": "search", "kind": "checkpoint", "query": "test records", "item_limit": 5, "byte_limit": 4096}})
+	if err != nil || search.IsError || search.StructuredContent == nil {
+		t.Fatalf("record search result=%+v error=%v", search, err)
+	}
 }
 
 func TestEmptyCatalogAndSearchReturnExactEmptyResults(t *testing.T) {

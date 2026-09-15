@@ -1827,6 +1827,10 @@
               "array"
             ]
           },
+          "query": {
+            "description": "lexical text; required for search",
+            "type": "string"
+          },
           "source": {
             "description": "source filter: observed, imported, user_asserted, or llm_proposed",
             "type": "string"
