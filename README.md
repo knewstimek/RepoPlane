@@ -147,6 +147,8 @@ paths are relative to the selected workspace and must exist when added or replac
 state, and HTTP-profile paths are absolute. A successful source change rebuilds and refreshes the
 catalog before atomically switching the service bundle. A workspace switch drops external path
 grants; active Runner work blocks workspace/state/source switching.
+Confirmation-only proposals use an explicit MCP form schema so strict clients can complete the
+`elicitation/create` round trip instead of rejecting an ambiguous request shape.
 
 ```json
 {"action":"status"}
