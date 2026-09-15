@@ -87,7 +87,7 @@ func Parse(args []string, output io.Writer) (Settings, error) {
 		return Settings{}, fmt.Errorf("--http-profile requires --transport=http")
 	}
 	if len(roots) == 0 {
-		roots = append(roots, "catalog")
+		roots = append(roots, defaultCatalogRoot(settings.Workspace, workingDirectory))
 	}
 	settings.CatalogRoots = append([]string(nil), roots...)
 	if len(candidates) == 0 {
@@ -100,4 +100,71 @@ func Parse(args []string, output io.Writer) (Settings, error) {
 	settings.RuleFiles = append([]string(nil), ruleFiles...)
 	settings.SymbolIndexes = append([]string(nil), symbolIndexes...)
 	return settings, nil
+}
+
+func defaultCatalogRoot(workspacePath, startPath string) string {
+	const fallback = "catalog"
+	workspaceAbsolute, err := filepath.Abs(workspacePath)
+	if err != nil {
+		return fallback
+	}
+	if info, statErr := os.Stat(filepath.Join(workspaceAbsolute, fallback)); statErr == nil && info.IsDir() {
+		return fallback
+	}
+	current, err := filepath.Abs(startPath)
+	if err != nil || !pathWithin(workspaceAbsolute, current) {
+		return fallback
+	}
+	for pathWithin(workspaceAbsolute, current) {
+		if _, statErr := os.Stat(filepath.Join(current, ".git")); statErr == nil {
+			catalogPath := filepath.Join(current, fallback)
+			if info, catalogErr := os.Stat(catalogPath); catalogErr == nil && info.IsDir() {
+				relative, relErr := filepath.Rel(workspaceAbsolute, catalogPath)
+				if relErr == nil && pathWithin(workspaceAbsolute, catalogPath) {
+					return filepath.ToSlash(relative)
+				}
+			}
+			return fallback
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			break
+		}
+		current = parent
+	}
+	if nested := uniqueChildCatalogRoot(workspaceAbsolute); nested != "" {
+		return nested
+	}
+	return fallback
+}
+
+func uniqueChildCatalogRoot(workspaceAbsolute string) string {
+	entries, err := os.ReadDir(workspaceAbsolute)
+	if err != nil || len(entries) > 64 {
+		return ""
+	}
+	candidate := ""
+	for _, entry := range entries {
+		if !entry.IsDir() || entry.Type()&os.ModeSymlink != 0 {
+			continue
+		}
+		repository := filepath.Join(workspaceAbsolute, entry.Name())
+		if _, err := os.Stat(filepath.Join(repository, ".git")); err != nil {
+			continue
+		}
+		catalogPath := filepath.Join(repository, "catalog")
+		if info, err := os.Stat(catalogPath); err != nil || !info.IsDir() {
+			continue
+		}
+		if candidate != "" {
+			return ""
+		}
+		candidate = filepath.ToSlash(filepath.Join(entry.Name(), "catalog"))
+	}
+	return candidate
+}
+
+func pathWithin(root, candidate string) bool {
+	relative, err := filepath.Rel(root, candidate)
+	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) && !filepath.IsAbs(relative)
 }

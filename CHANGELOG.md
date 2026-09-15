@@ -28,6 +28,9 @@ Notable changes to RepoPlane are documented here.
 
 - Runner Git preflight now starts from the capability's resolved execution working directory, so a
   Git repository nested below the RepoPlane workspace root is detected and rechecked correctly.
+- Default catalog discovery now falls back to a nested Git repository's `catalog/` when
+  `WORKSPACE/catalog` is absent and either the process startup directory identifies that repository
+  or it is the only direct child candidate; explicit roots take precedence and ambiguity stays empty.
 
 ## [1.0.3] - 2026-09-15
 
