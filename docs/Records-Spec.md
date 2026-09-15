@@ -1,6 +1,6 @@
 # RepoPlane Records and Verification Specification
 
-상태: Implemented 1.1
+상태: Implemented 1.2
 대상 수직 절단: Records/Verification → Checkpoint/Memo/Importer
 
 ## 1. 목적과 범위
@@ -69,7 +69,11 @@ payload, evidence_refs[], supersedes?, validity
 
 ## 4. 조회 계약
 
-`project_records`는 `mode=search|get|list`와 고정 snapshot cursor를 제공한다. filter는
+`project_records`는 `mode=search|get|list`와 고정 snapshot cursor를 제공한다. `search`는
+공백으로 분리한 최대 16개 lexical term과 512-byte 이하의 `query`를 요구하며 record ID,
+kind, schema version, source와 payload의 문자열 값에서 하나 이상 일치하는 record를 찾는다.
+JSON field 이름 자체는 검색 대상이 아니다. ID/metadata 일치가 payload 일치보다 우선하고,
+동점은 최신 수정 시각과 ID로 안정적으로 정렬한다. filter는
 최소한 `kind`, `validity`, `source`, `updated_after`를 지원한다. `project_id`와
 `workspace_id`는 요청에서 받지 않고 host가 연 서버의 고정 scope를 사용한다.
 지원 kind는 verification/checkpoint/memo에 environment/run/artifact를 additive하게
@@ -83,10 +87,17 @@ payload, evidence_refs[], supersedes?, validity
 - current, stale, unknown, superseded, redacted, source_missing을 구분한다.
 - 조회가 freshness 계산을 위해 외부 command나 network probe를 실행하지 않는다.
 
-호출자가 전체 본문을 필요로 하지 않으면 `payload_fields`로 정확한 최상위 payload field를
-최대 32개까지 선택할 수 있다. 생략하거나 빈 배열이면 기존처럼 전체 payload를 반환한다.
-투영은 요약이 아니며 저장 값을 바꾸지 않는다. `payload_complete`는 전체 payload일 때만
-true다. 첫 page의 투영은 고정 result set에 저장되어 cursor-only 다음 page에서도 유지된다.
+`search`에서 `payload_fields`를 생략하면 record kind별 발견용 field만 반환한다. Memo는
+`memo_kind`, `scope`, `configuration`과 저장된 content를 공백 정규화하고 320자로 자른
+결정적 `preview`를 반환한다. Preview는 저장 payload를 바꾸지 않으며 이 결과는
+`payload_complete=false`다. 다른 발견용 문자열도 320자, 배열은 앞의 8개 항목으로
+제한한다. 선택한 record의 전체 payload는 ID를 사용한 `get`으로 읽는다.
+
+호출자가 다른 field를 필요로 하면 `payload_fields`로 정확한 최상위 payload field를 최대
+32개까지 선택할 수 있다. 명시적 투영은 요약이 아니며 저장 값을 바꾸지 않는다. `list`와
+`get`에서 이를 생략하거나 빈 배열이면 기존처럼 전체 payload를 반환한다.
+`payload_complete`는 전체 payload일 때만 true다. 첫 page의 검색 결과 또는 투영은 고정
+result set에 저장되어 cursor-only 다음 page에서도 유지된다.
 
 Checkpoint, memo와 report import는 `response_view=receipt`로 방금 보낸 payload의 응답
 반복을 생략할 수 있다. 기본값 `full`은 기존 계약을 유지한다. receipt도 ID, revision,
@@ -193,4 +204,5 @@ repository는 조립 지점에서만 사용한다. Runner가 생길 때 관찰 e
 - unauthorized kind write와 cross-workspace access rejection test
 - crash 중 durable transaction 복구와 cache 삭제 독립성 test
 - oversized/partial/redacted report test
+- lexical record search의 값-only 일치, 안정적 순위, compact 기본 view와 명시적 projection test
 - 기존 네 MVP tool의 read-only 회귀 test

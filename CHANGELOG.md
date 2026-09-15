@@ -4,6 +4,19 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+### Added
+
+- Real bounded lexical search for durable records, including relevance ordering over record
+  identity, metadata, and textual payload values.
+
+### Changed
+
+- `project_records(mode=search)` now returns a compact kind-specific discovery payload by default;
+  memo discovery derives a 320-character preview, while explicit `payload_fields` can still request
+  exact stored fields and `get` remains the full-record path.
+- The search contract adds only one compact `query` input field, keeping all 14 tools inside the
+  existing 34 KiB complete-contract regression budget.
+
 ## [1.0.2] - 2026-09-15
 
 ### Fixed

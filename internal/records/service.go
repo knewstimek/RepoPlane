@@ -44,6 +44,7 @@ var (
 
 type QueryRequest struct {
 	Mode          string   `json:"mode,omitempty" jsonschema:"record operation: search, list, or get; omit when using cursor"`
+	Query         string   `json:"query,omitempty" jsonschema:"lexical text; required for search"`
 	ID            string   `json:"id,omitempty" jsonschema:"opaque record ID; required for get"`
 	Kind          string   `json:"kind,omitempty" jsonschema:"record kind filter: verification, checkpoint, memo, environment, run, or artifact"`
 	Validity      string   `json:"validity,omitempty" jsonschema:"validity filter: current, stale, unknown, or superseded"`
@@ -159,7 +160,7 @@ func (s *Service) Query(ctx context.Context, request QueryRequest) (QueryRespons
 		if err != nil {
 			return QueryResponse{}, err
 		}
-		result, err := s.result(record, &current, request.PayloadFields)
+		result, err := s.result(record, &current, request.PayloadFields, false)
 		if err != nil {
 			return QueryResponse{}, err
 		}
@@ -172,13 +173,17 @@ func (s *Service) Query(ctx context.Context, request QueryRequest) (QueryRespons
 				return QueryResponse{}, errors.New("updated_after must be RFC3339")
 			}
 		}
-		page, err := s.records.QueryRecords(ctx, store.RecordQuery{ProjectID: s.projectID, WorkspaceID: s.workspaceID, Kind: request.Kind, Source: request.Source, UpdatedAfter: updatedAfter, Limit: maximumRecordQuery})
+		terms := []string(nil)
+		if request.Mode == "search" {
+			terms = normalizeRecordTerms(request.Query)
+		}
+		page, err := s.records.QueryRecords(ctx, store.RecordQuery{ProjectID: s.projectID, WorkspaceID: s.workspaceID, Kind: request.Kind, Source: request.Source, UpdatedAfter: updatedAfter, Terms: terms, Limit: maximumRecordQuery})
 		if err != nil {
 			return QueryResponse{}, err
 		}
 		items := make([]RecordResult, 0, len(page.Records))
 		for _, record := range page.Records {
-			result, err := s.result(record, &current, request.PayloadFields)
+			result, err := s.result(record, &current, request.PayloadFields, request.Mode == "search" && len(request.PayloadFields) == 0)
 			if err != nil {
 				return QueryResponse{}, err
 			}
@@ -398,7 +403,7 @@ func (s *Service) mutationResponse(record store.Record, duplicate bool, view str
 	if err != nil {
 		return MutationResponse{}, err
 	}
-	result, err := s.result(record, nil, nil)
+	result, err := s.result(record, nil, nil, false)
 	if err != nil {
 		return MutationResponse{}, err
 	}
@@ -409,7 +414,7 @@ func (s *Service) mutationResponse(record store.Record, duplicate bool, view str
 	return MutationResponse{Status: contracts.StatusOK, Record: result, Duplicate: duplicate, Warnings: contracts.EmptyWarnings()}, nil
 }
 
-func (s *Service) result(record store.Record, current *subjectObservation, payloadFields []string) (RecordResult, error) {
+func (s *Service) result(record store.Record, current *subjectObservation, payloadFields []string, discovery bool) (RecordResult, error) {
 	var payload map[string]any
 	decoder := json.NewDecoder(bytes.NewReader(record.Payload))
 	decoder.UseNumber()
@@ -420,8 +425,10 @@ func (s *Service) result(record store.Record, current *subjectObservation, paylo
 	if record.Kind == "verification" && validity != "superseded" && current != nil {
 		validity = validityFromPayload(payload, *current)
 	}
-	complete := len(payloadFields) == 0
-	if !complete {
+	complete := len(payloadFields) == 0 && !discovery
+	if discovery {
+		payload = discoveryPayload(record.Kind, payload)
+	} else if !complete {
 		projected := make(map[string]any, len(payloadFields))
 		for _, field := range payloadFields {
 			if value, ok := payload[field]; ok {
@@ -443,10 +450,89 @@ func validateFilters(request QueryRequest) error {
 	if request.Source != "" && request.Source != "observed" && request.Source != "imported" && request.Source != "user_asserted" && request.Source != "llm_proposed" {
 		return errors.New("invalid record source")
 	}
+	if request.Mode == "search" && strings.TrimSpace(request.Query) == "" {
+		return errors.New("query is required for search")
+	}
+	if request.Mode != "search" && request.Query != "" {
+		return errors.New("query is only valid for search")
+	}
+	terms := normalizeRecordTerms(request.Query)
+	if len(request.Query) > 512 || len(terms) > 16 {
+		return contracts.ErrLimitExceeded
+	}
+	for _, term := range terms {
+		if len(term) > 128 {
+			return contracts.ErrLimitExceeded
+		}
+	}
 	if err := validatePayloadFields(request.PayloadFields); err != nil {
 		return err
 	}
 	return nil
+}
+
+func normalizeRecordTerms(query string) []string {
+	seen := map[string]struct{}{}
+	terms := make([]string, 0)
+	for _, term := range strings.Fields(strings.ToLower(query)) {
+		if _, exists := seen[term]; exists {
+			continue
+		}
+		seen[term] = struct{}{}
+		terms = append(terms, term)
+	}
+	return terms
+}
+
+func discoveryPayload(kind string, payload map[string]any) map[string]any {
+	fields := map[string][]string{
+		"memo":         {"memo_kind", "scope", "configuration"},
+		"checkpoint":   {"goal", "next_action", "remaining_checks"},
+		"verification": {"check_id", "status", "outcome", "configuration", "truncated"},
+		"environment":  {"capability_id", "configuration", "ready", "observed_at"},
+		"run":          {"capability_id", "configuration", "state", "started_at", "finished_at"},
+		"artifact":     {"path", "storage", "size", "content_hash"},
+	}
+	selected := make(map[string]any)
+	for _, field := range fields[kind] {
+		if value, ok := payload[field]; ok {
+			selected[field] = compactDiscoveryValue(value)
+		}
+	}
+	if kind == "memo" {
+		if content, ok := payload["content"].(string); ok {
+			selected["preview"] = compactPreview(content, 320)
+		}
+	}
+	return selected
+}
+
+func compactDiscoveryValue(value any) any {
+	switch typed := value.(type) {
+	case string:
+		return compactPreview(typed, 320)
+	case []any:
+		limit := len(typed)
+		if limit > 8 {
+			limit = 8
+		}
+		compact := make([]any, 0, limit)
+		for _, item := range typed[:limit] {
+			compact = append(compact, compactDiscoveryValue(item))
+		}
+		return compact
+	default:
+		return value
+	}
+}
+
+func compactPreview(value string, maximumRunes int) string {
+	value = strings.Join(strings.Fields(value), " ")
+	runes := []rune(value)
+	if len(runes) <= maximumRunes {
+		return value
+	}
+	return string(runes[:maximumRunes-1]) + "…"
 }
 
 func validateCheckpoint(request CheckpointRequest) error {

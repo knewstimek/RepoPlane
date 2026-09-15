@@ -41,8 +41,10 @@
   contract changes.
 - Keep Runner and cache reuse out of scope until their roadmap prerequisites and specifications
   are complete.
-- When a full durable-record payload is unnecessary, use `payload_fields` for discovery and
-  `response_view=receipt` for writes; retain the validity and evidence fields needed for decisions.
+- At task start or when prior decisions and failures may matter, search current durable records
+  with a few task-derived terms and a small `item_limit`/`byte_limit`; fetch full payloads only for
+  relevant IDs. Use exact `payload_fields` when the default compact search view is insufficient and
+  `response_view=receipt` for writes; retain validity and evidence needed for decisions.
 - When RepoPlane MCP is available, use it first for repository discovery, registered
   verification/release execution, and durable task recovery. Use direct shell tools only when no
   matching capability exists or RepoPlane MCP reports `unsupported`/`partial`, and state the

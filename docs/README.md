@@ -9,7 +9,7 @@
 | [MVP-Spec.md](MVP-Spec.md) | 첫 구현의 지원 범위와 외부 계약 | 동작 계약이 바뀔 때 |
 | [Implementation-Plan.md](Implementation-Plan.md) | 구현 순서, 완료 조건, 보류 항목 | 작업 단계가 진행되거나 재계획될 때 |
 | [Full-Implementation-Roadmap.md](Full-Implementation-Roadmap.md) | 채택된 P1/P2 범위, 수직 절단 순서와 gate | 장기 구현 순서나 채택 범위가 바뀔 때 |
-| [Records-Spec.md](Records-Spec.md) | durable record, verification, write/import 계약 | Records 외부·저장 계약이 바뀔 때 |
+| [Records-Spec.md](Records-Spec.md) | durable record 검색·compact 발견, verification, write/import 계약 | Records 외부·저장 계약이 바뀔 때 |
 | [Preflight-Spec.md](Preflight-Spec.md) | capability 환경 점검과 hard/soft gate 계약 | preflight 관찰이나 redaction이 바뀔 때 |
 | [Artifact-Provenance-Spec.md](Artifact-Provenance-Spec.md) | run receipt, stream, artifact 보존 계약 | 실행 기록이나 retention이 바뀔 때 |
 | [Runner-Spec.md](Runner-Spec.md) | prepare/execute/inspect와 플랫폼 실행 계약 | Runner 권한이나 실행 동작이 바뀔 때 |
@@ -19,7 +19,7 @@
 | [Search-Adapters-Implementation-Plan.md](Search-Adapters-Implementation-Plan.md) | Stage 7 구현 순서와 gate | search adapter 작업이 진행되거나 재계획될 때 |
 | [HTTP-Security-Spec.md](HTTP-Security-Spec.md) | HTTP transport, auth, scope, audit와 limit 계약 | network/security 계약이 바뀔 때 |
 | [HTTP-Implementation-Plan.md](HTTP-Implementation-Plan.md) | Stage 8 구현 순서와 gate | HTTP/Auth 작업이 진행되거나 재계획될 때 |
-| [Context-Efficiency-Spec.md](Context-Efficiency-Spec.md) | MCP 노출 비용 측정과 호환형 compact 응답 계약 | tool/record 응답 또는 측정 의미가 바뀔 때 |
+| [Context-Efficiency-Spec.md](Context-Efficiency-Spec.md) | MCP 노출 비용 측정과 search-first compact 응답 계약 | tool/record 응답 또는 측정 의미가 바뀔 때 |
 | [Context-Efficiency-Implementation-Plan.md](Context-Efficiency-Implementation-Plan.md) | post-roadmap context 효율 작업과 보류 실험 | 효율 작업이 진행되거나 재계획될 때 |
 | [Runtime-Access-Spec.md](Runtime-Access-Spec.md) | local stdio runtime grant, elicitation, 외부 read 경계 | runtime 승인이나 workspace 확장 계약이 바뀔 때 |
 | [Runtime-Configuration-Spec.md](Runtime-Configuration-Spec.md) | source/workspace/state/HTTP의 live configuration과 atomic switch | runtime 설정·service topology가 바뀔 때 |

@@ -178,6 +178,37 @@ func TestRecordRepositoryScopesReadsToWorkspace(t *testing.T) {
 	}
 }
 
+func TestRecordRepositoryLexicalTermsFilterAndRank(t *testing.T) {
+	repository := openRecordRepository(t)
+	older := testRecord("memo", "memo_payload")
+	older.Payload = json.RawMessage(`{"scope":"docs","content":"Windows executable replacement"}`)
+	older.UpdatedAt = older.UpdatedAt.Add(-time.Hour)
+	if _, err := repository.CreateMemo(context.Background(), store.RecordCreate{Record: older}); err != nil {
+		t.Fatal(err)
+	}
+	newer := testRecord("memo", "memo_windows")
+	newer.Payload = json.RawMessage(`{"scope":"other","content":"unrelated"}`)
+	if _, err := repository.CreateMemo(context.Background(), store.RecordCreate{Record: newer}); err != nil {
+		t.Fatal(err)
+	}
+	miss := testRecord("memo", "memo_miss")
+	miss.Payload = json.RawMessage(`{"content":"network timeout"}`)
+	if _, err := repository.CreateMemo(context.Background(), store.RecordCreate{Record: miss}); err != nil {
+		t.Fatal(err)
+	}
+	page, err := repository.QueryRecords(context.Background(), store.RecordQuery{ProjectID: "project", WorkspaceID: "workspace", Kind: "memo", Terms: []string{"windows", "executable"}, Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.Matched != 2 || len(page.Records) != 2 || page.Records[0].ID != "memo_windows" || page.Records[1].ID != "memo_payload" {
+		t.Fatalf("search page=%+v", page)
+	}
+	keys, err := repository.QueryRecords(context.Background(), store.RecordQuery{ProjectID: "project", WorkspaceID: "workspace", Kind: "memo", Terms: []string{"content"}, Limit: 10})
+	if err != nil || keys.Matched != 0 {
+		t.Fatalf("JSON field name was treated as searchable text: page=%+v err=%v", keys, err)
+	}
+}
+
 func TestRecordDatabaseIsIndependentFromCacheDatabase(t *testing.T) {
 	ctx := context.Background()
 	directory := t.TempDir()

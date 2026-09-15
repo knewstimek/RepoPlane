@@ -1,6 +1,6 @@
 # RepoPlane MCP Context Efficiency Specification
 
-상태: Accepted 1.1
+상태: Accepted 1.2
 대상: MCP tool discovery, record 응답, 작업당 context 비용
 
 ## 1. 목표
@@ -42,12 +42,21 @@ byte 수를 token 수나 고정 시작 비용으로 표현하지 않는다.
 
 ## 4. 호환형 compact record 응답
 
-기존 요청의 기본 응답은 바꾸지 않는다.
+`list`와 `get`의 기존 기본 응답은 바꾸지 않는다. `search`는 발견 전용 compact 기본값을
+사용한다.
 
 `project_records`의 `payload_fields`는 반환할 payload의 정확한 최상위 field 이름을 최대
-32개까지 선택한다. 생략하거나 빈 배열이면 전체 payload를 반환한다. 투영 결과는 요약이
-아니며 저장된 값을 변경하지 않는다. `payload_complete`는 전체 payload일 때만 `true`다.
-validity, revision, source, writer class, evidence ref와 pagination 의미는 항상 유지한다.
+32개까지 선택한다. `list`와 `get`에서 생략하거나 빈 배열이면 전체 payload를 반환한다.
+투영 결과는 요약이 아니며 저장된 값을 변경하지 않는다. `payload_complete`는 전체
+payload일 때만 `true`다. validity, revision, source, writer class, evidence ref와 pagination
+의미는 항상 유지한다.
+
+`project_records(mode=search)`는 하나의 bounded `query` 필드만 추가한다. 검색의 기본
+payload는 kind별 핵심 field로 제한하며 memo content는 저장 값을 바꾸지 않는 최대 320자
+`preview`로 만든다. 다른 기본 발견 문자열도 320자, 배열은 8개 항목으로 제한한다. 정확한
+field나 본문이 필요하면 명시적 `payload_fields` 또는 검색 결과 ID의 `get`을 사용한다. 이
+discover-then-get 흐름은 tool schema의 고정 증가보다 반복되는 record 본문 응답 감소를
+우선한다.
 
 `checkpoint_write`, `memo_write`, `check_report_import`의 `response_view`는 `full` 또는
 `receipt`다. 기본 `full`은 기존처럼 전체 record를 반환한다. `receipt`는 caller가 방금 보낸
@@ -84,6 +93,6 @@ cursor-only 다음 페이지는 첫 요청에서 고정된 payload projection을
 - tool 이름과 HTTP scope가 하나의 source에서 파생되고 모든 공개 tool의 fail-closed mapping이
   test로 고정된다.
 - schema와 footprint report가 함께 재생성되고 drift test를 통과한다.
-- compact record 옵션의 기본 호환성, projection pagination, 유효하지 않은 값과 실질적인
-  반복 payload 감소가 test로 고정된다.
+- compact record 옵션의 기본 호환성, lexical search, projection pagination, 유효하지 않은
+  값과 실질적인 반복 payload 감소가 test로 고정된다.
 - Stage 7/8 의미·권한 회귀와 전체 repository verification/public-release gate가 통과한다.

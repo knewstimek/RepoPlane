@@ -119,7 +119,7 @@ func (r *RecordRepository) GetRecord(ctx context.Context, projectID, workspaceID
 }
 
 func (r *RecordRepository) QueryRecords(ctx context.Context, query store.RecordQuery) (store.RecordPage, error) {
-	if query.ProjectID == "" || query.WorkspaceID == "" || query.Limit == 0 || query.Limit > 10_000 {
+	if query.ProjectID == "" || query.WorkspaceID == "" || query.Limit == 0 || query.Limit > 10_000 || len(query.Terms) > 16 {
 		return store.RecordPage{}, fmt.Errorf("query durable records: %w", store.ErrConflict)
 	}
 	where := []string{"project_id=?", "workspace_id=?"}
@@ -135,13 +135,36 @@ func (r *RecordRepository) QueryRecords(ctx context.Context, query store.RecordQ
 		where = append(where, "updated_at>=?")
 		args = append(args, unixNano(query.UpdatedAfter))
 	}
+	metadataText := "lower(id || ' ' || kind || ' ' || schema_version || ' ' || source)"
+	payloadMatch := "EXISTS (SELECT 1 FROM json_tree(CAST(payload_json AS TEXT)) AS value WHERE value.type='text' AND instr(lower(CAST(value.value AS TEXT)), ?) > 0)"
+	score := make([]string, 0, len(query.Terms))
+	scoreArgs := make([]any, 0, len(query.Terms)*3)
+	if len(query.Terms) > 0 {
+		matches := make([]string, 0, len(query.Terms))
+		for _, term := range query.Terms {
+			term = strings.ToLower(strings.TrimSpace(term))
+			if term == "" || len(term) > 128 {
+				return store.RecordPage{}, fmt.Errorf("query durable records: %w", store.ErrConflict)
+			}
+			matches = append(matches, "(instr("+metadataText+", ?) > 0 OR "+payloadMatch+")")
+			args = append(args, term, term)
+			score = append(score, "CASE WHEN instr(lower(id), ?) > 0 THEN 8 WHEN instr("+metadataText+", ?) > 0 THEN 4 WHEN "+payloadMatch+" THEN 1 ELSE 0 END")
+			scoreArgs = append(scoreArgs, term, term, term)
+		}
+		where = append(where, "("+strings.Join(matches, " OR ")+")")
+	}
 	clause := strings.Join(where, " AND ")
 	var matched uint64
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM records WHERE `+clause, args...).Scan(&matched); err != nil {
 		return store.RecordPage{}, fmt.Errorf("count durable records: %w", err)
 	}
+	order := "updated_at DESC, id"
+	if len(score) > 0 {
+		order = "(" + strings.Join(score, " + ") + ") DESC, " + order
+		args = append(args, scoreArgs...)
+	}
 	args = append(args, query.Limit)
-	rows, err := r.db.QueryContext(ctx, recordSelect+` WHERE `+clause+` ORDER BY updated_at DESC, id LIMIT ?`, args...)
+	rows, err := r.db.QueryContext(ctx, recordSelect+` WHERE `+clause+` ORDER BY `+order+` LIMIT ?`, args...)
 	if err != nil {
 		return store.RecordPage{}, fmt.Errorf("query durable records: %w", err)
 	}
