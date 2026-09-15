@@ -40,6 +40,7 @@ var (
 	ErrReportInvalid    = errors.New("records: report invalid")
 	checklistIDPattern  = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
 	gitCommitPattern    = regexp.MustCompile(`^[0-9a-f]{40}([0-9a-f]{24})?$`)
+	hostAliasPattern    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
 )
 
 type QueryRequest struct {
@@ -76,32 +77,43 @@ type RecordResult struct {
 type QueryResponse = contracts.Response[RecordResult]
 
 type CheckpointRequest struct {
-	Mode             string   `json:"mode" jsonschema:"checkpoint mutation: create, update, or supersede"`
-	ID               string   `json:"id,omitempty" jsonschema:"record ID; required for update or supersede"`
-	ExpectedRevision uint64   `json:"expected_revision,omitempty" jsonschema:"current revision; required for update or supersede"`
-	Goal             string   `json:"goal,omitempty" jsonschema:"short task objective"`
-	BaselineCommit   string   `json:"baseline_commit,omitempty" jsonschema:"observed baseline Git commit"`
-	Dirty            *bool    `json:"dirty,omitempty" jsonschema:"whether the observed baseline worktree was dirty"`
+	Mode             string   `json:"mode" jsonschema:"create | update | supersede"`
+	ID               string   `json:"id,omitempty" jsonschema:"ID for update/supersede"`
+	ExpectedRevision uint64   `json:"expected_revision,omitempty" jsonschema:"revision for update/supersede"`
+	Goal             string   `json:"goal,omitempty" jsonschema:"task goal"`
+	BaselineCommit   string   `json:"baseline_commit,omitempty" jsonschema:"baseline Git commit"`
+	Dirty            *bool    `json:"dirty,omitempty" jsonschema:"baseline worktree dirty"`
 	RunRefs          []string `json:"run_refs,omitempty" jsonschema:"related run or report refs"`
-	RemainingChecks  []string `json:"remaining_checks,omitempty" jsonschema:"checks still required"`
+	RemainingChecks  []string `json:"remaining_checks,omitempty" jsonschema:"remaining checks"`
 	NextAction       string   `json:"next_action,omitempty" jsonschema:"next intended action"`
-	Risks            []string `json:"risks,omitempty" jsonschema:"known unverified risks"`
-	EvidenceRefs     []string `json:"evidence_refs,omitempty" jsonschema:"bounded evidence refs"`
-	ResponseView     string   `json:"response_view,omitempty" jsonschema:"full or receipt; default full; receipt omits the echoed payload"`
+	Risks            []string `json:"risks,omitempty" jsonschema:"unverified risks"`
+	EvidenceRefs     []string `json:"evidence_refs,omitempty" jsonschema:"evidence refs"`
+	ResponseView     string   `json:"response_view,omitempty" jsonschema:"full | receipt"`
 }
 
 type MemoRequest struct {
-	Mode                  string   `json:"mode" jsonschema:"memo mutation: create, update, or supersede"`
-	ID                    string   `json:"id,omitempty" jsonschema:"record ID; required for update or supersede"`
-	ExpectedRevision      uint64   `json:"expected_revision,omitempty" jsonschema:"current revision; required for update or supersede"`
-	MemoKind              string   `json:"memo_kind,omitempty" jsonschema:"decision, failed_attempt, resolved_failure, or limitation"`
-	Scope                 string   `json:"scope,omitempty" jsonschema:"workspace-relative logical scope"`
-	Configuration         string   `json:"configuration,omitempty" jsonschema:"applicable configuration"`
-	Content               string   `json:"content,omitempty" jsonschema:"bounded memo content"`
-	InvalidationCondition string   `json:"invalidation_condition,omitempty" jsonschema:"condition that makes the memo stale"`
-	Source                string   `json:"source,omitempty" jsonschema:"user_asserted or llm_proposed"`
-	EvidenceRefs          []string `json:"evidence_refs,omitempty" jsonschema:"bounded evidence refs"`
-	ResponseView          string   `json:"response_view,omitempty" jsonschema:"full or receipt; default full; receipt omits the echoed payload"`
+	Mode                  string    `json:"mode" jsonschema:"create | update | supersede"`
+	ID                    string    `json:"id,omitempty" jsonschema:"ID for update/supersede"`
+	ExpectedRevision      uint64    `json:"expected_revision,omitempty" jsonschema:"revision for update/supersede"`
+	MemoKind              string    `json:"memo_kind,omitempty" jsonschema:"decision | failed_attempt | resolved_failure | limitation | host_fact"`
+	Scope                 string    `json:"scope,omitempty" jsonschema:"logical scope"`
+	Configuration         string    `json:"configuration,omitempty" jsonschema:"configuration"`
+	Content               string    `json:"content,omitempty" jsonschema:"memo text"`
+	Host                  *HostFact `json:"host,omitempty"`
+	InvalidationCondition string    `json:"invalidation_condition,omitempty" jsonschema:"staleness condition"`
+	Source                string    `json:"source,omitempty" jsonschema:"user_asserted | llm_proposed"`
+	EvidenceRefs          []string  `json:"evidence_refs,omitempty" jsonschema:"evidence refs"`
+	ResponseView          string    `json:"response_view,omitempty" jsonschema:"full | receipt"`
+}
+
+type HostFact struct {
+	Alias       string   `json:"alias"`
+	Role        string   `json:"role"`
+	OS          string   `json:"os"`
+	Tier        string   `json:"tier"`
+	Services    []string `json:"services"`
+	Paths       []string `json:"paths"`
+	ConfirmedAt string   `json:"confirmed_at"`
 }
 
 type ImportRequest struct {
@@ -276,12 +288,77 @@ func (s *Service) WriteMemo(ctx context.Context, request MemoRequest) (MutationR
 	if err := validateMemo(request); err != nil {
 		return MutationResponse{}, err
 	}
-	payload, _ := json.Marshal(map[string]any{"memo_kind": request.MemoKind, "scope": request.Scope, "configuration": request.Configuration, "content": request.Content, "invalidation_condition": request.InvalidationCondition})
+	if request.Host != nil {
+		request.Host.Alias = strings.ToLower(request.Host.Alias)
+		confirmedAt, _ := time.Parse(time.RFC3339, request.Host.ConfirmedAt)
+		request.Host.ConfirmedAt = confirmedAt.UTC().Format(time.RFC3339)
+	}
+	payloadFields := map[string]any{"memo_kind": request.MemoKind, "scope": request.Scope, "configuration": request.Configuration, "content": request.Content, "invalidation_condition": request.InvalidationCondition}
+	if request.Host != nil {
+		payloadFields["host"] = request.Host
+	}
+	payload, _ := json.Marshal(payloadFields)
 	if len(payload) > maximumRecordPayload {
 		return MutationResponse{}, contracts.ErrLimitExceeded
 	}
-	record, err := s.mutate(ctx, "memo", "memo.v1", request.Source, request.Mode, request.ID, request.ExpectedRevision, payload, request.EvidenceRefs)
-	return s.mutationResponse(record, false, request.ResponseView, err)
+	schemaVersion := "memo.v1"
+	if request.MemoKind == "host_fact" {
+		schemaVersion = "memo.v2"
+	}
+	if request.Mode == "update" {
+		current, err := s.records.GetRecord(ctx, s.projectID, s.workspaceID, request.ID)
+		if err != nil {
+			return MutationResponse{}, err
+		}
+		if current.Kind != "memo" || current.SchemaVersion != schemaVersion {
+			return MutationResponse{}, errors.New("update cannot change memo schema; supersede the existing memo and create the new kind")
+		}
+	}
+	warnings := s.hostFactWarnings(ctx, request)
+	record, err := s.mutate(ctx, "memo", schemaVersion, request.Source, request.Mode, request.ID, request.ExpectedRevision, payload, request.EvidenceRefs)
+	response, err := s.mutationResponse(record, false, request.ResponseView, err)
+	if err == nil {
+		response.Warnings = warnings
+	}
+	return response, err
+}
+
+func (s *Service) hostFactWarnings(ctx context.Context, request MemoRequest) []contracts.Warning {
+	if request.MemoKind != "host_fact" || request.Host == nil || request.Mode == "supersede" {
+		return contracts.EmptyWarnings()
+	}
+	page, err := s.records.QueryRecords(ctx, store.RecordQuery{
+		ProjectID: s.projectID, WorkspaceID: s.workspaceID, Kind: "memo", Validity: "current",
+		Terms: []string{request.Host.Alias}, Limit: maximumRecordQuery,
+	})
+	if err != nil {
+		return []contracts.Warning{{Code: "host_fact_check_unknown", Message: "current host facts could not be checked"}}
+	}
+	warnings := contracts.EmptyWarnings()
+	for _, record := range page.Records {
+		if record.ID == request.ID {
+			continue
+		}
+		var payload struct {
+			MemoKind string    `json:"memo_kind"`
+			Host     *HostFact `json:"host"`
+		}
+		if record.SchemaVersion != "memo.v2" || json.Unmarshal(record.Payload, &payload) != nil || payload.MemoKind != "host_fact" || payload.Host == nil || !strings.EqualFold(payload.Host.Alias, request.Host.Alias) {
+			continue
+		}
+		if strings.EqualFold(payload.Host.OS, request.Host.OS) && strings.EqualFold(payload.Host.Role, request.Host.Role) {
+			continue
+		}
+		ref := "record:" + record.ID
+		warnings = append(warnings, contracts.Warning{Code: "host_fact_conflict", Message: "a current fact for this alias disagrees on os or role", Ref: &ref})
+		if len(warnings) == 8 {
+			break
+		}
+	}
+	if !page.Complete && len(warnings) < 8 {
+		warnings = append(warnings, contracts.Warning{Code: "host_fact_check_partial", Message: "host fact conflict check was bounded"})
+	}
+	return warnings
 }
 
 func (s *Service) ImportReport(ctx context.Context, request ImportRequest) (MutationResponse, error) {
@@ -503,6 +580,15 @@ func discoveryPayload(kind string, payload map[string]any) map[string]any {
 		if content, ok := payload["content"].(string); ok {
 			selected["preview"] = compactPreview(content, 320)
 		}
+		if host, ok := payload["host"].(map[string]any); ok {
+			compact := make(map[string]any, len(host))
+			for _, field := range []string{"alias", "role", "os", "tier", "services", "paths", "confirmed_at"} {
+				if value, exists := host[field]; exists {
+					compact[field] = compactDiscoveryValue(value)
+				}
+			}
+			selected["host"] = compact
+		}
 	}
 	return selected
 }
@@ -558,9 +644,18 @@ func validateMemo(request MemoRequest) error {
 	if request.Mode != "create" && request.Mode != "update" && request.Mode != "supersede" {
 		return errors.New("mode must be create, update, or supersede")
 	}
-	allowedKind := request.MemoKind == "decision" || request.MemoKind == "failed_attempt" || request.MemoKind == "resolved_failure" || request.MemoKind == "limitation"
-	if request.Mode != "supersede" && (!allowedKind || strings.TrimSpace(request.Content) == "") {
+	allowedKind := request.MemoKind == "decision" || request.MemoKind == "failed_attempt" || request.MemoKind == "resolved_failure" || request.MemoKind == "limitation" || request.MemoKind == "host_fact"
+	if request.Mode != "supersede" && (!allowedKind || (request.MemoKind != "host_fact" && strings.TrimSpace(request.Content) == "")) {
 		return errors.New("memo_kind and content are required")
+	}
+	if request.Mode != "supersede" {
+		if request.MemoKind == "host_fact" {
+			if err := validateHostFact(request.Host, request.InvalidationCondition); err != nil {
+				return err
+			}
+		} else if request.Host != nil {
+			return errors.New("host is only valid for host_fact")
+		}
 	}
 	if request.Source != "user_asserted" && request.Source != "llm_proposed" {
 		return errors.New("source must be user_asserted or llm_proposed")
@@ -569,6 +664,43 @@ func validateMemo(request MemoRequest) error {
 		return errors.New("id and expected_revision are required for update or supersede")
 	}
 	return validateTextAndRefs(request.MemoKind+request.Scope+request.Configuration+request.Content+request.InvalidationCondition, request.EvidenceRefs)
+}
+
+func validateHostFact(host *HostFact, invalidation string) error {
+	if host == nil || !hostAliasPattern.MatchString(host.Alias) || strings.TrimSpace(host.Role) == "" || strings.TrimSpace(host.OS) == "" || strings.TrimSpace(invalidation) == "" {
+		return errors.New("host_fact requires host alias, role, os, and invalidation_condition")
+	}
+	if strings.TrimSpace(host.Role) != host.Role || strings.TrimSpace(host.OS) != host.OS {
+		return errors.New("host role and os must not have surrounding whitespace")
+	}
+	if host.Tier != "production" && host.Tier != "test" && host.Tier != "staging" && host.Tier != "development" {
+		return errors.New("host tier must be production, test, staging, or development")
+	}
+	if _, err := time.Parse(time.RFC3339, host.ConfirmedAt); err != nil {
+		return errors.New("host confirmed_at must be RFC3339")
+	}
+	if len(host.Role) > 128 || len(host.OS) > 128 || len(host.Services) == 0 || len(host.Paths) == 0 {
+		return errors.New("host_fact requires bounded services and paths")
+	}
+	return validateStringList(append(append([]string(nil), host.Services...), host.Paths...), 64, 1024)
+}
+
+func validateStringList(values []string, maximumItems, maximumLength int) error {
+	if len(values) > maximumItems {
+		return contracts.ErrLimitExceeded
+	}
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		if strings.TrimSpace(value) != value || value == "" || len(value) > maximumLength {
+			return errors.New("host services and paths must be bounded non-empty strings")
+		}
+		key := strings.ToLower(value)
+		if _, exists := seen[key]; exists {
+			return errors.New("host services and paths must not contain duplicates")
+		}
+		seen[key] = struct{}{}
+	}
+	return nil
 }
 
 func validateResponseView(view string) error {

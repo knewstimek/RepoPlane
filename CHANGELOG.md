@@ -8,6 +8,9 @@ Notable changes to RepoPlane are documented here.
 
 - A guarded `Release` workflow and typed `release.dispatch` capability that publish the canonical
   tracked release note, declared platform archives, checksums, annotated tag, and compact receipt.
+- Optional typed host facts through the existing `memo_write`/`project_records` surface, plus a
+  catalog `host_ref` argument that adds non-blocking host context and OS/role conflict warnings to
+  `run_prepare` without adding another MCP tool.
 
 ### Changed
 
@@ -18,6 +21,8 @@ Notable changes to RepoPlane are documented here.
 - Record and Runner documentation now distinguishes importer idempotency from semantic memo
   comparison, server observations from intention checkpoints, and execution-source fingerprints
   from complete plan identity. It also includes an explicit nested-repository source configuration.
+- Repeated write-contract descriptions are compacted so the 14-tool complete contract remains under
+  the existing 34 KiB budget after adding typed host facts.
 
 ### Fixed
 

@@ -132,6 +132,25 @@ execution:
 	}
 }
 
+func TestDecodeAcceptsHostReferenceArgument(t *testing.T) {
+	const input = `
+id: host.inspect
+revision: 1
+summary: inspect one registered host
+arguments:
+  target:
+    type: host_ref
+    required: true
+`
+	got, err := Decode(strings.NewReader(input), "yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Arguments["target"].Type != "host_ref" {
+		t.Fatalf("host argument=%+v", got.Arguments["target"])
+	}
+}
+
 func TestDecodeAcceptsQualifiedCacheManifest(t *testing.T) {
 	manifest := `id: schema.output
 revision: 2

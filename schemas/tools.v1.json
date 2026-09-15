@@ -477,7 +477,7 @@
     },
     {
       "name": "check_report_import",
-      "description": "Import a bounded local check report; requests session import approval when needed.",
+      "description": "Import a local check report; may require approval.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -630,23 +630,23 @@
     },
     {
       "name": "checkpoint_write",
-      "description": "Create, update, or supersede a bounded checkpoint; requests session write approval when needed.",
+      "description": "Write a checkpoint; may require approval.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
           "baseline_commit": {
-            "description": "observed baseline Git commit",
+            "description": "baseline Git commit",
             "type": "string"
           },
           "dirty": {
-            "description": "whether the observed baseline worktree was dirty",
+            "description": "baseline worktree dirty",
             "type": [
               "null",
               "boolean"
             ]
           },
           "evidence_refs": {
-            "description": "bounded evidence refs",
+            "description": "evidence refs",
             "items": {
               "type": "string"
             },
@@ -656,20 +656,20 @@
             ]
           },
           "expected_revision": {
-            "description": "current revision; required for update or supersede",
+            "description": "revision for update/supersede",
             "minimum": 0,
             "type": "integer"
           },
           "goal": {
-            "description": "short task objective",
+            "description": "task goal",
             "type": "string"
           },
           "id": {
-            "description": "record ID; required for update or supersede",
+            "description": "ID for update/supersede",
             "type": "string"
           },
           "mode": {
-            "description": "checkpoint mutation: create, update, or supersede",
+            "description": "create | update | supersede",
             "type": "string"
           },
           "next_action": {
@@ -677,7 +677,7 @@
             "type": "string"
           },
           "remaining_checks": {
-            "description": "checks still required",
+            "description": "remaining checks",
             "items": {
               "type": "string"
             },
@@ -687,11 +687,11 @@
             ]
           },
           "response_view": {
-            "description": "full or receipt; default full; receipt omits the echoed payload",
+            "description": "full | receipt",
             "type": "string"
           },
           "risks": {
-            "description": "known unverified risks",
+            "description": "unverified risks",
             "items": {
               "type": "string"
             },
@@ -1141,20 +1141,20 @@
     },
     {
       "name": "memo_write",
-      "description": "Create, update, or supersede a bounded memo; requests session write approval when needed.",
+      "description": "Write a memo or typed host fact; may require approval.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
           "configuration": {
-            "description": "applicable configuration",
+            "description": "configuration",
             "type": "string"
           },
           "content": {
-            "description": "bounded memo content",
+            "description": "memo text",
             "type": "string"
           },
           "evidence_refs": {
-            "description": "bounded evidence refs",
+            "description": "evidence refs",
             "items": {
               "type": "string"
             },
@@ -1164,36 +1164,87 @@
             ]
           },
           "expected_revision": {
-            "description": "current revision; required for update or supersede",
+            "description": "revision for update/supersede",
             "minimum": 0,
             "type": "integer"
           },
+          "host": {
+            "additionalProperties": false,
+            "properties": {
+              "alias": {
+                "type": "string"
+              },
+              "confirmed_at": {
+                "type": "string"
+              },
+              "os": {
+                "type": "string"
+              },
+              "paths": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "role": {
+                "type": "string"
+              },
+              "services": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "tier": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "alias",
+              "role",
+              "os",
+              "tier",
+              "services",
+              "paths",
+              "confirmed_at"
+            ],
+            "type": [
+              "null",
+              "object"
+            ]
+          },
           "id": {
-            "description": "record ID; required for update or supersede",
+            "description": "ID for update/supersede",
             "type": "string"
           },
           "invalidation_condition": {
-            "description": "condition that makes the memo stale",
+            "description": "staleness condition",
             "type": "string"
           },
           "memo_kind": {
-            "description": "decision, failed_attempt, resolved_failure, or limitation",
+            "description": "decision | failed_attempt | resolved_failure | limitation | host_fact",
             "type": "string"
           },
           "mode": {
-            "description": "memo mutation: create, update, or supersede",
+            "description": "create | update | supersede",
             "type": "string"
           },
           "response_view": {
-            "description": "full or receipt; default full; receipt omits the echoed payload",
+            "description": "full | receipt",
             "type": "string"
           },
           "scope": {
-            "description": "workspace-relative logical scope",
+            "description": "logical scope",
             "type": "string"
           },
           "source": {
-            "description": "user_asserted or llm_proposed",
+            "description": "user_asserted | llm_proposed",
             "type": "string"
           }
         },

@@ -47,7 +47,7 @@
         "type": "object",
         "required": ["type"],
         "properties": {
-          "type": { "type": "string" },
+          "type": { "enum": ["string", "project_path", "host_ref", "boolean", "bool", "integer"] },
           "required": { "type": "boolean" },
           "default": true,
           "description": { "type": "string" }

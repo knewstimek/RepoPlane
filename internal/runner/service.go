@@ -41,6 +41,7 @@ var (
 	ErrSnapshotBusy  = errors.New("runner: active process prevents memory snapshot")
 	argumentName     = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,63}$`)
 	environmentName  = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+	hostAlias        = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
 	templateArgument = regexp.MustCompile(`\{([A-Za-z_][A-Za-z0-9_]{0,63})\}`)
 )
 
@@ -55,6 +56,15 @@ type qualificationResolver interface {
 type runningProcess struct {
 	cancel context.CancelFunc
 	done   chan struct{}
+}
+
+type hostFactRecord struct {
+	record   store.Record
+	alias    string
+	role     string
+	os       string
+	tier     string
+	services []string
 }
 
 type Service struct {
@@ -168,6 +178,9 @@ func (s *Service) Prepare(ctx context.Context, request PrepareRequest) (PrepareR
 		return PrepareResponse{}, err
 	}
 	checks, ready, warnings := s.preflight(ctx, manifest, executable, executableIdentity, cwdAbsolute)
+	hostChecks, hostWarnings := s.hostFactChecks(ctx, manifest, normalizedArgs)
+	checks = append(checks, hostChecks...)
+	warnings = append(warnings, hostWarnings...)
 	inputHashes, err := s.snapshotPatterns(ctx, manifest.Inputs)
 	if err != nil {
 		return PrepareResponse{}, err
@@ -357,10 +370,16 @@ func expandArguments(manifest catalog.Manifest, provided map[string]any) ([]stri
 
 func normalizeArgument(kind string, value any) (string, any, error) {
 	switch kind {
-	case "string", "project_path":
+	case "string", "project_path", "host_ref":
 		text, ok := value.(string)
 		if !ok || len(text) > 8192 {
 			return "", nil, errors.New("must be a bounded string")
+		}
+		if kind == "host_ref" {
+			if !hostAlias.MatchString(text) {
+				return "", nil, errors.New("must be a host alias")
+			}
+			text = strings.ToLower(text)
 		}
 		return text, text, nil
 	case "boolean", "bool":
@@ -391,6 +410,120 @@ func normalizeArgument(kind string, value any) (string, any, error) {
 	default:
 		return "", nil, fmt.Errorf("unsupported type %q", kind)
 	}
+}
+
+func (s *Service) hostFactChecks(ctx context.Context, manifest catalog.Manifest, arguments map[string]any) ([]PreflightResult, []contracts.Warning) {
+	names := make([]string, 0)
+	for name, declaration := range manifest.Arguments {
+		if declaration.Type == "host_ref" {
+			if _, exists := arguments[name]; exists {
+				names = append(names, name)
+			}
+		}
+	}
+	if len(names) == 0 {
+		return []PreflightResult{}, contracts.EmptyWarnings()
+	}
+	sort.Strings(names)
+	if s.reader == nil {
+		return unknownHostFactChecks(names, arguments, "host fact store unavailable")
+	}
+	aliases := make([]string, 0, len(names))
+	seenAliases := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		alias := arguments[name].(string)
+		if _, exists := seenAliases[alias]; !exists {
+			seenAliases[alias] = struct{}{}
+			aliases = append(aliases, alias)
+		}
+	}
+	query := store.RecordQuery{ProjectID: s.projectID, WorkspaceID: s.workspaceID, Kind: "memo", Validity: "current", Limit: 1_000}
+	if len(aliases) <= 16 {
+		query.Terms = aliases
+	}
+	page, err := s.reader.QueryRecords(ctx, query)
+	if err != nil {
+		return unknownHostFactChecks(names, arguments, "current host facts unavailable")
+	}
+	byAlias := make(map[string][]hostFactRecord)
+	for _, record := range page.Records {
+		var payload struct {
+			MemoKind string `json:"memo_kind"`
+			Host     struct {
+				Alias    string   `json:"alias"`
+				Role     string   `json:"role"`
+				OS       string   `json:"os"`
+				Tier     string   `json:"tier"`
+				Services []string `json:"services"`
+			} `json:"host"`
+		}
+		if record.SchemaVersion != "memo.v2" || json.Unmarshal(record.Payload, &payload) != nil || payload.MemoKind != "host_fact" || payload.Host.Alias == "" {
+			continue
+		}
+		alias := strings.ToLower(payload.Host.Alias)
+		byAlias[alias] = append(byAlias[alias], hostFactRecord{record: record, alias: alias, role: payload.Host.Role, os: payload.Host.OS, tier: payload.Host.Tier, services: payload.Host.Services})
+	}
+	checks := make([]PreflightResult, 0, len(names))
+	warnings := contracts.EmptyWarnings()
+	for _, name := range names {
+		alias := arguments[name].(string)
+		facts := byAlias[alias]
+		check := PreflightResult{ID: "host." + name, Kind: "host_fact", Requirement: "informational"}
+		if len(facts) == 0 {
+			if page.Complete {
+				check.Status, check.Summary = "unknown", "no current host fact for "+alias
+				warnings = append(warnings, contracts.Warning{Code: "host_fact_missing", Message: check.Summary})
+			} else {
+				check.Status, check.Summary = "unknown", "current host fact scan was partial for "+alias
+				warnings = append(warnings, contracts.Warning{Code: "host_fact_unknown", Message: check.Summary})
+			}
+		} else if !page.Complete || conflictingHostFacts(facts) {
+			check.Status, check.Summary = "unknown", "current host facts conflict or are partial for "+alias
+			ref := "record:" + facts[0].record.ID
+			warnings = append(warnings, contracts.Warning{Code: "host_fact_conflict", Message: check.Summary, Ref: &ref})
+		} else {
+			selected := facts[0]
+			check.Status = "passed"
+			check.Identity = "record:" + selected.record.ID
+			services := selected.services
+			if len(services) > 4 {
+				services = services[:4]
+			}
+			check.Summary = boundedHostSummary(strings.Join([]string{selected.alias, "role=" + selected.role, "os=" + selected.os, "tier=" + selected.tier, "services=" + strings.Join(services, ",")}, " "))
+		}
+		checks = append(checks, check)
+	}
+	return checks, warnings
+}
+
+func unknownHostFactChecks(names []string, arguments map[string]any, summary string) ([]PreflightResult, []contracts.Warning) {
+	checks := make([]PreflightResult, 0, len(names))
+	warnings := make([]contracts.Warning, 0, len(names))
+	for _, name := range names {
+		alias, _ := arguments[name].(string)
+		checks = append(checks, PreflightResult{ID: "host." + name, Kind: "host_fact", Requirement: "informational", Status: "unknown", Summary: summary + " for " + alias})
+		warnings = append(warnings, contracts.Warning{Code: "host_fact_unknown", Message: summary + " for " + alias})
+	}
+	return checks, warnings
+}
+
+func conflictingHostFacts(facts []hostFactRecord) bool {
+	for _, current := range facts[1:] {
+		if !strings.EqualFold(current.os, facts[0].os) || !strings.EqualFold(current.role, facts[0].role) {
+			return true
+		}
+	}
+	return false
+}
+
+func boundedHostSummary(value string) string {
+	const maximumRunes = 320
+	value = strings.Join(strings.Fields(value), " ")
+	runes := []rune(value)
+	if len(runes) <= maximumRunes {
+		return value
+	}
+	return string(runes[:maximumRunes-1]) + "…"
 }
 
 func (s *Service) preflight(ctx context.Context, manifest catalog.Manifest, executable, executableIdentity, executionCWD string) ([]PreflightResult, bool, []contracts.Warning) {
