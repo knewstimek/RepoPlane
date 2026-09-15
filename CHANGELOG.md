@@ -4,6 +4,17 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+### Added
+
+- An implementation-ready draft and staged evaluation plan for an opt-in five-toolbox MCP surface
+  with lazy operation contracts, content-bound schema handles, fixed discovery, compaction-aware
+  rehydration, and typed-surface compatibility; no runtime behavior or default tool exposure changes yet.
+
+### Fixed
+
+- Verification diagnostics now label paths beneath `GOTMPDIR` as `GO_TMP` instead of the generic
+  `TEMP`, making Go build-workspace failures distinguishable without exposing a local absolute path.
+
 ## [1.1.0] - 2026-09-16
 
 ### Added
