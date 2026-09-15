@@ -35,7 +35,7 @@ jobs:
       tag: ${{ steps.inputs.outputs.tag }}
       notes_file: ${{ steps.inputs.outputs.notes_file }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -127,7 +127,7 @@ jobs:
       TAG: ${{ needs.gate.outputs.tag }}
       NOTES_FILE: ${{ needs.gate.outputs.notes_file }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: actions/setup-go@v6
