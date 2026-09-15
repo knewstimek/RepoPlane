@@ -217,3 +217,16 @@ CLI/runtime configuration이 항상 우선한다. 현재 계약은
 다른 topic은 최대 3개만 보여 준다. Rename은 supersede와 create를 분리하고, unkeyed memo와
 host fact 동작은 유지한다. 현재 계약은 [Records-Spec.md](Records-Spec.md)와
 [Context-Efficiency-Spec.md](Context-Efficiency-Spec.md)를 따른다.
+
+## 16. Lazy toolbox exposure 제안
+
+현재 14개 typed tool과 안정적인 `tools/list`가 기본 계약이다. 초기 schema bytes를 줄이면서
+런타임 tool 목록 변경으로 prompt cache를 깨지 않기 위해, 기존 다섯 authorization class와
+일치하는 fixed toolbox 및 lazy operation schema를 opt-in 후보로 설계한다. Concrete Go
+request/response, scope, approval와 audit는 재사용하고, schema handle은 contract identity로만
+사용한다. Harness cache와 model context residency를 분리하며 compaction 뒤에는 cached contract
+재주입 또는 full re-describe가 필요하다.
+
+이 slice는 아직 구현·채택되지 않았다. 현재 계약을 역사적으로 다시 쓰지 않으며 상세 범위와
+gate는 [Toolbox Exposure 명세](Toolbox-Exposure-Spec.md)와
+[구현 계획](Toolbox-Exposure-Implementation-Plan.md)을 따른다.

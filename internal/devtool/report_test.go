@@ -60,6 +60,20 @@ func TestSanitizeDiagnosticRedactsLocalRoots(t *testing.T) {
 	}
 }
 
+func TestSanitizeDiagnosticDistinguishesGoTemporaryRoot(t *testing.T) {
+	goTemporary := filepath.Join(t.TempDir(), "go-temporary")
+	t.Setenv("GOTMPDIR", goTemporary)
+	value := filepath.Join(goTemporary, "go-build123", "records.test.exe")
+
+	redacted := sanitizeDiagnostic(value, t.TempDir())
+	if strings.Contains(redacted, goTemporary) {
+		t.Fatalf("Go temporary path remained in %q", redacted)
+	}
+	if !strings.Contains(redacted, filepath.Join("GO_TMP", "go-build123", "records.test.exe")) {
+		t.Fatalf("Go temporary marker missing from %q", redacted)
+	}
+}
+
 func TestPreflightDoesNotReturnEnvironmentValue(t *testing.T) {
 	const name = "REPOPLANE_TEST_REQUIRED_VALUE"
 	const secret = "nonsecret-fixture-value"

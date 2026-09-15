@@ -533,8 +533,11 @@ See [SECURITY.md](SECURITY.md) for vulnerability reporting and
 
 The read-only MVP, all adopted roadmap slices through Search Adapters and HTTP/Auth, runtime access,
 and portable memory backup are complete. Ongoing work is compatibility, measured dogfooding, and
-release maintenance. See the
+release maintenance. A proposed, not-yet-implemented context experiment evaluates five fixed
+authorization-aligned toolbox tools with lazy operation contracts while keeping the current 14 typed
+tools as the default. See the
 [`full implementation roadmap`](docs/Full-Implementation-Roadmap.md), the
+[`lazy toolbox exposure specification`](docs/Toolbox-Exposure-Spec.md), the
 [`Records specification`](docs/Records-Spec.md), and the full
 [`design document`](docs/Project-Control-Plane-MCP-Design.md).
 

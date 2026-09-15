@@ -21,6 +21,8 @@
 | [HTTP-Implementation-Plan.md](HTTP-Implementation-Plan.md) | Stage 8 구현 순서와 gate | HTTP/Auth 작업이 진행되거나 재계획될 때 |
 | [Context-Efficiency-Spec.md](Context-Efficiency-Spec.md) | MCP 노출 비용 측정과 search-first compact 응답 계약 | tool/record 응답 또는 측정 의미가 바뀔 때 |
 | [Context-Efficiency-Implementation-Plan.md](Context-Efficiency-Implementation-Plan.md) | post-roadmap context 효율 작업과 보류 실험 | 효율 작업이 진행되거나 재계획될 때 |
+| [Toolbox-Exposure-Spec.md](Toolbox-Exposure-Spec.md) | 다섯 fixed toolbox, lazy operation schema, handle/cache/compaction의 draft 계약 | toolbox 실험 계약이나 채택 상태가 바뀔 때 |
+| [Toolbox-Exposure-Implementation-Plan.md](Toolbox-Exposure-Implementation-Plan.md) | lazy toolbox의 구현 순서, A/B gate와 중단 조건 | toolbox 실험이 진행되거나 재계획될 때 |
 | [Runtime-Access-Spec.md](Runtime-Access-Spec.md) | local stdio runtime grant, elicitation, 외부 read 경계 | runtime 승인이나 workspace 확장 계약이 바뀔 때 |
 | [Runtime-Configuration-Spec.md](Runtime-Configuration-Spec.md) | source/workspace/state/HTTP의 live configuration과 atomic switch | runtime 설정·service topology가 바뀔 때 |
 | [Runtime-Access-Implementation-Plan.md](Runtime-Access-Implementation-Plan.md) | post-1.0 runtime access 수직 절단과 완료 gate | runtime access 작업이 진행되거나 재계획될 때 |

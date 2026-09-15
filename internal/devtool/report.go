@@ -118,6 +118,7 @@ func WriteReport(path string, report Report) error {
 
 func sanitizeDiagnostic(value, root string) string {
 	value = replaceLocalPath(value, root, "WORKSPACE")
+	value = replaceLocalPath(value, os.Getenv("GOTMPDIR"), "GO_TMP")
 	value = replaceLocalPath(value, os.TempDir(), "TEMP")
 	if home, err := os.UserHomeDir(); err == nil {
 		value = replaceLocalPath(value, home, "USER_HOME")

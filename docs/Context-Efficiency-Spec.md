@@ -51,6 +51,11 @@ token A/B 측정이 있을 때만 추가하며, API 기능 존재만으로 완�
 - schema identity나 handle은 계약 버전만 식별한다. 압축 뒤 model 문맥에서 사라진 계약 내용을
   복구했다거나 현재 권한을 증명하지 않는다.
 
+다섯 authorization-aligned toolbox와 lazy operation contract는 현재 계약이 아니라 별도
+[draft 명세](Toolbox-Exposure-Spec.md)와 [구현 준비 계획](Toolbox-Exposure-Implementation-Plan.md)에서
+평가한다. 해당 실험도 schema handle을 model 기억이나 권한 증명으로 사용하지 않으며, client
+trace의 successful-task cost와 cache/compaction 근거 없이는 기본 14-tool 표면을 바꾸지 않는다.
+
 ## 4. 호환형 compact record 응답
 
 `list`와 `get`의 기존 기본 응답은 바꾸지 않는다. `search`는 발견 전용 compact 기본값을
