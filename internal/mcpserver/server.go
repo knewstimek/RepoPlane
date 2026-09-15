@@ -297,8 +297,15 @@ const approvalInputID = "approval"
 
 func approvalResult(token, message string) *mcp.CallToolResult {
 	return &mcp.CallToolResult{
-		InputRequests: mcp.InputRequestMap{approvalInputID: &mcp.ElicitParams{Message: message}},
-		RequestState:  token,
+		InputRequests: mcp.InputRequestMap{approvalInputID: &mcp.ElicitParams{
+			Mode:    "form",
+			Message: message,
+			RequestedSchema: map[string]any{
+				"type":       "object",
+				"properties": map[string]any{},
+			},
+		}},
+		RequestState: token,
 	}
 }
 

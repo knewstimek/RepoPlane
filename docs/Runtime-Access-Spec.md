@@ -34,6 +34,8 @@ RepoPlane의 읽기·쓰기·실행 권한을 바꾸기 위해 TOML을 다시 �
 승인은 MCP multi round-trip `input_required`/elicitation으로 전달한다. 승인 요청은 권한을
 바꾸지 않으며, client가 `accept`를 반환하고 서버가 발급한 단기 one-time request state를
 검증한 뒤에만 grant를 적용한다. `decline`, `cancel`, 위조·재사용·만료 state는 fail closed다.
+확인 전용 elicitation도 wire에서 `mode=form`과 빈 top-level object `requestedSchema`를
+명시해 strict MCP client가 요청 변형을 모호하지 않게 판별할 수 있어야 한다.
 
 ## 3. 권한 경계
 

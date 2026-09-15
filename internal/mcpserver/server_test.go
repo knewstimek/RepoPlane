@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -21,6 +22,35 @@ import (
 )
 
 type testRuntimeConfig struct{}
+
+func TestApprovalResultUsesExplicitFormElicitationWireShape(t *testing.T) {
+	result := approvalResult("state", "Approve the operation")
+	request, ok := result.InputRequests[approvalInputID].(*mcp.ElicitParams)
+	if !ok {
+		t.Fatalf("approval input type = %T, want *mcp.ElicitParams", result.InputRequests[approvalInputID])
+	}
+	encoded, err := json.Marshal(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wire map[string]any
+	if err := json.Unmarshal(encoded, &wire); err != nil {
+		t.Fatal(err)
+	}
+	if wire["mode"] != "form" {
+		t.Fatalf("mode = %v, want form", wire["mode"])
+	}
+	schema, ok := wire["requestedSchema"].(map[string]any)
+	if !ok {
+		t.Fatalf("requestedSchema = %#v, want object schema", wire["requestedSchema"])
+	}
+	if schema["type"] != "object" {
+		t.Fatalf("requestedSchema.type = %v, want object", schema["type"])
+	}
+	if _, ok := schema["properties"].(map[string]any); !ok {
+		t.Fatalf("requestedSchema.properties = %#v, want object", schema["properties"])
+	}
+}
 
 func (testRuntimeConfig) Status(context.Context) (runtimeconfig.Response, error) {
 	return runtimeconfig.Response{}, nil

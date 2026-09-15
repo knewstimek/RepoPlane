@@ -28,6 +28,8 @@ source path는 selected workspace 기준 상대 경로다. `add`/`replace` 대�
 ## 3. 승인과 원자성
 
 - `status` 외 모든 요청은 local stdio MCP elicitation을 한 번 거친다.
+- 확인 전용 요청도 `mode=form`과 빈 object `requestedSchema`를 명시한 유효한
+  `elicitation/create` wire shape를 사용한다.
 - server-issued one-time state는 action, target, 전체 values를 묶는다. 재개 요청이 다른
   값을 보내도 저장된 proposal만 실행하며 decline, cancel, expiry, reuse는 fail closed다.
 - 새 source/workspace/state 설정은 별도 workspace root, DB handles, cursor/cache keys,
