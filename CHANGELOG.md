@@ -11,6 +11,8 @@ Notable changes to RepoPlane are documented here.
 - Optional typed host facts through the existing `memo_write`/`project_records` surface, plus a
   catalog `host_ref` argument that adds non-blocking host context and OS/role conflict warnings to
   `run_prepare` without adding another MCP tool.
+- Optional stable memo `topic_key` identities through the existing tools, with bounded related-topic
+  hints and atomic prevention of duplicate current topics.
 
 ### Changed
 
@@ -23,6 +25,9 @@ Notable changes to RepoPlane are documented here.
   from complete plan identity. It also includes an explicit nested-repository source configuration.
 - Repeated write-contract descriptions are compacted so the 14-tool complete contract remains under
   the existing 34 KiB budget after adding typed host facts.
+- Topic-addressed memo updates preserve their `(scope, configuration, topic_key)` identity; rename
+  requires superseding the old record and creating a new one, while unkeyed free-form memos retain
+  their existing behavior.
 
 ### Fixed
 

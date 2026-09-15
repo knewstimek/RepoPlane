@@ -254,7 +254,7 @@ The importer stores a hash and bounded normalized summary, not raw report diagno
 
 `project_records(mode=search)` requires bounded lexical `query` text and searches record identity,
 metadata, and textual payload values. Results are relevance ordered and compact by default; memo
-results include scope, kind, configuration, and a deterministic content `preview` of at most 320
+results include scope, kind, configuration, optional `topic_key`, and a deterministic content `preview` of at most 320
 characters. Other discovery strings are also capped at 320 characters and arrays at eight items.
 Use the returned ID with `mode=get` only for records whose full payload is needed.
 `mode=list` and `mode=get` remain full by default. An explicit `payload_fields` selection overrides
@@ -271,6 +271,19 @@ The mutation response's `duplicate` flag reports importer idempotency, not seman
 checkpoint and memo writes do not infer that two differently worded records overlap or conflict.
 Likewise, `checkpoint_write` creates a `user_asserted` intention even when its evidence points to an
 `observed` Runner record; only the server-side observation writer may claim `source: observed`.
+
+Ordinary memos may opt into a caller-chosen stable `topic_key`; free-form memos remain unchanged.
+RepoPlane does not guess semantic similarity. Instead, it normalizes the key to lowercase, treats
+`(scope, configuration, topic_key)` as an immutable identity, and permits only one current memo for
+that identity even when writes race. A create for an existing identity returns `partial`, the
+existing record ref, and an update-or-supersede warning without creating a duplicate. Creating a
+keyed memo also surfaces at most three other current topic keys in the same scope/configuration.
+Update content through the existing ID/revision. To rename a topic, supersede the old record and
+create the new identity.
+
+```json
+{"mode":"create","memo_kind":"decision","scope":"deployment","configuration":"production","topic_key":"origin-policy","content":"Use the configured origin allowlist.","invalidation_condition":"the ingress policy changes","response_view":"receipt"}
+```
 
 Host background is an optional typed `host_fact` subtype of the existing memo contract. It adds no
 tool: write it through `memo_write`, discover it through `project_records`, and use `host_ref` only
