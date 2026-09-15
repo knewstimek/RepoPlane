@@ -4,6 +4,8 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+## [1.0.3] - 2026-09-15
+
 ### Added
 
 - Real bounded lexical search for durable records, including relevance ordering over record
