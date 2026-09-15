@@ -4,6 +4,8 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+## [1.1.0] - 2026-09-16
+
 ### Added
 
 - A guarded `Release` workflow and typed `release.dispatch` capability that publish the canonical
