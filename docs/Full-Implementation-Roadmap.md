@@ -199,3 +199,12 @@ exact/lower-bound 의미는 유지한다. 현재 계약은 [Records-Spec.md](Rec
 자동 probe, 자동 stale 판정, 암묵적 host 추론과 덮어쓰기는 포함하지 않는다. 현재 계약은
 [Records-Spec.md](Records-Spec.md), [Runner-Spec.md](Runner-Spec.md),
 [Context-Efficiency-Spec.md](Context-Efficiency-Spec.md)를 따른다.
+
+## 14. Post-1.0 nested catalog fallback 완료
+
+명시적 catalog root가 없는 경우에만 `WORKSPACE/catalog` 부재를 확인하고, process startup
+cwd가 식별하는 가장 가까운 nested Git root의 `catalog/`를 fallback으로 채택한다. Startup
+context가 없으면 `catalog/`를 가진 direct child Git repo가 정확히 하나일 때만 선택한다.
+전체 workspace의 `**/catalog`를 탐색하거나 복수 후보를 병합하지 않으며 explicit
+CLI/runtime configuration이 항상 우선한다. 현재 계약은
+[Runtime-Configuration-Spec.md](Runtime-Configuration-Spec.md)를 따른다.

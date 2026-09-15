@@ -2,6 +2,8 @@ package config
 
 import (
 	"io"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -34,6 +36,61 @@ func TestParseDefaultsCatalogRoot(t *testing.T) {
 	}
 	if got.EnableIntentionWrites || got.EnableReportImport || got.EnableRunner || got.EnableCache {
 		t.Fatal("mutation and execution flags must default to disabled")
+	}
+}
+
+func TestParseDefaultsCatalogRootToNestedStartupRepository(t *testing.T) {
+	workspace := t.TempDir()
+	repository := filepath.Join(workspace, "code")
+	if err := os.MkdirAll(filepath.Join(repository, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(repository, "catalog"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(repository)
+	got, err := Parse([]string{"--workspace", workspace, "--state-dir", t.TempDir()}, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.CatalogRoots) != 1 || got.CatalogRoots[0] != "code/catalog" {
+		t.Fatalf("catalog roots=%v", got.CatalogRoots)
+	}
+}
+
+func TestParsePrefersWorkspaceCatalogAndExplicitRoots(t *testing.T) {
+	workspace := t.TempDir()
+	repository := filepath.Join(workspace, "code")
+	for _, path := range []string{filepath.Join(workspace, "catalog"), filepath.Join(repository, ".git"), filepath.Join(repository, "catalog")} {
+		if err := os.MkdirAll(path, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Chdir(repository)
+	got, err := Parse([]string{"--workspace", workspace, "--state-dir", t.TempDir()}, io.Discard)
+	if err != nil || len(got.CatalogRoots) != 1 || got.CatalogRoots[0] != "catalog" {
+		t.Fatalf("workspace default=%v err=%v", got.CatalogRoots, err)
+	}
+	explicit, err := Parse([]string{"--workspace", workspace, "--state-dir", t.TempDir(), "--catalog-root", "code/catalog"}, io.Discard)
+	if err != nil || len(explicit.CatalogRoots) != 1 || explicit.CatalogRoots[0] != "code/catalog" {
+		t.Fatalf("explicit roots=%v err=%v", explicit.CatalogRoots, err)
+	}
+	if err := os.Remove(filepath.Join(workspace, "catalog")); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(workspace)
+	uniqueChild, err := Parse([]string{"--workspace", workspace, "--state-dir", t.TempDir()}, io.Discard)
+	if err != nil || len(uniqueChild.CatalogRoots) != 1 || uniqueChild.CatalogRoots[0] != "code/catalog" {
+		t.Fatalf("unique child repository default=%v err=%v", uniqueChild.CatalogRoots, err)
+	}
+	for _, path := range []string{filepath.Join(workspace, "other", ".git"), filepath.Join(workspace, "other", "catalog")} {
+		if err := os.MkdirAll(path, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ambiguous, err := Parse([]string{"--workspace", workspace, "--state-dir", t.TempDir()}, io.Discard)
+	if err != nil || len(ambiguous.CatalogRoots) != 1 || ambiguous.CatalogRoots[0] != "catalog" {
+		t.Fatalf("ambiguous child repositories were selected: roots=%v err=%v", ambiguous.CatalogRoots, err)
 	}
 }
 

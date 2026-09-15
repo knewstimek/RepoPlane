@@ -179,9 +179,10 @@ hosts; they are not the normal way to change a running session. The legacy enabl
 pre-authorize named capabilities and suppress runtime prompts. They do not invoke a tool
 automatically. Runner still requires a catalog entry with `trusted_for_run: true`.
 
-When one RepoPlane workspace contains a repository below its root, configure source paths
-explicitly rather than relying on repository discovery. For a repository rooted at `code/`, a
-typical live-session configuration is:
+When one RepoPlane workspace contains a repository below its root, the default catalog can follow
+the Git repository identified by the process startup directory. Candidate roots and ambiguous or
+multiple repository layouts stay explicit. For a repository rooted at `code/`, a typical
+live-session override is:
 
 ```json
 {"action":"add","target":"catalog_root","values":["code/catalog"]}
@@ -190,17 +191,19 @@ typical live-session configuration is:
 {"action":"remove","target":"candidate_root","values":["tools","scripts"]}
 ```
 
-Catalog roots remain workspace-relative and are not inferred from arbitrary nested Git
-repositories or prose in `AGENTS.md`; either source could be ambiguous in a multi-repository
-workspace. Runner Git preflight does follow each capability's resolved execution `cwd`, so a
-manifest using `cwd: code` observes the Git worktree rooted there.
+Catalog roots remain workspace-relative. When `WORKSPACE/catalog` is absent, RepoPlane uses the
+nearest Git root from the process startup directory, or a direct child Git repository with
+`catalog/` when there is exactly one such candidate. It does not recurse for arbitrary catalog
+directories, merge ambiguous repositories, or infer paths from prose in `AGENTS.md`. Runner Git
+preflight follows each capability's resolved execution `cwd`, so a manifest using `cwd: code`
+observes the Git worktree rooted there.
 
 Available flags:
 
 ```text
 --workspace PATH        trusted workspace root; defaults to the current directory
 --state-dir PATH        local database and cursor-key directory; must be outside the workspace
---catalog-root PATH     workspace-relative catalog file or directory; repeatable; default: catalog
+--catalog-root PATH     workspace-relative catalog file or directory; repeatable; see default fallback below
 --candidate-root PATH   executable-candidate directory; repeatable; defaults: tools, scripts
 --rule-file NAME        rule filename searched from root to target; repeatable; default: AGENTS.md
 --symbol-index PATH     workspace-relative symbol-index.v1 or ctags JSONL; repeatable

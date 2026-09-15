@@ -10,6 +10,7 @@ reviewable.
 | Stable typed tools negotiate and run over stdio | `TestStdioNegotiationHasNoOutputPollution`, `TestApplicationExposesCatalogQuery` |
 | Empty catalog and search are exact empty results | `TestEmptyCatalogAndSearchReturnExactEmptyResults`, `TestIndexerMissingDefaultRootProducesEmptyCatalog` |
 | Broken, duplicate, unsupported, missing, changed, and unregistered catalog sources are distinct | catalog manifest, indexer, and audit tests, including `TestIndexerFlagsExecutableChangeWithoutRevisionChange` |
+| Default catalog discovery follows only a safe startup-repository fallback | `TestParseDefaultsCatalogRootToNestedStartupRepository`, `TestParsePrefersWorkspaceCatalogAndExplicitRoots` |
 | Partial scope and lower-bound counts survive pagination | `TestServicePaginationPreservesPartialMetadata`, `TestServiceDeadlinePreservesObservedLowerBound`, CP949/EUC-KR backend test |
 | Pagination has no gaps or duplicates | catalog/search/data-query pagination tests and `TestResultSetPaginationAndBoundedExpiry` |
 | Source changes between pages are rejected | `TestCursorDetectsSourceChangeBetweenPages`, `TestContentHashRefDetectsSourceChange` |

@@ -25,6 +25,14 @@ source path는 selected workspace 기준 상대 경로다. `add`/`replace` 대�
 `changed`는 설정 값 변경, `refreshed`는 새 service bundle의 catalog refresh 완료를 뜻한다.
 `configuration.http_transport`는 중지 상태에서 빈 배열, 실행 중 profile path 하나다.
 
+명시적인 startup `--catalog-root`가 없으면 `WORKSPACE/catalog`를 우선한다. 이 directory가
+없고 process startup cwd에서 가장 가까운 Git root가 WORKSPACE 내부이며 그 root에
+`catalog/`가 있으면 해당 workspace-relative path를 fallback으로 사용한다. 이 context가
+없을 때는 WORKSPACE의 direct child Git repository 중 `catalog/`를 가진 후보가 정확히 하나인
+경우만 선택한다. 64개를 넘는 direct entry, 복수 후보, deeper recursive search와
+`AGENTS.md` prose 추론은 자동 선택하지 않는다. 명시적 startup root와 이후
+`runtime_config` 값은 이 fallback보다 우선한다.
+
 ## 3. 승인과 원자성
 
 - `status` 외 모든 요청은 local stdio MCP elicitation을 한 번 거친다.
