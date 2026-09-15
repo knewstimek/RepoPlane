@@ -216,7 +216,7 @@ jobs:
 
       - name: Retain compact release receipt
         if: inputs.publish
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-receipt-${{ env.TAG }}
           path: dist/release-receipt.json
@@ -224,7 +224,7 @@ jobs:
 
       - name: Retain dry-run assets
         if: ${{ !inputs.publish }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-dry-run-${{ env.TAG }}
           path: |
