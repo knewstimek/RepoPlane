@@ -1,6 +1,6 @@
 # RepoPlane Records and Verification Specification
 
-상태: Implemented 1.2
+상태: Implemented 1.3
 대상 수직 절단: Records/Verification → Checkpoint/Memo/Importer
 
 ## 1. 목적과 범위
@@ -14,7 +14,7 @@ verification 유효성, CI report import 계약을 정의한다. 현재 read-onl
 - `project_records` 검색·조회
 - verification checklist, result, validity
 - task checkpoint
-- decision, failed-attempt, limitation memo
+- decision, failed-attempt, limitation, optional typed host-fact memo
 - 신뢰된 local CI report importer
 - optimistic concurrency와 record-kind별 write 권한
 
@@ -92,7 +92,8 @@ JSON field 이름 자체는 검색 대상이 아니다. ID/metadata 일치가 pa
 
 `search`에서 `payload_fields`를 생략하면 record kind별 발견용 field만 반환한다. Memo는
 `memo_kind`, `scope`, `configuration`과 저장된 content를 공백 정규화하고 320자로 자른
-결정적 `preview`를 반환한다. Preview는 저장 payload를 바꾸지 않으며 이 결과는
+결정적 `preview`를 반환한다. `host_fact`는 이 필드와 함께 typed `host`를 compact하게
+반환하므로 alias 검색에서 별도 조회 tool 없이 찾을 수 있다. Preview는 저장 payload를 바꾸지 않으며 이 결과는
 `payload_complete=false`다. 다른 발견용 문자열도 320자, 배열은 앞의 8개 항목으로
 제한한다. 선택한 record의 전체 payload는 ID를 사용한 `get`으로 읽는다.
 
@@ -156,9 +157,22 @@ dirty 범위, 관련 run/check ref, 남은 검사, 다음 작업, 알려진 위�
 상태 이름은 `checks_satisfied`, `incomplete`, `blocked`로 제한하며 `proved_correct` 같은
 표현을 사용하지 않는다.
 
-Memo kind는 `decision`, `failed_attempt`, `resolved_failure`, `limitation`으로 시작한다.
-적용 scope/configuration, 내용, evidence, 작성 source, invalidation 조건을 가진다.
+Memo kind는 `decision`, `failed_attempt`, `resolved_failure`, `limitation`과 optional
+`host_fact`를 지원한다. 적용 scope/configuration, 내용, evidence, 작성 source,
+invalidation 조건을 가진다.
 실패 관찰과 원인 해석을 분리하고 LLM의 원인 제안은 `llm_proposed`로 기록한다.
+
+`host_fact`는 `memo.v2`이며 host alias, role, OS, production/test/staging/development tier,
+실행 service 목록, 관리 path 목록과 RFC3339 `confirmed_at`을 typed `host`에 저장한다. Alias는
+소문자로 정규화한다. record의 `created_at`은 서버 write 시각이지만 확인 시각을 대신하지
+않으므로 `confirmed_at`은 caller가 명시한다. intention writer만 사용하므로 source는
+`user_asserted` 또는 `llm_proposed`이고 server 전용 `observed`를 주장할 수 없다.
+
+같은 alias의 current host fact가 OS 또는 role에서 다르면 write는 `host_fact_conflict`를
+경고하지만 자동 병합·덮어쓰기를 하지 않는다. 같은 typed fact는 ID/revision으로 update하고,
+낡은 사실은 supersede한다. `memo.v1`과 `memo.v2` 사이 update 변환은 금지하며 kind를 바꿀
+때는 기존 record supersede와 새 record create를 분리한다. Invalidation 문장은 저장되지만
+외부 host를 자동 probe하지 않으므로 조건이 성립했을 때 caller가 명시적으로 갱신한다.
 
 ## 8. CI report importer
 

@@ -140,7 +140,7 @@ func New(version string, provided ...Options) *mcp.Server {
 		})
 	}
 	if options.CheckpointWriter != nil {
-		mcp.AddTool(server, &mcp.Tool{Name: ToolCheckpointWrite, Description: "Create, update, or supersede a bounded checkpoint; requests session write approval when needed."}, func(ctx context.Context, req *mcp.CallToolRequest, input records.CheckpointRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
+		mcp.AddTool(server, &mcp.Tool{Name: ToolCheckpointWrite, Description: "Write a checkpoint; may require approval."}, func(ctx context.Context, req *mcp.CallToolRequest, input records.CheckpointRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
 			if err := authorize(ctx, options, ToolCheckpointWrite); err != nil {
 				return nil, records.MutationResponse{}, publicError(err)
 			}
@@ -152,7 +152,7 @@ func New(version string, provided ...Options) *mcp.Server {
 		})
 	}
 	if options.MemoWriter != nil {
-		mcp.AddTool(server, &mcp.Tool{Name: ToolMemoWrite, Description: "Create, update, or supersede a bounded memo; requests session write approval when needed."}, func(ctx context.Context, req *mcp.CallToolRequest, input records.MemoRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
+		mcp.AddTool(server, &mcp.Tool{Name: ToolMemoWrite, Description: "Write a memo or typed host fact; may require approval."}, func(ctx context.Context, req *mcp.CallToolRequest, input records.MemoRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
 			if err := authorize(ctx, options, ToolMemoWrite); err != nil {
 				return nil, records.MutationResponse{}, publicError(err)
 			}
@@ -164,7 +164,7 @@ func New(version string, provided ...Options) *mcp.Server {
 		})
 	}
 	if options.ReportImporter != nil {
-		mcp.AddTool(server, &mcp.Tool{Name: ToolCheckReportImport, Description: "Import a bounded local check report; requests session import approval when needed."}, func(ctx context.Context, req *mcp.CallToolRequest, input records.ImportRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
+		mcp.AddTool(server, &mcp.Tool{Name: ToolCheckReportImport, Description: "Import a local check report; may require approval."}, func(ctx context.Context, req *mcp.CallToolRequest, input records.ImportRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
 			if err := authorize(ctx, options, ToolCheckReportImport); err != nil {
 				return nil, records.MutationResponse{}, publicError(err)
 			}

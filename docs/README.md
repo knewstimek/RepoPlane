@@ -9,7 +9,7 @@
 | [MVP-Spec.md](MVP-Spec.md) | 첫 구현의 지원 범위와 외부 계약 | 동작 계약이 바뀔 때 |
 | [Implementation-Plan.md](Implementation-Plan.md) | 구현 순서, 완료 조건, 보류 항목 | 작업 단계가 진행되거나 재계획될 때 |
 | [Full-Implementation-Roadmap.md](Full-Implementation-Roadmap.md) | 채택된 P1/P2 범위, 수직 절단 순서와 gate | 장기 구현 순서나 채택 범위가 바뀔 때 |
-| [Records-Spec.md](Records-Spec.md) | durable record 검색·compact 발견, verification, write/import 계약 | Records 외부·저장 계약이 바뀔 때 |
+| [Records-Spec.md](Records-Spec.md) | durable record 검색·compact 발견, verification, memo/host-fact write/import 계약 | Records 외부·저장 계약이 바뀔 때 |
 | [Preflight-Spec.md](Preflight-Spec.md) | capability 환경 점검과 hard/soft gate 계약 | preflight 관찰이나 redaction이 바뀔 때 |
 | [Artifact-Provenance-Spec.md](Artifact-Provenance-Spec.md) | run receipt, stream, artifact 보존 계약 | 실행 기록이나 retention이 바뀔 때 |
 | [Runner-Spec.md](Runner-Spec.md) | prepare/execute/inspect와 플랫폼 실행 계약 | Runner 권한이나 실행 동작이 바뀔 때 |

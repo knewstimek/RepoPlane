@@ -1,6 +1,6 @@
 # RepoPlane MCP Context Efficiency Specification
 
-상태: Accepted 1.2
+상태: Accepted 1.3
 대상: MCP tool discovery, record 응답, 작업당 context 비용
 
 ## 1. 목표
@@ -24,6 +24,11 @@ RepoPlane은 정확성·권한·호환성 계약을 줄이지 않고 모델이 �
 측정만 재현한다. tokenizer, model, client 변환, native tool search와 cache를 관찰하지 않으므로
 byte 수를 token 수나 고정 시작 비용으로 표현하지 않는다.
 
+현재 검증 상태는 schema 중복 설명의 결정론적 축소까지만 완료다. 특정 client가 MCP
+`outputSchema` 전체를 model input에 포함하는지, deferred loading 전후 실제 token이 얼마나
+달라지는지는 서버가 관찰할 수 없다. 해당 주장은 client별 request trace 또는 같은 작업의
+token A/B 측정이 있을 때만 추가하며, API 기능 존재만으로 완료 처리하지 않는다.
+
 ## 3. 도구 노출 계약
 
 - 14개 표준 typed tool과 안정적인 `tools/list`를 유지한다. `runtime_access`와
@@ -37,6 +42,9 @@ byte 수를 token 수나 고정 시작 비용으로 표현하지 않는다.
   RepoPlane schema에 비표준 힌트를 넣지 않으며 미지원 client는 직접 tool 계약으로 동작한다.
 - 14-tool compact complete-contract 회귀 예산은 34 KiB이고 Runner 세 tool 예산은 5,500
   bytes다.
+- Optional host facts는 새 tool/output shape 대신 기존 `memo_write`, `project_records`와
+  Runner `checks`를 재사용한다. Typed host input을 추가한 뒤 반복 설명을 줄인 complete
+  contract는 34,676 bytes이며, 직전 34,726-byte 기준선보다 50 bytes 작다.
 - schema identity나 handle은 계약 버전만 식별한다. 압축 뒤 model 문맥에서 사라진 계약 내용을
   복구했다거나 현재 권한을 증명하지 않는다.
 

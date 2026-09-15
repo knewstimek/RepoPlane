@@ -119,6 +119,57 @@ func TestMemoKindsAndSupersede(t *testing.T) {
 	}
 }
 
+func TestHostFactIsTypedSearchableAndWarnsOnConflict(t *testing.T) {
+	service, _ := testService(t)
+	confirmed := time.Date(2026, 9, 16, 1, 2, 3, 0, time.FixedZone("fixture", 9*60*60)).Format(time.RFC3339)
+	request := MemoRequest{
+		Mode: "create", MemoKind: "host_fact", Scope: "operations/hosts", Source: "user_asserted",
+		Host:                  &HostFact{Alias: "EDGE-A", Role: "gateway", OS: "linux", Tier: "production", Services: []string{"proxy"}, Paths: []string{"/srv/proxy"}, ConfirmedAt: confirmed},
+		InvalidationCondition: "the host is rebuilt or its role changes",
+	}
+	created, err := service.WriteMemo(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.Record.SchemaVersion != "memo.v2" || created.Record.Payload["content"] != "" || len(created.Warnings) != 0 {
+		t.Fatalf("created host fact=%+v", created)
+	}
+	host := created.Record.Payload["host"].(map[string]any)
+	if host["alias"] != "edge-a" || host["confirmed_at"] != "2026-09-15T16:02:03Z" {
+		t.Fatalf("normalized host=%+v", host)
+	}
+	result, err := service.Query(context.Background(), QueryRequest{Mode: "search", Kind: "memo", Query: "edge-a", ItemLimit: 5})
+	if err != nil || len(result.Items) != 1 || result.Items[0].Payload["host"] == nil {
+		t.Fatalf("host search=%+v err=%v", result, err)
+	}
+	request.Host = &HostFact{Alias: "edge-a", Role: "database", OS: "windows", Tier: "production", Services: []string{"database"}, Paths: []string{"D:/service"}, ConfirmedAt: time.Now().UTC().Format(time.RFC3339)}
+	conflicting, err := service.WriteMemo(context.Background(), request)
+	if err != nil || len(conflicting.Warnings) != 1 || conflicting.Warnings[0].Code != "host_fact_conflict" {
+		t.Fatalf("conflicting host fact=%+v err=%v", conflicting, err)
+	}
+}
+
+func TestHostFactValidationIsSeparateFromOrdinaryMemo(t *testing.T) {
+	service, _ := testService(t)
+	host := &HostFact{Alias: "host-a", Role: "worker", OS: "linux", Tier: "production", Services: []string{"worker"}, Paths: []string{"/srv/worker"}, ConfirmedAt: time.Now().UTC().Format(time.RFC3339)}
+	if _, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "create", MemoKind: "decision", Content: "ordinary", Host: host}); err == nil {
+		t.Fatal("ordinary memo accepted typed host data")
+	}
+	if _, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "create", MemoKind: "host_fact", Host: host}); err == nil {
+		t.Fatal("host fact without invalidation condition was accepted")
+	}
+	ordinary, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "create", MemoKind: "decision", Content: "ordinary"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.WriteMemo(context.Background(), MemoRequest{
+		Mode: "update", ID: ordinary.Record.ID, ExpectedRevision: ordinary.Record.Revision,
+		MemoKind: "host_fact", Host: host, InvalidationCondition: "the host changes",
+	}); err == nil || !strings.Contains(err.Error(), "cannot change memo schema") {
+		t.Fatalf("ordinary memo converted to host fact: %v", err)
+	}
+}
+
 func TestRecordPayloadProjectionAndMutationReceipt(t *testing.T) {
 	service, _ := testService(t)
 	created, err := service.WriteMemo(context.Background(), MemoRequest{

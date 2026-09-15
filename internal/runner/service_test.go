@@ -378,6 +378,69 @@ func TestRequiredPreflightBlocksWhileRecommendedWarns(t *testing.T) {
 	}
 }
 
+func TestHostRefAddsOptionalFactCheckAndConflictWarning(t *testing.T) {
+	manifest := testManifest()
+	manifest.Arguments = map[string]catalog.Argument{"target": {Type: "host_ref", Required: true}}
+	manifest.Execution.ArgvTemplate = []string{"{target}"}
+	service, records, cleanup := newTestService(t, manifest)
+	defer cleanup()
+	now := time.Now().UTC()
+	create := func(id, role, operatingSystem string) {
+		t.Helper()
+		payload, _ := json.Marshal(map[string]any{
+			"memo_kind": "host_fact", "scope": "operations/hosts", "configuration": "", "content": "",
+			"host":                   map[string]any{"alias": "edge-a", "role": role, "os": operatingSystem, "tier": "production", "services": []string{"proxy"}, "paths": []string{"/srv/proxy"}, "confirmed_at": now.Format(time.RFC3339)},
+			"invalidation_condition": "the host is rebuilt",
+		})
+		_, err := records.CreateMemo(context.Background(), store.RecordCreate{Record: store.Record{
+			ID: id, Kind: "memo", SchemaVersion: "memo.v2", ProjectID: service.projectID, WorkspaceID: service.workspaceID,
+			Revision: 1, Source: "user_asserted", WriterClass: "intention", Validity: "current", CreatedAt: now, UpdatedAt: now, Payload: payload, EvidenceRefs: []string{},
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	missing, err := service.Prepare(context.Background(), PrepareRequest{CapabilityID: manifest.ID, CapabilityRevision: "1", Arguments: map[string]any{"target": "HOST-B"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertHostCheck(t, missing, "unknown", "")
+	if !missing.Plan.Ready || len(missing.Warnings) != 1 || missing.Warnings[0].Code != "host_fact_missing" {
+		t.Fatalf("missing optional host fact=%+v", missing)
+	}
+	create("memo_host_one", "gateway", "linux")
+	prepared, err := service.Prepare(context.Background(), PrepareRequest{CapabilityID: manifest.ID, CapabilityRevision: "1", Arguments: map[string]any{"target": "EDGE-A"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !prepared.Plan.Ready || prepared.Plan.Argv[0] != "edge-a" {
+		t.Fatalf("host_ref normalization=%+v", prepared.Plan)
+	}
+	assertHostCheck(t, prepared, "passed", "record:memo_host_one")
+	create("memo_host_two", "database", "windows")
+	conflicting, err := service.Prepare(context.Background(), PrepareRequest{CapabilityID: manifest.ID, CapabilityRevision: "1", Arguments: map[string]any{"target": "edge-a"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertHostCheck(t, conflicting, "unknown", "")
+	if !conflicting.Plan.Ready || len(conflicting.Warnings) != 1 || conflicting.Warnings[0].Code != "host_fact_conflict" {
+		t.Fatalf("host conflict=%+v", conflicting)
+	}
+}
+
+func assertHostCheck(t *testing.T, response PrepareResponse, status, identity string) {
+	t.Helper()
+	for _, check := range response.Checks {
+		if check.ID == "host.target" {
+			if check.Status != status || check.Identity != identity || check.Requirement != "informational" {
+				t.Fatalf("host check=%+v", check)
+			}
+			return
+		}
+	}
+	t.Fatal("host fact check missing")
+}
+
 func TestRunTimeoutIsRecorded(t *testing.T) {
 	manifest := testManifest()
 	manifest.Execution.TimeoutSec = 1

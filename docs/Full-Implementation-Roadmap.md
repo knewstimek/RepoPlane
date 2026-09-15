@@ -190,3 +190,12 @@ exit code만으로 verification을 passed로 만들지 않고, 요구된 check�
 노출한다. `list`/`get`의 full 기본값, exact `payload_fields`, snapshot cursor와
 exact/lower-bound 의미는 유지한다. 현재 계약은 [Records-Spec.md](Records-Spec.md)와
 [Context-Efficiency-Spec.md](Context-Efficiency-Spec.md)를 따른다.
+
+## 13. Post-1.0 optional host facts 완료
+
+새 inventory tool이나 강제 host profile을 추가하지 않고 기존 memo에 typed `host_fact`를
+추가했다. Catalog가 명시적으로 `host_ref`를 선언한 argument만 current fact와 결합하며,
+부재·부분 조회·OS/role 충돌은 Runner의 기존 informational check/warning으로 반환한다.
+자동 probe, 자동 stale 판정, 암묵적 host 추론과 덮어쓰기는 포함하지 않는다. 현재 계약은
+[Records-Spec.md](Records-Spec.md), [Runner-Spec.md](Runner-Spec.md),
+[Context-Efficiency-Spec.md](Context-Efficiency-Spec.md)를 따른다.

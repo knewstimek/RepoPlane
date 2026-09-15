@@ -302,7 +302,7 @@ func (m Manifest) Validate() error {
 		if !argumentNamePattern.MatchString(name) {
 			return errors.New("argument name is invalid")
 		}
-		if argument.Type != "string" && argument.Type != "project_path" && argument.Type != "boolean" && argument.Type != "bool" && argument.Type != "integer" {
+		if argument.Type != "string" && argument.Type != "project_path" && argument.Type != "host_ref" && argument.Type != "boolean" && argument.Type != "bool" && argument.Type != "integer" {
 			return errors.New("argument type is unsupported")
 		}
 		if len(argument.Description) > 4096 {

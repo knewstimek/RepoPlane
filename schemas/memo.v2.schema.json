@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://repoplane.local/schemas/memo.v2.schema.json",
+  "title": "RepoPlane typed host fact memo",
+  "type": "object",
+  "required": ["memo_kind", "scope", "configuration", "content", "host", "invalidation_condition"],
+  "properties": {
+    "memo_kind": { "const": "host_fact" },
+    "scope": { "type": "string", "maxLength": 4096 },
+    "configuration": { "type": "string", "maxLength": 4096 },
+    "content": { "type": "string", "maxLength": 32768 },
+    "host": {
+      "type": "object",
+      "required": ["alias", "role", "os", "tier", "services", "paths", "confirmed_at"],
+      "properties": {
+        "alias": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+        "role": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "os": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "tier": { "enum": ["production", "test", "staging", "development"] },
+        "services": { "type": "array", "minItems": 1, "maxItems": 64, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 1024 } },
+        "paths": { "type": "array", "minItems": 1, "maxItems": 64, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 1024 } },
+        "confirmed_at": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "invalidation_condition": { "type": "string", "minLength": 1, "maxLength": 32768 }
+  },
+  "$comment": "The writer additionally limits services and paths to 64 combined entries and rejects surrounding whitespace and case-insensitive duplicates.",
+  "additionalProperties": false
+}

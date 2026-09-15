@@ -1,6 +1,6 @@
 # RepoPlane Runner Specification
 
-상태: Accepted 1.2
+상태: Accepted 1.3
 
 ## 1. 범위와 권한
 
@@ -42,6 +42,14 @@ argv element는 template literal 또는 `{argument}` 치환이며 shell 재해�
 command wrapper 또는 POSIX shebang을 운영체제 규칙에 맞게 실행한다. Windows batch
 adapter는 공백·Unicode와 quoted metacharacter 경계를 보존하며 quote, percent expansion,
 개행처럼 안전하게 단일 argv로 보장할 수 없는 동적 값은 실행 전에 거부한다.
+
+Catalog argument type `host_ref`는 명시적인 운영 host alias에만 사용한다. Runner는 값을
+소문자로 정규화하고 current `memo.v2` host fact를 한 번의 bounded records 조회로 결합한다.
+일치하는 사실은 기존 preflight `checks` 배열에 `informational` 결과로 role, OS, tier와
+제한된 service 요약 및 record identity를 남긴다. 사실 부재, bounded partial scan, 같은
+alias의 OS/role 충돌은 `unknown` check와 warning이며 실행 가능 여부를 바꾸지 않는다.
+관리 path는 plan 요약에 복사하지 않는다. 임의 문자열 argument에서 host처럼 보이는 값을
+추측하거나 AGENTS.md prose를 host inventory로 해석하지 않는다.
 
 timeout과 cancel은 전체 process tree에 전파한다. Windows는 Windows 전용 process API,
 Linux는 process group을 사용한다. 지원되지 않는 필수 process/isolation 조건만 hard

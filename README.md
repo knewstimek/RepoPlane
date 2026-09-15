@@ -269,6 +269,31 @@ checkpoint and memo writes do not infer that two differently worded records over
 Likewise, `checkpoint_write` creates a `user_asserted` intention even when its evidence points to an
 `observed` Runner record; only the server-side observation writer may claim `source: observed`.
 
+Host background is an optional typed `host_fact` subtype of the existing memo contract. It adds no
+tool: write it through `memo_write`, discover it through `project_records`, and use `host_ref` only
+for catalog arguments that represent an operating host. `created_at` is server generated;
+`confirmed_at` is explicit because write time is not evidence that the host was inspected then.
+
+```json
+{"mode":"create","memo_kind":"host_fact","scope":"operations/hosts","host":{"alias":"host-a","role":"gateway","os":"linux","tier":"production","services":["proxy"],"paths":["/srv/example"],"confirmed_at":"2026-09-16T00:00:00Z"},"invalidation_condition":"the host is rebuilt or its role changes","source":"user_asserted","response_view":"receipt"}
+```
+
+A capability opts into lookup by declaring the alias argument rather than relying on name-like
+string heuristics:
+
+```yaml
+arguments:
+  target:
+    type: host_ref
+    required: true
+```
+
+Aliases are normalized to lowercase. Another current fact for the same alias with a different OS or
+role produces a warning but is not silently overwritten. Update the same typed fact with its ID and
+revision, or supersede obsolete facts explicitly. Missing facts, bounded/partial lookup, and
+conflicting current facts add an informational Runner check and warning; they do not make an
+otherwise valid plan unready.
+
 ```json
 {"mode":"create","goal":"verify the release","status":"incomplete","next_action":"run the release gate","response_view":"receipt"}
 ```
