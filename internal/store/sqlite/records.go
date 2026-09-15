@@ -35,7 +35,7 @@ func OpenRecords(ctx context.Context, path string) (*RecordRepository, error) {
 
 func (r *RecordRepository) Close() error { return r.db.Close() }
 
-const recordsSchemaVersion = 1
+const recordsSchemaVersion = 2
 
 func (r *RecordRepository) initialize(ctx context.Context) (err error) {
 	for _, statement := range []string{`PRAGMA foreign_keys = ON`, `PRAGMA busy_timeout = 5000`} {
@@ -105,6 +105,43 @@ func (r *RecordRepository) initialize(ctx context.Context) (err error) {
 		}
 		if _, err = tx.ExecContext(ctx, `INSERT INTO schema_migrations(version, applied_at) VALUES (1, ?)`, time.Now().UTC().UnixNano()); err != nil {
 			return fmt.Errorf("record durable migration 1: %w", err)
+		}
+	}
+	if version < 2 {
+		for _, statement := range []string{
+			`CREATE UNIQUE INDEX records_current_memo_topic ON records(
+                project_id,
+                workspace_id,
+                json_extract(CAST(payload_json AS TEXT), '$.scope'),
+                json_extract(CAST(payload_json AS TEXT), '$.configuration'),
+                json_extract(CAST(payload_json AS TEXT), '$.topic_key'))
+              WHERE kind='memo' AND validity='current'
+                AND json_type(CAST(payload_json AS TEXT), '$.topic_key')='text'
+                AND json_extract(CAST(payload_json AS TEXT), '$.topic_key')<>''`,
+			`CREATE TRIGGER records_memo_topic_identity_immutable
+              BEFORE UPDATE OF payload_json ON records
+              WHEN OLD.kind='memo' AND OLD.validity='current' AND NEW.validity='current'
+                AND (
+                  COALESCE(json_extract(CAST(OLD.payload_json AS TEXT), '$.topic_key'), '') <>
+                    COALESCE(json_extract(CAST(NEW.payload_json AS TEXT), '$.topic_key'), '')
+                  OR (
+                    COALESCE(json_extract(CAST(OLD.payload_json AS TEXT), '$.topic_key'), '') <> ''
+                    AND (
+                      COALESCE(json_extract(CAST(OLD.payload_json AS TEXT), '$.scope'), '') <>
+                        COALESCE(json_extract(CAST(NEW.payload_json AS TEXT), '$.scope'), '')
+                      OR COALESCE(json_extract(CAST(OLD.payload_json AS TEXT), '$.configuration'), '') <>
+                        COALESCE(json_extract(CAST(NEW.payload_json AS TEXT), '$.configuration'), '')
+                    )
+                  )
+                )
+              BEGIN SELECT RAISE(ABORT, 'memo topic identity is immutable'); END`,
+		} {
+			if _, err = tx.ExecContext(ctx, statement); err != nil {
+				return fmt.Errorf("apply durable records migration 2: %w", err)
+			}
+		}
+		if _, err = tx.ExecContext(ctx, `INSERT INTO schema_migrations(version, applied_at) VALUES (2, ?)`, time.Now().UTC().UnixNano()); err != nil {
+			return fmt.Errorf("record durable migration 2: %w", err)
 		}
 	}
 	if err = tx.Commit(); err != nil {
@@ -537,6 +574,9 @@ func (r *RecordRepository) update(ctx context.Context, kind string, update store
 		current.Revision, unixNano(current.UpdatedAt), []byte(current.Payload), evidence, current.Validity, current.Supersedes,
 		current.ID, current.ProjectID, current.WorkspaceID, update.ExpectedRevision)
 	if err != nil {
+		if strings.Contains(err.Error(), "memo topic identity is immutable") {
+			return store.Record{}, fmt.Errorf("update durable record: %w: memo topic identity is immutable", store.ErrConflict)
+		}
 		return store.Record{}, fmt.Errorf("update durable record: %w", err)
 	}
 	changed, _ := result.RowsAffected()

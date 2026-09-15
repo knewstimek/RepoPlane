@@ -41,6 +41,7 @@ var (
 	checklistIDPattern  = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
 	gitCommitPattern    = regexp.MustCompile(`^[0-9a-f]{40}([0-9a-f]{24})?$`)
 	hostAliasPattern    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
+	topicKeyPattern     = regexp.MustCompile(`^[a-z0-9][a-z0-9._/-]{0,127}$`)
 )
 
 type QueryRequest struct {
@@ -98,6 +99,7 @@ type MemoRequest struct {
 	MemoKind              string    `json:"memo_kind,omitempty" jsonschema:"decision | failed_attempt | resolved_failure | limitation | host_fact"`
 	Scope                 string    `json:"scope,omitempty" jsonschema:"logical scope"`
 	Configuration         string    `json:"configuration,omitempty" jsonschema:"configuration"`
+	TopicKey              string    `json:"topic_key,omitempty" jsonschema:"stable topic key"`
 	Content               string    `json:"content,omitempty" jsonschema:"memo text"`
 	Host                  *HostFact `json:"host,omitempty"`
 	InvalidationCondition string    `json:"invalidation_condition,omitempty" jsonschema:"staleness condition"`
@@ -285,6 +287,7 @@ func (s *Service) WriteMemo(ctx context.Context, request MemoRequest) (MutationR
 	if request.Source == "" {
 		request.Source = "user_asserted"
 	}
+	request.TopicKey = strings.ToLower(request.TopicKey)
 	if err := validateMemo(request); err != nil {
 		return MutationResponse{}, err
 	}
@@ -294,6 +297,9 @@ func (s *Service) WriteMemo(ctx context.Context, request MemoRequest) (MutationR
 		request.Host.ConfirmedAt = confirmedAt.UTC().Format(time.RFC3339)
 	}
 	payloadFields := map[string]any{"memo_kind": request.MemoKind, "scope": request.Scope, "configuration": request.Configuration, "content": request.Content, "invalidation_condition": request.InvalidationCondition}
+	if request.TopicKey != "" {
+		payloadFields["topic_key"] = request.TopicKey
+	}
 	if request.Host != nil {
 		payloadFields["host"] = request.Host
 	}
@@ -304,6 +310,8 @@ func (s *Service) WriteMemo(ctx context.Context, request MemoRequest) (MutationR
 	schemaVersion := "memo.v1"
 	if request.MemoKind == "host_fact" {
 		schemaVersion = "memo.v2"
+	} else if request.TopicKey != "" {
+		schemaVersion = "memo.v3"
 	}
 	if request.Mode == "update" {
 		current, err := s.records.GetRecord(ctx, s.projectID, s.workspaceID, request.ID)
@@ -313,14 +321,97 @@ func (s *Service) WriteMemo(ctx context.Context, request MemoRequest) (MutationR
 		if current.Kind != "memo" || current.SchemaVersion != schemaVersion {
 			return MutationResponse{}, errors.New("update cannot change memo schema; supersede the existing memo and create the new kind")
 		}
+		if schemaVersion == "memo.v3" {
+			var existing struct {
+				Scope         string `json:"scope"`
+				Configuration string `json:"configuration"`
+				TopicKey      string `json:"topic_key"`
+			}
+			if json.Unmarshal(current.Payload, &existing) != nil || existing.Scope != request.Scope || existing.Configuration != request.Configuration || existing.TopicKey != request.TopicKey {
+				return MutationResponse{}, errors.New("memo topic identity cannot change; supersede the existing memo and create a new one")
+			}
+		}
 	}
 	warnings := s.hostFactWarnings(ctx, request)
+	if request.Mode == "create" && request.TopicKey != "" {
+		if existing, ok, err := s.currentTopicMemo(ctx, request.Scope, request.Configuration, request.TopicKey); err != nil {
+			warnings = append(warnings, contracts.Warning{Code: "memo_topic_check_unknown", Message: "current memo topics could not be checked"})
+		} else if ok {
+			return s.existingTopicResponse(existing, request.ResponseView)
+		} else {
+			warnings = append(warnings, s.relatedTopicWarnings(ctx, request)...)
+		}
+	}
 	record, err := s.mutate(ctx, "memo", schemaVersion, request.Source, request.Mode, request.ID, request.ExpectedRevision, payload, request.EvidenceRefs)
+	if request.Mode == "create" && request.TopicKey != "" && errors.Is(err, store.ErrConflict) {
+		if existing, ok, lookupErr := s.currentTopicMemo(ctx, request.Scope, request.Configuration, request.TopicKey); lookupErr == nil && ok {
+			return s.existingTopicResponse(existing, request.ResponseView)
+		}
+	}
 	response, err := s.mutationResponse(record, false, request.ResponseView, err)
 	if err == nil {
 		response.Warnings = warnings
 	}
 	return response, err
+}
+
+func (s *Service) existingTopicResponse(record store.Record, view string) (MutationResponse, error) {
+	response, err := s.mutationResponse(record, false, view, nil)
+	if err != nil {
+		return MutationResponse{}, err
+	}
+	ref := "record:" + record.ID
+	response.Status = contracts.StatusPartial
+	response.Warnings = []contracts.Warning{{Code: "memo_topic_exists", Message: "this current topic already exists; update it by id/revision or supersede it before creating a replacement", Ref: &ref}}
+	return response, nil
+}
+
+func (s *Service) currentTopicMemo(ctx context.Context, scope, configuration, topicKey string) (store.Record, bool, error) {
+	page, err := s.records.QueryRecords(ctx, store.RecordQuery{
+		ProjectID: s.projectID, WorkspaceID: s.workspaceID, Kind: "memo", Validity: "current",
+		Terms: []string{topicKey}, Limit: maximumRecordQuery,
+	})
+	if err != nil {
+		return store.Record{}, false, err
+	}
+	for _, record := range page.Records {
+		var payload struct {
+			Scope         string `json:"scope"`
+			Configuration string `json:"configuration"`
+			TopicKey      string `json:"topic_key"`
+		}
+		if json.Unmarshal(record.Payload, &payload) == nil && payload.Scope == scope && payload.Configuration == configuration && payload.TopicKey == topicKey {
+			return record, true, nil
+		}
+	}
+	return store.Record{}, false, nil
+}
+
+func (s *Service) relatedTopicWarnings(ctx context.Context, request MemoRequest) []contracts.Warning {
+	page, err := s.records.QueryRecords(ctx, store.RecordQuery{
+		ProjectID: s.projectID, WorkspaceID: s.workspaceID, Kind: "memo", Validity: "current",
+		Terms: []string{request.Scope}, Limit: maximumRecordQuery,
+	})
+	if err != nil {
+		return []contracts.Warning{{Code: "memo_topic_check_unknown", Message: "related memo topics could not be checked"}}
+	}
+	warnings := contracts.EmptyWarnings()
+	for _, record := range page.Records {
+		var payload struct {
+			Scope         string `json:"scope"`
+			Configuration string `json:"configuration"`
+			TopicKey      string `json:"topic_key"`
+		}
+		if json.Unmarshal(record.Payload, &payload) != nil || payload.Scope != request.Scope || payload.Configuration != request.Configuration || payload.TopicKey == "" || payload.TopicKey == request.TopicKey {
+			continue
+		}
+		ref := "record:" + record.ID
+		warnings = append(warnings, contracts.Warning{Code: "memo_topic_related", Message: "related current memo topic: " + payload.TopicKey, Ref: &ref})
+		if len(warnings) == 3 {
+			break
+		}
+	}
+	return warnings
 }
 
 func (s *Service) hostFactWarnings(ctx context.Context, request MemoRequest) []contracts.Warning {
@@ -563,7 +654,7 @@ func normalizeRecordTerms(query string) []string {
 
 func discoveryPayload(kind string, payload map[string]any) map[string]any {
 	fields := map[string][]string{
-		"memo":         {"memo_kind", "scope", "configuration"},
+		"memo":         {"memo_kind", "scope", "configuration", "topic_key"},
 		"checkpoint":   {"goal", "next_action", "remaining_checks"},
 		"verification": {"check_id", "status", "outcome", "configuration", "truncated"},
 		"environment":  {"capability_id", "configuration", "ready", "observed_at"},
@@ -650,12 +741,18 @@ func validateMemo(request MemoRequest) error {
 	}
 	if request.Mode != "supersede" {
 		if request.MemoKind == "host_fact" {
+			if request.TopicKey != "" {
+				return errors.New("topic_key is not valid for host_fact")
+			}
 			if err := validateHostFact(request.Host, request.InvalidationCondition); err != nil {
 				return err
 			}
 		} else if request.Host != nil {
 			return errors.New("host is only valid for host_fact")
 		}
+	}
+	if request.TopicKey != "" && (strings.TrimSpace(request.Scope) == "" || !topicKeyPattern.MatchString(request.TopicKey)) {
+		return errors.New("topic_key requires scope and must use lowercase letters, digits, dot, underscore, slash, or hyphen")
 	}
 	if request.Source != "user_asserted" && request.Source != "llm_proposed" {
 		return errors.New("source must be user_asserted or llm_proposed")

@@ -87,6 +87,60 @@ func TestRecordRepositoryConcurrentCASAllowsOneWriter(t *testing.T) {
 	}
 }
 
+func TestRecordRepositoryCurrentMemoTopicIsUniqueAndImmutable(t *testing.T) {
+	repository := openRecordRepository(t)
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	for _, id := range []string{"memo_topic_1", "memo_topic_2"} {
+		go func(id string) {
+			<-start
+			record := testRecord("memo", id)
+			record.SchemaVersion = "memo.v3"
+			record.Payload = json.RawMessage(`{"memo_kind":"decision","scope":"deploy","configuration":"production","topic_key":"origin-policy","content":"one","invalidation_condition":""}`)
+			_, err := repository.CreateMemo(context.Background(), store.RecordCreate{Record: record})
+			results <- err
+		}(id)
+	}
+	close(start)
+	succeeded, conflicted := 0, 0
+	for range 2 {
+		switch err := <-results; {
+		case err == nil:
+			succeeded++
+		case errors.Is(err, store.ErrConflict):
+			conflicted++
+		default:
+			t.Fatalf("unexpected create error: %v", err)
+		}
+	}
+	if succeeded != 1 || conflicted != 1 {
+		t.Fatalf("succeeded=%d conflicted=%d", succeeded, conflicted)
+	}
+	page, err := repository.QueryRecords(context.Background(), store.RecordQuery{ProjectID: "project", WorkspaceID: "workspace", Kind: "memo", Validity: "current", Limit: 10})
+	if err != nil || len(page.Records) != 1 {
+		t.Fatalf("current topics=%+v err=%v", page, err)
+	}
+	current := page.Records[0]
+	_, err = repository.UpdateMemo(context.Background(), store.RecordUpdate{
+		ProjectID: "project", WorkspaceID: "workspace", ID: current.ID, ExpectedRevision: 1, Validity: "current",
+		Payload: json.RawMessage(`{"memo_kind":"decision","scope":"deploy","configuration":"production","topic_key":"renamed","content":"two","invalidation_condition":""}`),
+	})
+	if !errors.Is(err, store.ErrConflict) {
+		t.Fatalf("topic rename error=%v", err)
+	}
+	if _, err := repository.UpdateMemo(context.Background(), store.RecordUpdate{
+		ProjectID: "project", WorkspaceID: "workspace", ID: current.ID, ExpectedRevision: 1, Validity: "superseded", Payload: json.RawMessage(`{}`),
+	}); err != nil {
+		t.Fatalf("supersede topic: %v", err)
+	}
+	replacement := testRecord("memo", "memo_topic_replacement")
+	replacement.SchemaVersion = "memo.v3"
+	replacement.Payload = current.Payload
+	if _, err := repository.CreateMemo(context.Background(), store.RecordCreate{Record: replacement}); err != nil {
+		t.Fatalf("replace superseded topic: %v", err)
+	}
+}
+
 func TestRecordRepositoryImportIsIdempotent(t *testing.T) {
 	repository := openRecordRepository(t)
 	record := testRecord("verification", "verification_1")

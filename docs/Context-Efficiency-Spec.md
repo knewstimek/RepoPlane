@@ -45,6 +45,9 @@ token A/B 측정이 있을 때만 추가하며, API 기능 존재만으로 완�
 - Optional host facts는 새 tool/output shape 대신 기존 `memo_write`, `project_records`와
   Runner `checks`를 재사용한다. Typed host input을 추가한 뒤 반복 설명을 줄인 complete
   contract는 34,676 bytes이며, 직전 34,726-byte 기준선보다 50 bytes 작다.
+- Optional memo topic identity도 새 tool/output field 없이 `memo_write`의 `topic_key`와 기존
+  warning/ref를 재사용한다. 전체 contract는 34,739 bytes, Runner 세 tool은 5,345 bytes이며
+  관련 topic은 write 응답에서 최대 3개 key/ref만 노출한다.
 - schema identity나 handle은 계약 버전만 식별한다. 압축 뒤 model 문맥에서 사라진 계약 내용을
   복구했다거나 현재 권한을 증명하지 않는다.
 

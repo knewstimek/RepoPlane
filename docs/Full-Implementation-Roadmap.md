@@ -208,3 +208,12 @@ context가 없으면 `catalog/`를 가진 direct child Git repo가 정확히 하
 전체 workspace의 `**/catalog`를 탐색하거나 복수 후보를 병합하지 않으며 explicit
 CLI/runtime configuration이 항상 우선한다. 현재 계약은
 [Runtime-Configuration-Spec.md](Runtime-Configuration-Spec.md)를 따른다.
+
+## 15. Post-1.0 optional memo topic identity 완료
+
+새 tool이나 LLM/embedding 기반 의미 판정을 추가하지 않고 일반 memo에 optional `topic_key`를
+추가했다. `(scope, configuration, topic_key)` current identity는 저장 계층에서 원자적으로
+유일하며 update 중 변경할 수 없다. 동일 identity create는 기존 ref를 반환하고, 같은 범위의
+다른 topic은 최대 3개만 보여 준다. Rename은 supersede와 create를 분리하고, unkeyed memo와
+host fact 동작은 유지한다. 현재 계약은 [Records-Spec.md](Records-Spec.md)와
+[Context-Efficiency-Spec.md](Context-Efficiency-Spec.md)를 따른다.

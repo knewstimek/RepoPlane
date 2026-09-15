@@ -1246,6 +1246,10 @@
           "source": {
             "description": "user_asserted | llm_proposed",
             "type": "string"
+          },
+          "topic_key": {
+            "description": "stable topic key",
+            "type": "string"
           }
         },
         "required": [

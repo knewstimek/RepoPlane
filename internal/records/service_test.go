@@ -119,6 +119,69 @@ func TestMemoKindsAndSupersede(t *testing.T) {
 	}
 }
 
+func TestTopicMemoReusesCurrentIdentityAndRequiresSupersedeToRename(t *testing.T) {
+	service, _ := testService(t)
+	request := MemoRequest{Mode: "create", MemoKind: "decision", Scope: "deploy", Configuration: "production", TopicKey: "origin-policy", Content: "Use the configured origin."}
+	created, err := service.WriteMemo(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.Record.SchemaVersion != "memo.v3" || created.Record.Payload["topic_key"] != "origin-policy" {
+		t.Fatalf("topic memo=%+v", created)
+	}
+
+	request.TopicKey = "ORIGIN-POLICY"
+	existing, err := service.WriteMemo(context.Background(), request)
+	if err != nil || existing.Status != contracts.StatusPartial || existing.Record.ID != created.Record.ID || existing.Duplicate || len(existing.Warnings) != 1 || existing.Warnings[0].Code != "memo_topic_exists" {
+		t.Fatalf("existing topic response=%+v err=%v", existing, err)
+	}
+
+	updated, err := service.WriteMemo(context.Background(), MemoRequest{
+		Mode: "update", ID: created.Record.ID, ExpectedRevision: created.Record.Revision,
+		MemoKind: "decision", Scope: "deploy", Configuration: "production", TopicKey: "origin-policy", Content: "Use the validated configured origin.",
+	})
+	if err != nil || updated.Record.Revision != 2 {
+		t.Fatalf("topic update=%+v err=%v", updated, err)
+	}
+	if _, err := service.WriteMemo(context.Background(), MemoRequest{
+		Mode: "update", ID: created.Record.ID, ExpectedRevision: updated.Record.Revision,
+		MemoKind: "decision", Scope: "deploy", Configuration: "production", TopicKey: "renamed", Content: "renamed",
+	}); err == nil || !strings.Contains(err.Error(), "supersede") {
+		t.Fatalf("topic rename error=%v", err)
+	}
+
+	superseded, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "supersede", ID: created.Record.ID, ExpectedRevision: updated.Record.Revision})
+	if err != nil || superseded.Record.Validity != "superseded" {
+		t.Fatalf("topic supersede=%+v err=%v", superseded, err)
+	}
+	replacement, err := service.WriteMemo(context.Background(), request)
+	if err != nil || replacement.Record.ID == created.Record.ID || replacement.Status != contracts.StatusOK {
+		t.Fatalf("topic replacement=%+v err=%v", replacement, err)
+	}
+}
+
+func TestTopicMemoSurfacesAtMostThreeRelatedCurrentTopics(t *testing.T) {
+	service, _ := testService(t)
+	for _, topic := range []string{"alpha", "beta", "gamma", "delta"} {
+		response, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "create", MemoKind: "decision", Scope: "runtime", TopicKey: topic, Content: topic})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(response.Warnings) > 3 {
+			t.Fatalf("topic %q warnings=%d", topic, len(response.Warnings))
+		}
+	}
+	response, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "create", MemoKind: "decision", Scope: "runtime", TopicKey: "epsilon", Content: "epsilon"})
+	if err != nil || len(response.Warnings) != 3 {
+		t.Fatalf("related topics=%+v err=%v", response.Warnings, err)
+	}
+	for _, warning := range response.Warnings {
+		if warning.Code != "memo_topic_related" || warning.Ref == nil {
+			t.Fatalf("warning=%+v", warning)
+		}
+	}
+}
+
 func TestHostFactIsTypedSearchableAndWarnsOnConflict(t *testing.T) {
 	service, _ := testService(t)
 	confirmed := time.Date(2026, 9, 16, 1, 2, 3, 0, time.FixedZone("fixture", 9*60*60)).Format(time.RFC3339)

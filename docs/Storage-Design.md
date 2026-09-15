@@ -82,6 +82,11 @@ pre-release result-set shape를 보정하고, 지원 버전보다 새로운 DB�
 보관을 뜻하지 않으며, 같은 catalog revision에서 실행 파일이 바뀐 경우
 `needs_review`를 계산하기 위한 관찰값이다.
 
+Durable records schema 2는 current keyed memo의 `(project_id, workspace_id, scope,
+configuration, topic_key)` unique expression index와 topic identity 변경 방지 trigger를
+추가한다. Supersede는 current index에서 빠지므로 같은 identity의 명시적 replacement create가
+가능하고, logical backup/restore는 별도 derived table 없이 payload에서 제약을 재적용한다.
+
 규칙:
 
 - 새 index는 별도 generation으로 완성한 뒤 transaction에서 current pointer를 바꾼다.

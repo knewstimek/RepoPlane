@@ -162,6 +162,20 @@ Memo kind는 `decision`, `failed_attempt`, `resolved_failure`, `limitation`과 o
 invalidation 조건을 가진다.
 실패 관찰과 원인 해석을 분리하고 LLM의 원인 제안은 `llm_proposed`로 기록한다.
 
+일반 memo는 optional `topic_key`를 사용할 수 있다. 서버는 의미 유사도를 추론하지 않으며
+caller가 고른 key를 소문자로 정규화한다. Keyed memo는 `memo.v3`이고
+`(scope, configuration, topic_key)`가 immutable identity다. 같은 identity의 current memo는
+SQLite unique index로 경합 상황에서도 한 건만 허용한다. 동일 identity create는 새 record를
+쓰지 않고 `partial`, 기존 record ref와 `memo_topic_exists` warning을 반환한다. `duplicate`는
+기존대로 importer idempotency만 뜻한다. 본문·kind·invalidation condition은 같은 ID와 revision으로
+update할 수 있지만 identity 변경은 저장 adapter에서도 거부한다. Rename은 기존 record를
+supersede한 뒤 새 identity를 create한다.
+
+Keyed memo create 시 같은 scope/configuration의 다른 current topic을 최근 순서로 최대 3건만
+`memo_topic_related` warning과 record ref로 반환한다. Caller는 필요한 ref만 `get`한다. 이 힌트는
+중복·충돌의 의미 판단이 아니며 topic 전체 목록이나 본문을 prompt에 펼치지 않는다. `topic_key`가
+없는 `memo.v1` 동작은 바뀌지 않고 `host_fact`는 alias identity를 사용하므로 topic_key를 받지 않는다.
+
 `host_fact`는 `memo.v2`이며 host alias, role, OS, production/test/staging/development tier,
 실행 service 목록, 관리 path 목록과 RFC3339 `confirmed_at`을 typed `host`에 저장한다. Alias는
 소문자로 정규화한다. record의 `created_at`은 서버 write 시각이지만 확인 시각을 대신하지
@@ -170,7 +184,7 @@ invalidation 조건을 가진다.
 
 같은 alias의 current host fact가 OS 또는 role에서 다르면 write는 `host_fact_conflict`를
 경고하지만 자동 병합·덮어쓰기를 하지 않는다. 같은 typed fact는 ID/revision으로 update하고,
-낡은 사실은 supersede한다. `memo.v1`과 `memo.v2` 사이 update 변환은 금지하며 kind를 바꿀
+낡은 사실은 supersede한다. `memo.v1`, `memo.v2`, `memo.v3` 사이 update 변환은 금지하며 kind를 바꿀
 때는 기존 record supersede와 새 record create를 분리한다. Invalidation 문장은 저장되지만
 외부 host를 자동 probe하지 않으므로 조건이 성립했을 때 caller가 명시적으로 갱신한다.
 
