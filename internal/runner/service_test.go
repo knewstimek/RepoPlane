@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -191,6 +192,46 @@ func TestExecutableProbeOutputContributesToIdentity(t *testing.T) {
 	if first.Status != "passed" || second.Status != "passed" || first.Identity == second.Identity {
 		t.Fatalf("first=%+v second=%+v", first, second)
 	}
+}
+
+func TestGitPreflightUsesExecutionCWDForNestedRepository(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is unavailable")
+	}
+	manifest := testManifest()
+	manifest.Execution.CWD = "code"
+	manifest.Execution.Preflight = []catalog.PreflightCheck{{ID: "git.repository", Kind: "git", Requirement: "required"}}
+	service, _, cleanup := newTestService(t, manifest)
+	defer cleanup()
+	repository := filepath.Join(service.root.Resolved(), "code")
+	if err := os.MkdirAll(repository, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	commands := [][]string{
+		{"-C", repository, "init"},
+		{"-C", repository, "-c", "user.name=RepoPlane Test", "-c", "user.email=test@example.invalid", "commit", "--allow-empty", "-m", "baseline"},
+	}
+	for index, args := range commands {
+		if err := exec.Command("git", args...).Run(); err != nil {
+			t.Fatalf("git setup step %d: %v", index+1, err)
+		}
+	}
+	prepared, err := service.Prepare(context.Background(), PrepareRequest{CapabilityID: manifest.ID, CapabilityRevision: "1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !prepared.Plan.Ready {
+		t.Fatalf("nested repository preflight blocked plan: %+v", prepared.Checks)
+	}
+	for _, check := range prepared.Checks {
+		if check.ID == "git.repository" {
+			if check.Status != "passed" || check.Identity == "" {
+				t.Fatalf("git check=%+v", check)
+			}
+			return
+		}
+	}
+	t.Fatal("git.repository check missing")
 }
 
 func TestIsolatedRootMaterializationReplacesWholeTree(t *testing.T) {

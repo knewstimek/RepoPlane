@@ -13,6 +13,16 @@ Notable changes to RepoPlane are documented here.
 
 - Main-branch CI now includes the complete public-release privacy scan, while tag pushes no longer
   repeat the same Windows, Ubuntu, and Linux race jobs.
+- Strict YAML manifest errors now explain that commas delimit fields in flow-style mappings and
+  recommend quoting scalar values when that pattern produces an unknown field.
+- Record and Runner documentation now distinguishes importer idempotency from semantic memo
+  comparison, server observations from intention checkpoints, and execution-source fingerprints
+  from complete plan identity. It also includes an explicit nested-repository source configuration.
+
+### Fixed
+
+- Runner Git preflight now starts from the capability's resolved execution working directory, so a
+  Git repository nested below the RepoPlane workspace root is detected and rechecked correctly.
 
 ## [1.0.3] - 2026-09-15
 

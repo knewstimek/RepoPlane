@@ -163,11 +163,11 @@ func (s *Service) Prepare(ctx context.Context, request PrepareRequest) (PrepareR
 	if err != nil {
 		return PrepareResponse{}, err
 	}
-	_, cwdRelative, err := s.resolveCWD(manifest.Execution.CWD)
+	cwdAbsolute, cwdRelative, err := s.resolveCWD(manifest.Execution.CWD)
 	if err != nil {
 		return PrepareResponse{}, err
 	}
-	checks, ready, warnings := s.preflight(ctx, manifest, executable, executableIdentity)
+	checks, ready, warnings := s.preflight(ctx, manifest, executable, executableIdentity, cwdAbsolute)
 	inputHashes, err := s.snapshotPatterns(ctx, manifest.Inputs)
 	if err != nil {
 		return PrepareResponse{}, err
@@ -393,7 +393,7 @@ func normalizeArgument(kind string, value any) (string, any, error) {
 	}
 }
 
-func (s *Service) preflight(ctx context.Context, manifest catalog.Manifest, executable, executableIdentity string) ([]PreflightResult, bool, []contracts.Warning) {
+func (s *Service) preflight(ctx context.Context, manifest catalog.Manifest, executable, executableIdentity, executionCWD string) ([]PreflightResult, bool, []contracts.Warning) {
 	checks := []PreflightResult{
 		{ID: "runner.platform", Kind: "platform", Requirement: "required", Status: "passed", Summary: runtime.GOOS + "/" + runtime.GOARCH},
 		{ID: "runner.executable", Kind: "executable", Requirement: "required", Status: "passed", Summary: filepath.Base(executable), Identity: executableIdentity},
@@ -401,7 +401,7 @@ func (s *Service) preflight(ctx context.Context, manifest catalog.Manifest, exec
 	ready := true
 	warnings := contracts.EmptyWarnings()
 	for _, declaration := range manifest.Execution.Preflight {
-		result := s.runPreflightCheck(ctx, declaration)
+		result := s.runPreflightCheckAt(ctx, declaration, executionCWD)
 		checks = append(checks, result)
 		if result.Status != "passed" {
 			if result.Requirement == "required" {
@@ -414,6 +414,10 @@ func (s *Service) preflight(ctx context.Context, manifest catalog.Manifest, exec
 }
 
 func (s *Service) runPreflightCheck(ctx context.Context, declaration catalog.PreflightCheck) PreflightResult {
+	return s.runPreflightCheckAt(ctx, declaration, s.root.Resolved())
+}
+
+func (s *Service) runPreflightCheckAt(ctx context.Context, declaration catalog.PreflightCheck, executionCWD string) PreflightResult {
 	requirement := declaration.Requirement
 	if requirement == "" {
 		requirement = "recommended"
@@ -431,14 +435,14 @@ func (s *Service) runPreflightCheck(ctx context.Context, declaration catalog.Pre
 			result.Status, result.Summary = "missing", "not set"
 		}
 	case "git":
-		command := exec.CommandContext(ctx, "git", "-C", s.root.Resolved(), "rev-parse", "HEAD")
+		command := exec.CommandContext(ctx, "git", "-C", executionCWD, "rev-parse", "HEAD")
 		output, err := boundedCommandOutput(command, maximumProbeOutput)
 		if err == nil {
 			value := strings.TrimSpace(string(output))
 			if regexp.MustCompile(`^[0-9a-f]{40}([0-9a-f]{24})?$`).MatchString(value) {
 				result.Identity = value
 			}
-			status := exec.CommandContext(ctx, "git", "-C", s.root.Resolved(), "status", "--porcelain=v1", "--untracked-files=no")
+			status := exec.CommandContext(ctx, "git", "-C", executionCWD, "status", "--porcelain=v1", "--untracked-files=no")
 			statusOutput, statusErr := boundedCommandOutput(status, maximumProbeOutput)
 			if statusErr != nil {
 				result.Status, result.Summary = "unknown", "Git worktree state unavailable"

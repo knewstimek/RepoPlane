@@ -179,6 +179,22 @@ hosts; they are not the normal way to change a running session. The legacy enabl
 pre-authorize named capabilities and suppress runtime prompts. They do not invoke a tool
 automatically. Runner still requires a catalog entry with `trusted_for_run: true`.
 
+When one RepoPlane workspace contains a repository below its root, configure source paths
+explicitly rather than relying on repository discovery. For a repository rooted at `code/`, a
+typical live-session configuration is:
+
+```json
+{"action":"add","target":"catalog_root","values":["code/catalog"]}
+{"action":"remove","target":"catalog_root","values":["catalog"]}
+{"action":"add","target":"candidate_root","values":["code/tools","code/scripts"]}
+{"action":"remove","target":"candidate_root","values":["tools","scripts"]}
+```
+
+Catalog roots remain workspace-relative and are not inferred from arbitrary nested Git
+repositories or prose in `AGENTS.md`; either source could be ambiguous in a multi-repository
+workspace. Runner Git preflight does follow each capability's resolved execution `cwd`, so a
+manifest using `cwd: code` observes the Git worktree rooted there.
+
 Available flags:
 
 ```text
@@ -248,6 +264,10 @@ duplicate state, and warnings and does not need its submitted payload echoed bac
 
 Record only consequential failures whose cause and remedy can prevent repeated work; include the
 invalidation condition, and leave one-off typos or noise out of durable memos.
+The mutation response's `duplicate` flag reports importer idempotency, not semantic similarity:
+checkpoint and memo writes do not infer that two differently worded records overlap or conflict.
+Likewise, `checkpoint_write` creates a `user_asserted` intention even when its evidence points to an
+`observed` Runner record; only the server-side observation writer may claim `source: observed`.
 
 ```json
 {"mode":"create","goal":"verify the release","status":"incomplete","next_action":"run the release gate","response_view":"receipt"}
@@ -304,6 +324,11 @@ Call `catalog_query(mode=get)` to obtain the current capability revision, then
 `run_prepare` with that ID/revision. Execute the returned plan ID once with `run_execute`; use
 `run_inspect` for status, cancellation, bounded stdout/stderr ranges, or a retained artifact ref.
 Preflight runs during prepare—there is intentionally no fourth environment execution tool.
+Git preflight starts at the resolved execution `cwd` and therefore supports a Git repository nested
+below the RepoPlane workspace root. `execution_fingerprint` identifies workspace execution source
+files discovered by catalog audit and can be empty when no such source file exists. It is not the
+whole plan identity: `executable_identity`, the catalog revision, ordered argv, and declared
+`input_hashes` separately preserve prepare/execute revalidation and traceability.
 
 Pure, side-effect-free transforms may opt into observation first. The full inputs, outputs,
 runtime identity and purity assumptions are explicit; ordinary build/test capabilities should use

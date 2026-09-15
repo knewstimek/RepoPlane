@@ -57,6 +57,31 @@ unexpected: true
 	}
 }
 
+func TestDecodeHintsWhenFlowMappingCommaCreatesUnknownField(t *testing.T) {
+	const input = `id: tool.example
+revision: 1
+summary: example
+arguments: {target: {type: string, description: deploy frontend, gateway: optional}}
+`
+	_, err := Decode(strings.NewReader(input), "yaml")
+	if !errors.Is(err, ErrManifestInvalid) || !strings.Contains(err.Error(), "quote scalar values that contain commas") {
+		t.Fatalf("error = %v, want flow-style comma quoting hint", err)
+	}
+}
+
+func TestDecodeDoesNotSuggestCommaForBlockUnknownField(t *testing.T) {
+	const input = `id: tool.example
+revision: 1
+summary: example
+tags: [test]
+unexpected: true
+`
+	_, err := Decode(strings.NewReader(input), "yaml")
+	if !errors.Is(err, ErrManifestInvalid) || strings.Contains(err.Error(), "quote scalar values") {
+		t.Fatalf("error = %v, want ordinary unknown-field diagnostic", err)
+	}
+}
+
 func TestDecodeRejectsOversizedManifest(t *testing.T) {
 	_, err := Decode(strings.NewReader(strings.Repeat("x", int(MaxManifestBytes+1))), "json")
 	if !errors.Is(err, ErrManifestTooLarge) {

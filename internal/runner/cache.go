@@ -235,6 +235,10 @@ func (s *Service) publishCacheObservation(ctx context.Context, runID string, pay
 
 func (s *Service) executeCacheHit(ctx context.Context, record store.Record, payload *runPayload, capability catalog.Capability) (ExecuteResponse, error) {
 	manifest := capability.Manifest
+	executionCWD, _, err := s.resolveCWD(manifest.Execution.CWD)
+	if err != nil {
+		return ExecuteResponse{}, ErrPlanStale
+	}
 	identities := make(map[string]string, len(payload.CacheKeyChecks))
 	identities["runner.executable"] = payload.ExecutableIdentity
 	declarations := make(map[string]catalog.PreflightCheck, len(manifest.Execution.Preflight))
@@ -252,7 +256,7 @@ func (s *Service) executeCacheHit(ctx context.Context, record store.Record, payl
 		if !ok {
 			return ExecuteResponse{}, ErrPlanStale
 		}
-		check := s.runPreflightCheck(ctx, declaration)
+		check := s.runPreflightCheckAt(ctx, declaration, executionCWD)
 		if check.Status != "passed" || check.Identity != expected {
 			return ExecuteResponse{}, ErrPlanStale
 		}
