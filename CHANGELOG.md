@@ -4,6 +4,10 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+## [1.0.2] - 2026-09-15
+
+### Fixed
+
 - Emit explicit `mode=form` and object `requestedSchema` fields for confirmation-only MCP
   elicitation so strict clients can complete runtime workspace changes and other approval-gated
   operations.
