@@ -2,74 +2,53 @@
 
 ## Public-repository privacy
 
-- Treat every tracked file, commit message, fixture, example, generated artifact, and release
-  asset as public information.
-- Never commit personal names, usernames, email addresses, machine names, home directories,
-  absolute local paths, private repository URLs, credentials, tokens, keys, or identifiers that
-  reveal unrelated projects or workspaces.
-- Use neutral placeholders such as `USER`, `WORKSPACE`, `example.invalid`, and temporary
-  directories created by tests.
-- Do not copy environment dumps, command histories, database contents, local profiles, logs, or
-  tool output into tracked files unless they have been deliberately minimized and sanitized.
-- Keep local state, SQLite databases, cursor keys, coverage data, build output, and diagnostic logs
-  in ignored locations. Never weaken `.gitignore` to publish them.
-- Before any public push or release, scan the complete tracked tree and Git history for secrets,
-  personal paths, usernames, unrelated project names, and local artifacts. Stop the release if any
-  finding has not been reviewed.
-- Do not place a real secret in a test, even temporarily. Generate ephemeral test values or use an
-  unmistakably non-secret placeholder.
+- Treat tracked files, commits, fixtures, examples, generated artifacts, and release assets as public.
+  Never commit personal names, usernames, emails, hostnames, home or absolute local paths, private
+  URLs, secrets, keys, tokens, or identifiers of unrelated workspaces.
+- Use neutral placeholders (`USER`, `WORKSPACE`, `example.invalid`) and test-created temporary
+  directories. Never use a real secret in a test, even briefly.
+- Minimize and sanitize any environment dump, history, database content, local profile, log, or tool
+  output before tracking it. Keep local state, SQLite, cursors, coverage, build output, and logs
+  ignored; never weaken `.gitignore` to publish them.
+- Before a public push or release, scan the full tracked tree and Git history for secrets, personal
+  paths, usernames, unrelated project names, and local artifacts; stop on unreviewed findings.
 
 ## Implementation
 
-- When work is complete, update README/usage and `Unreleased` notes as needed, verify, commit, and
-  push. If the MCP executable changed, rebuild it and replace the installed executable resolved
-  from the ignored local profile or `PATH`; never record the host-specific destination in tracked
-  files. On Windows, rename an in-use installed executable to
-  `old_repoplane_<timestamp>.exe` before copying the replacement, and leave that backup in place
-  until no process is using it. Then report the completion time and elapsed time; for goal-tracked
-  work, also report the goal's aggregate token usage.
-- When a feature or roadmap slice changes status, perform a bounded documentation-consistency pass
-  across README, `Unreleased`, the active roadmap, the documentation index, and any frozen plan
-  that still names the feature as next, deferred, or incomplete. Preserve historical plans by
-  labeling their old status and linking to the active roadmap instead of silently rewriting
-  history. Configuration flags and opt-in tools must include a copyable host configuration example.
-- Go services depend on domain interfaces in `internal/store`, not directly on SQL or a concrete
-  database adapter.
-- Keep MCP stdout free of diagnostics; write diagnostics only to stderr.
-- Preserve bounded reads, explicit partial states, and exact/lower-bound/unknown distinctions.
-- Update public schemas, tests, and the relevant specification in the same change when an external
-  contract changes.
-- Keep Runner and cache reuse out of scope until their roadmap prerequisites and specifications
+- Finish work by updating README/usage and `Unreleased` as needed, verifying, committing, and
+  pushing. Report completion and elapsed time; for goal-tracked work, report aggregate token usage.
+- If the MCP executable changed, rebuild and replace the installed copy found via the ignored
+  local profile or `PATH`; never track its host-specific destination. On Windows, rename an in-use
+  copy to `old_repoplane_<timestamp>.exe` before replacement and retain it while in use.
+- After a feature or roadmap status change, check README, `Unreleased`, the active roadmap, the
+  documentation index, and frozen plans. Mark old plan status and link to the active roadmap;
+  include a copyable host configuration example for flags and opt-in tools.
+- Go services use domain interfaces in `internal/store`, not SQL or concrete database adapters.
+  Keep MCP diagnostics on stderr, never stdout. Preserve bounded reads, explicit partial states,
+  and exact/lower-bound/unknown distinctions.
+- Change public schemas, tests, and the relevant specification together for external contract
+  changes. Keep Runner and cache reuse out of scope until their roadmap prerequisites and specs
   are complete.
-- At task start or when prior decisions and failures may matter, search current durable records
-  with a few task-derived terms and a small `item_limit`/`byte_limit`; fetch full payloads only for
-  relevant IDs. Use exact `payload_fields` when the default compact search view is insufficient and
-  `response_view=receipt` for writes; retain validity and evidence needed for decisions.
-- When RepoPlane MCP is available, use it first for repository discovery, registered
-  verification/release execution, and durable task recovery. Use direct shell tools only when no
-  matching capability exists or RepoPlane MCP reports `unsupported`/`partial`, and state the
-  fallback reason. If its tools are deferred, find `mcp__repoplane__` in `ALL_TOOLS` before treating
-  RepoPlane as unavailable.
+- At task start or when past decisions matter, search durable records with task terms and small
+  limits; fetch only relevant IDs. Request exact `payload_fields` when needed, use
+  `response_view=receipt` for writes, and retain validity and decision evidence.
+- Use RepoPlane MCP first for discovery, registered verification/release, and task recovery. Use
+  shell only if no matching tool exists or MCP reports `unsupported`/`partial`, and state why.
+  Discover deferred tools by matching `mcp__repoplane__` in `ALL_TOOLS`.
 
 - For MCP agent UX, fix what agents see through tools; never treat README or usage edits as the
   solution on the assumption that agents read them.
 
 ## Verification discipline
 
-- After editing a package, compile and test that affected package before starting the repository
-  suite. Run the full verification workflow only after the focused checks are stable and rerun it
-  once after the final code or schema change.
-- Never start a second copy of a hanging or failed test command. First confirm the original tool
-  session and its child process tree have exited; if they have not, diagnose or stop that verified
-  tree before retrying.
-- Do not rerun an unchanged failing command. Classify the failure as product code, test fixture,
-  host/toolchain, or safety-policy related, make a relevant change or choose the documented
+- Compile and test an edited package before the repository suite. Run full verification after
+  focused checks stabilize, then once more after the final code or schema change.
+- Before retrying a hung or failed test, confirm its session and child tree have exited; diagnose
+  or stop the verified tree if still running. Never rerun an unchanged failure: classify it as
+  product code, fixture, host/toolchain, or safety policy; change something relevant or use a
   supported environment, then run one focused check.
-- Before optional race, sanitizer, cross-runtime, or platform-specific modes, reuse the current
-  support result for the same OS, architecture, and toolchain fingerprint. Probe only when no
-  current evidence exists or that fingerprint changed; do not repeat the probe merely because a
-  session restarted. A mode assigned to CI must not be improvised on an unsupported local host as
-  a release gate; record the limitation and rely on the declared CI job.
-- Keep a bounded count of failed verification invocations during a goal and report the count and
-  classifications when any occurred. Do not present one command's repeated package errors as
-  independent failures.
+- Reuse optional race, sanitizer, cross-runtime, or platform support evidence for the same OS,
+  architecture, and toolchain. Probe only when absent or changed; leave CI-assigned modes to CI
+  on unsupported local hosts and record that limitation.
+- Count failed verification invocations during a goal and report their classifications. Repeated
+  package errors within one command count as one failed invocation.
