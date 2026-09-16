@@ -4,6 +4,8 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+## [1.1.2] - 2026-09-16
+
 ### Fixed
 
 - Catalog refresh now reactivates a previously stored deterministic generation when workspace
