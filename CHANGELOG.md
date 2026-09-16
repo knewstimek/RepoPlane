@@ -8,6 +8,8 @@ Notable changes to RepoPlane are documented here.
 
 - Shortened the first-visit README and moved detailed setup, tool examples, and operations into
   linked guides without changing MCP behavior.
+- Replaced the per-file documentation inventory with a short public guide; release notes and ADRs
+  are linked by directory so new versions do not require index edits.
 
 ## [1.1.4] - 2026-09-16
 
