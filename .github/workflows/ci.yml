@@ -35,7 +35,7 @@ jobs:
           New-Item -ItemType Directory -Path $destination | Out-Null
           Invoke-WebRequest "$base/$asset" -OutFile "$destination/$asset" -MaximumRetryCount 3 -RetryIntervalSec 5
           Invoke-WebRequest "$base/$asset.sha256" -OutFile "$destination/$asset.sha256" -MaximumRetryCount 3 -RetryIntervalSec 5
-          $expected = ((Get-Content "$destination/$asset.sha256" -Raw).Trim() -split '\s+')[0].ToLowerInvariant()
+          $expected = [regex]::Match((Get-Content "$destination/$asset.sha256" -Raw), '(?i)\b[0-9a-f]{64}\b').Value.ToLowerInvariant()
           $actual = (Get-FileHash "$destination/$asset" -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($actual -ne $expected) {
             throw "ripgrep checksum mismatch"
