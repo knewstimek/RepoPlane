@@ -4,6 +4,11 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+### Changed
+
+- Shortened the first-visit README and moved detailed setup, tool examples, and operations into
+  linked guides without changing MCP behavior.
+
 ## [1.1.4] - 2026-09-16
 
 ### Added
