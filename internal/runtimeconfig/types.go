@@ -34,9 +34,9 @@ var (
 )
 
 type Request struct {
-	Action string   `json:"action"`
-	Target string   `json:"target,omitempty"`
-	Values []string `json:"values,omitempty"`
+	Action string   `json:"action" jsonschema:"status (read-only); add, remove, replace, refresh for source targets; select for workspace/state_dir; start or stop for http_transport"`
+	Target string   `json:"target,omitempty" jsonschema:"catalog_root, candidate_root, rule_file, symbol_index, workspace, state_dir, or http_transport; omit for status"`
+	Values []string `json:"values,omitempty" jsonschema:"one value for add/remove/select/start; array for replace; omit for status/refresh/stop"`
 }
 
 type Snapshot map[string][]string

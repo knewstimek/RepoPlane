@@ -282,6 +282,9 @@ func TestPrepareExecuteInspectAndCapture(t *testing.T) {
 	if !prepared.Plan.Ready || prepared.Status != "ok" || len(prepared.Warnings) != 1 {
 		t.Fatalf("unexpected prepare response: %+v", prepared)
 	}
+	if prepared.Plan.InputCount != 1 || len(prepared.Plan.InputHashes) != 0 {
+		t.Fatalf("prepare must summarize retained input hashes: %+v", prepared.Plan)
+	}
 	executed, err := service.Execute(context.Background(), ExecuteRequest{PlanID: prepared.Plan.ID})
 	if err != nil || executed.State != "running" {
 		t.Fatalf("execute=%+v err=%v", executed, err)
@@ -289,6 +292,17 @@ func TestPrepareExecuteInspectAndCapture(t *testing.T) {
 	result := awaitTerminal(t, service, executed.RunID)
 	if result.Run["state"] != "completed" {
 		t.Fatalf("run did not complete: %+v", result.Run)
+	}
+	if _, ok := result.Run["input_hashes"]; ok {
+		t.Fatal("status repeated the full run receipt")
+	}
+	detail, err := service.Inspect(context.Background(), InspectRequest{RunID: executed.RunID, Action: "detail", ByteLimit: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hashes, ok := detail.Run["input_hashes"].(map[string]any)
+	if !ok || len(hashes) != 1 {
+		t.Fatalf("detail did not retain full input evidence: %+v err=%v", detail.Run, err)
 	}
 	stream, err := service.Inspect(context.Background(), InspectRequest{RunID: executed.RunID, Action: "stdout"})
 	if err != nil {

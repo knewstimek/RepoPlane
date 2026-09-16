@@ -70,6 +70,7 @@ type Options struct {
 	}
 	Authorize      func(context.Context, string) error
 	AuditOperation func(context.Context, string, string) error
+	ObserveUsage   func(context.Context, store.UsageEvent)
 }
 
 func New(version string, provided ...Options) *mcp.Server {

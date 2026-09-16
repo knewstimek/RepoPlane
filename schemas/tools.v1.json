@@ -687,7 +687,7 @@
             ]
           },
           "response_view": {
-            "description": "full | receipt",
+            "description": "full or receipt; default full; receipt omits payload",
             "type": "string"
           },
           "risks": {
@@ -845,6 +845,7 @@
             ]
           },
           "byte_limit": {
+            "description": "max response bytes; default 65536, max 1048576",
             "minimum": 0,
             "type": "integer"
           },
@@ -912,6 +913,7 @@
             ]
           },
           "item_limit": {
+            "description": "max returned items; default 50, max 500",
             "minimum": 0,
             "type": "integer"
           },
@@ -952,6 +954,7 @@
             "type": "string"
           },
           "time_limit_ms": {
+            "description": "deadline ms; default 5000, max 30000",
             "type": "integer"
           }
         },
@@ -1170,6 +1173,7 @@
           },
           "host": {
             "additionalProperties": false,
+            "description": "typed host details for host_fact memos",
             "properties": {
               "alias": {
                 "type": "string"
@@ -1236,7 +1240,7 @@
             "type": "string"
           },
           "response_view": {
-            "description": "full | receipt",
+            "description": "full or receipt; default full; receipt omits payload",
             "type": "string"
           },
           "scope": {
@@ -1883,7 +1887,7 @@
             ]
           },
           "query": {
-            "description": "lexical text; required for search",
+            "description": "space-separated lexical terms; any term may match; required for search",
             "type": "string"
           },
           "source": {
@@ -2161,12 +2165,12 @@
     },
     {
       "name": "run_inspect",
-      "description": "Inspect/cancel a run or page retained streams and artifacts; requests session execution approval when needed.",
+      "description": "Summarize a run, page raw unredacted streams or artifacts, or cancel; detail returns the full receipt.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
           "action": {
-            "description": "status, stdout, stderr, artifact, or cancel; default status",
+            "description": "status, detail, stdout, stderr, artifact, or cancel; default status",
             "type": "string"
           },
           "artifact_ref": {
@@ -2288,7 +2292,7 @@
     },
     {
       "name": "run_prepare",
-      "description": "Validate a capability and create a durable environment-bound plan; requests session execution approval when needed.",
+      "description": "Prepare a registered run; return a concise plan. Use run_inspect detail for the full receipt.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -2441,6 +2445,9 @@
               "id": {
                 "type": "string"
               },
+              "input_count": {
+                "type": "integer"
+              },
               "input_hashes": {
                 "additionalProperties": {
                   "type": "string"
@@ -2478,7 +2485,7 @@
               "argv",
               "cwd",
               "executable_identity",
-              "input_hashes",
+              "input_count",
               "output_paths",
               "preflight_record_ref",
               "ready",
@@ -2609,12 +2616,15 @@
         "additionalProperties": false,
         "properties": {
           "action": {
+            "description": "status (read-only); add, remove, replace, refresh for source targets; select for workspace/state_dir; start or stop for http_transport",
             "type": "string"
           },
           "target": {
+            "description": "catalog_root, candidate_root, rule_file, symbol_index, workspace, state_dir, or http_transport; omit for status",
             "type": "string"
           },
           "values": {
+            "description": "one value for add/remove/select/start; array for replace; omit for status/refresh/stop",
             "items": {
               "type": "string"
             },

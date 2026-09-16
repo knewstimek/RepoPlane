@@ -29,6 +29,9 @@ func main() {
 
 func run() error {
 	args := os.Args[1:]
+	if len(args) > 0 && args[0] == "usage" {
+		return runUsage(args[1:])
+	}
 	if len(args) >= 2 && args[0] == "memory" && (args[1] == "export" || args[1] == "restore") {
 		return runMemory(args[1], args[2:])
 	}
@@ -48,6 +51,51 @@ func run() error {
 	}
 	defer app.Close()
 	return app.Run(ctx)
+}
+
+func runUsage(args []string) error {
+	var since, until string
+	remaining := make([]string, 0, len(args))
+	for index := 0; index < len(args); index++ {
+		argument := args[index]
+		switch {
+		case argument == "--since" || argument == "--until":
+			if index+1 >= len(args) {
+				return fmt.Errorf("%s requires YYYY-MM-DD", argument)
+			}
+			index++
+			if argument == "--since" {
+				since = args[index]
+			} else {
+				until = args[index]
+			}
+		case strings.HasPrefix(argument, "--since="):
+			since = strings.TrimPrefix(argument, "--since=")
+		case strings.HasPrefix(argument, "--until="):
+			until = strings.TrimPrefix(argument, "--until=")
+		default:
+			remaining = append(remaining, argument)
+		}
+	}
+	settings, err := config.Parse(remaining, os.Stderr)
+	if errors.Is(err, flag.ErrHelp) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	app, err := application.Open(ctx, settings, version)
+	if err != nil {
+		return err
+	}
+	defer app.Close()
+	report, err := app.Usage(ctx, since, until)
+	if err != nil {
+		return err
+	}
+	return json.NewEncoder(os.Stdout).Encode(report)
 }
 
 func runMemory(action string, args []string) error {

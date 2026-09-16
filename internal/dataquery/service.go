@@ -65,9 +65,9 @@ type Request struct {
 	Pattern         string   `json:"pattern,omitempty" jsonschema:"exact text or RE2 pattern for log mode"`
 	CaseSensitive   bool     `json:"case_sensitive,omitempty" jsonschema:"case-sensitive log matching"`
 	Cursor          string   `json:"cursor,omitempty" jsonschema:"opaque cursor returned by an earlier data_query"`
-	ItemLimit       uint64   `json:"item_limit,omitempty"`
-	ByteLimit       uint64   `json:"byte_limit,omitempty"`
-	TimeLimitMS     int64    `json:"time_limit_ms,omitempty"`
+	ItemLimit       uint64   `json:"item_limit,omitempty" jsonschema:"max returned items; default 50, max 500"`
+	ByteLimit       uint64   `json:"byte_limit,omitempty" jsonschema:"max response bytes; default 65536, max 1048576"`
+	TimeLimitMS     int64    `json:"time_limit_ms,omitempty" jsonschema:"deadline ms; default 5000, max 30000"`
 }
 
 type Result struct {

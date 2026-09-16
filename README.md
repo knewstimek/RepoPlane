@@ -53,6 +53,7 @@ deployments retain host opt-in plus bearer/OAuth scopes and do not use local run
 - Optimistic concurrency for checkpoint and memo updates
 - Capability-scoped environment preflight with secret values withheld
 - Durable run receipts and bounded stdout, stderr, and captured-artifact inspection
+- Concise run status with explicit full receipt inspection, plus local observed usage counts
 - Portable runtime memory export and identity-rebinding restore across machine/path resets
 - Prepare/execute revalidation that ignores unrelated worktree changes
 - HMAC-keyed, qualification-gated cache reuse with observe, bypass, conflict, corruption, and
@@ -518,19 +519,36 @@ commit it. See the [portable memory backup specification](docs/Memory-Backup-Spe
 
 ## Architecture
 
+Run status returns a compact summary and `run_id`; use `run_inspect` with `action=detail` only
+when the full durable receipt is needed. Captured stdout, stderr, and artifacts are read by offset
+and byte limit. Raw captured output may contain information emitted by the executed capability.
+
+Observed MCP usage is available as bounded JSON from the local CLI:
+
+```powershell
+repoplane usage --workspace WORKSPACE --state-dir STATE_DIRECTORY --since 2026-09-01 --until 2026-09-16 > usage-report.json
+```
+
+The same workspace and state directory used by the server select its aggregate data. The report
+counts observed operation calls, serialized request/result bytes, durations, errors, approvals,
+and reused runs. It does not estimate tokens or future savings. See the
+[usage statistics specification](docs/Usage-Stats-Spec.md).
+
+## Storage and schemas
+
 Feature services depend on domain repositories in `internal/store`, not SQL. SQLite is the first
 adapter, implemented in `internal/store/sqlite` with versioned migrations. Regenerable query state
 and durable records use separate database files and domain interfaces.
 
 Public JSON Schemas are committed under [`schemas/`](schemas/). Run
 `go generate ./internal/mcpserver` after changing a tool contract; tests reject schema drift.
-The compact MCP schema set has a regression budget (34 KiB overall and 5,500 bytes for the three
+The compact MCP schema set has a regression budget (35 KiB overall and 5,500 bytes for the three
 Runner tools). Its wording is deduplicated without dropping response fields, limits, defaults, or
 state semantics; cross-tool references are avoided because each MCP tool schema must stand alone.
 The generated [`tool-footprint.v1.json`](schemas/tool-footprint.v1.json) separates complete-contract
 bytes from a name/description/input-only comparison. These are deterministic serialized byte
 counts—not observed model tokens or proof of what a particular MCP client exposes. The default 14
-typed tools total 14,202 name/description/input bytes; the five fixed opt-in toolboxes total 4,387
+typed tools total 14,903 name/description/input bytes; the five fixed opt-in toolboxes total 4,387
 bytes. Both surfaces keep stable discovery. Lazy operation contracts are application-level MCP
 calls, not a claim of client-native deferred loading. See the
 [`context-efficiency specification`](docs/Context-Efficiency-Spec.md).

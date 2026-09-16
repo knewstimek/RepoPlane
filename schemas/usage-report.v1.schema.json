@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RepoPlane usage-report.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "since", "until", "retention_days", "measurement", "totals", "rows"],
+  "properties": {
+    "schema_version": {"const": "usage-report.v1"},
+    "since": {"type": "string", "format": "date"},
+    "until": {"type": "string", "format": "date"},
+    "first_observed_day": {"type": "string", "format": "date"},
+    "retention_days": {"const": 365},
+    "measurement": {"type": "string"},
+    "totals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["calls", "errors", "approvals", "reused_runs", "request_bytes", "response_bytes", "duration_ms"],
+      "properties": {
+        "calls": {"type": "integer", "minimum": 0},
+        "errors": {"type": "integer", "minimum": 0},
+        "approvals": {"type": "integer", "minimum": 0},
+        "reused_runs": {"type": "integer", "minimum": 0},
+        "request_bytes": {"type": "integer", "minimum": 0},
+        "response_bytes": {"type": "integer", "minimum": 0},
+        "duration_ms": {"type": "integer", "minimum": 0}
+      }
+    },
+    "rows": {
+      "type": "array",
+      "maxItems": 112,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["transport", "tool", "outcome", "calls", "request_bytes", "response_bytes", "duration_ms"],
+        "properties": {
+          "transport": {"type": "string"},
+          "tool": {"type": "string"},
+          "outcome": {"enum": ["ok", "error", "approval", "reused"]},
+          "calls": {"type": "integer", "minimum": 0},
+          "request_bytes": {"type": "integer", "minimum": 0},
+          "response_bytes": {"type": "integer", "minimum": 0},
+          "duration_ms": {"type": "integer", "minimum": 0}
+        }
+      }
+    }
+  }
+}

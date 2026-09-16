@@ -27,6 +27,7 @@ import (
 	"repoplane/internal/search"
 	"repoplane/internal/store"
 	storesqlite "repoplane/internal/store/sqlite"
+	"repoplane/internal/usage"
 	"repoplane/internal/workspace"
 )
 
@@ -107,9 +108,16 @@ func buildBundle(ctx context.Context, settings config.Settings, cacheEnabled fun
 		_ = repository.Close()
 		return nil, err
 	}
+	usageRepository, err := storesqlite.OpenUsage(ctx, filepath.Join(settings.StateDir, "usage.db"))
+	if err != nil {
+		_ = repository.Close()
+		_ = recordRepository.Close()
+		return nil, err
+	}
 	fail := func(err error) (*serviceBundle, error) {
 		_ = repository.Close()
 		_ = recordRepository.Close()
+		_ = usageRepository.Close()
 		return nil, err
 	}
 	now := time.Now().UTC()
@@ -154,7 +162,7 @@ func buildBundle(ctx context.Context, settings config.Settings, cacheEnabled fun
 		return fail(err)
 	}
 	memoryService := memorybackup.New(root, recordRepository, runnerService, settings.StateDir)
-	return &serviceBundle{root: root, repository: repository, recordRepository: recordRepository, catalog: service,
+	return &serviceBundle{root: root, repository: repository, recordRepository: recordRepository, usageRepository: usageRepository, catalog: service,
 		search: searchService, pathFacts: pathService, dataQuery: dataService, records: recordService,
 		runner: runnerService, memoryBackup: memoryService}, nil
 }
@@ -211,8 +219,23 @@ func (a *Application) MCPOptions() mcpserver.Options {
 		Catalog: a.router, Search: searchRoute{a.router}, PathFacts: a.router, DataQuery: dataRoute{a.router},
 		Records: recordsRoute{a.router}, CheckpointWriter: a.router, MemoWriter: a.router, ReportImporter: a.router,
 		Runner: a.router, RuntimeAccess: a.runtimeAccess, RuntimeConfig: a, MemoryBackup: a.router,
+		ObserveUsage: a.usageObserver(a.settings.Transport),
 	}
 	return options
+}
+
+func (a *Application) usageObserver(transport string) func(context.Context, store.UsageEvent) {
+	if transport == "" {
+		transport = "stdio"
+	}
+	return func(_ context.Context, event store.UsageEvent) {
+		event.Transport = transport
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if err := a.router.RecordUsage(ctx, event); err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, "repoplane: usage observation failed:", err)
+		}
+	}
 }
 
 func (a *Application) ExportMemory(ctx context.Context, request memorybackup.Request) (memorybackup.Response, error) {
@@ -221,6 +244,10 @@ func (a *Application) ExportMemory(ctx context.Context, request memorybackup.Req
 
 func (a *Application) RestoreMemory(ctx context.Context, archive string, byteLimit uint64) (memorybackup.Response, error) {
 	return a.router.Restore(ctx, archive, byteLimit)
+}
+
+func (a *Application) Usage(ctx context.Context, since, until string) (usage.Report, error) {
+	return usage.Query(ctx, a.router, since, until, time.Now())
 }
 
 func (a *Application) Close() error {

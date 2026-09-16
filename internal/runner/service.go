@@ -256,6 +256,7 @@ func (s *Service) Prepare(ctx context.Context, request PrepareRequest) (PrepareR
 		return PrepareResponse{}, err
 	}
 	plan := planResult(runRecord.ID, payload)
+	plan.InputHashes = nil
 	status := contracts.StatusOK
 	if !ready {
 		status = contracts.StatusPartial
@@ -268,6 +269,7 @@ func planResult(id string, payload runPayload) PlanResult {
 		ID: id, CapabilityID: payload.CapabilityID, CapabilityRevision: payload.CapabilityRevision,
 		Configuration: payload.Configuration, Argv: append([]string(nil), payload.Argv...), CWD: payload.CWD,
 		ExecutableIdentity: payload.ExecutableIdentity, InputHashes: payload.InputHashes,
+		InputCount:  len(payload.InputHashes),
 		OutputPaths: append([]string(nil), payload.OutputPaths...), PreflightRecordRef: payload.PreflightRecordRef,
 		Ready: payload.Ready, TimeoutSec: payload.TimeoutSec, PreparedAt: payload.PreparedAt,
 		ExecutionFingerprint: payload.ExecutionFingerprint,

@@ -46,7 +46,7 @@ var (
 
 type QueryRequest struct {
 	Mode          string   `json:"mode,omitempty" jsonschema:"record operation: search, list, or get; omit when using cursor"`
-	Query         string   `json:"query,omitempty" jsonschema:"lexical text; required for search"`
+	Query         string   `json:"query,omitempty" jsonschema:"space-separated lexical terms; any term may match; required for search"`
 	ID            string   `json:"id,omitempty" jsonschema:"opaque record ID; required for get"`
 	Kind          string   `json:"kind,omitempty" jsonschema:"record kind filter: verification, checkpoint, memo, environment, run, or artifact"`
 	Validity      string   `json:"validity,omitempty" jsonschema:"validity filter: current, stale, unknown, or superseded"`
@@ -89,7 +89,7 @@ type CheckpointRequest struct {
 	NextAction       string   `json:"next_action,omitempty" jsonschema:"next intended action"`
 	Risks            []string `json:"risks,omitempty" jsonschema:"unverified risks"`
 	EvidenceRefs     []string `json:"evidence_refs,omitempty" jsonschema:"evidence refs"`
-	ResponseView     string   `json:"response_view,omitempty" jsonschema:"full | receipt"`
+	ResponseView     string   `json:"response_view,omitempty" jsonschema:"full or receipt; default full; receipt omits payload"`
 }
 
 type MemoRequest struct {
@@ -101,11 +101,11 @@ type MemoRequest struct {
 	Configuration         string    `json:"configuration,omitempty" jsonschema:"configuration"`
 	TopicKey              string    `json:"topic_key,omitempty" jsonschema:"stable topic key"`
 	Content               string    `json:"content,omitempty" jsonschema:"memo text"`
-	Host                  *HostFact `json:"host,omitempty"`
+	Host                  *HostFact `json:"host,omitempty" jsonschema:"typed host details for host_fact memos"`
 	InvalidationCondition string    `json:"invalidation_condition,omitempty" jsonschema:"staleness condition"`
 	Source                string    `json:"source,omitempty" jsonschema:"user_asserted | llm_proposed"`
 	EvidenceRefs          []string  `json:"evidence_refs,omitempty" jsonschema:"evidence refs"`
-	ResponseView          string    `json:"response_view,omitempty" jsonschema:"full | receipt"`
+	ResponseView          string    `json:"response_view,omitempty" jsonschema:"full or receipt; default full; receipt omits payload"`
 }
 
 type HostFact struct {

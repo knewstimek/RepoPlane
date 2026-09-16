@@ -247,14 +247,27 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (InspectR
 	if err != nil {
 		return InspectResponse{}, err
 	}
-	encoded, _ := json.Marshal(payload)
+	var view any = payload
+	if request.Action != "detail" {
+		view = map[string]any{
+			"run_id": request.RunID, "state": payload.State, "capability_id": payload.CapabilityID,
+			"ready": payload.Ready, "started_at": payload.StartedAt, "finished_at": payload.FinishedAt,
+			"exit_code": payload.ExitCode, "termination_reason": payload.TerminationReason,
+			"stdout_bytes": payload.StdoutBytes, "stderr_bytes": payload.StderrBytes,
+			"stdout_truncated": payload.StdoutTruncated, "stderr_truncated": payload.StderrTruncated,
+			"streams_retained": payload.StreamsRetained, "observation_partial": payload.ObservationPartial,
+			"artifact_refs": payload.ArtifactRefs,
+			"cache":         map[string]any{"status": payload.Cache.Status, "reason": payload.Cache.Reason},
+		}
+	}
+	encoded, _ := json.Marshal(view)
 	var run map[string]any
 	decoder := json.NewDecoder(strings.NewReader(string(encoded)))
 	decoder.UseNumber()
 	_ = decoder.Decode(&run)
 	response := InspectResponse{Status: contracts.StatusOK, Run: run, Warnings: contracts.EmptyWarnings()}
 	switch request.Action {
-	case "status", "cancel":
+	case "status", "detail", "cancel":
 		return response, nil
 	case "stdout", "stderr":
 		if !payload.StreamsRetained {

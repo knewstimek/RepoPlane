@@ -4,6 +4,17 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+### Added
+
+- Local `repoplane usage` report for observed MCP calls, serialized request/result bytes, duration,
+  errors, approvals, and reused runs. It stores daily aggregates without payloads or savings estimates.
+
+### Changed
+
+- `run_prepare` returns an input count instead of repeated input hashes; `run_inspect` returns a
+  concise run summary by default and exposes the full durable receipt with `action=detail`.
+- Clarified runtime configuration, record search/write, and data-query limit tool descriptions.
+
 ## [1.1.3] - 2026-09-16
 
 ### Changed

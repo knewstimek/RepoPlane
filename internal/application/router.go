@@ -20,6 +20,7 @@ type serviceBundle struct {
 	root             *workspace.Root
 	repository       store.Repository
 	recordRepository store.RecordRepository
+	usageRepository  store.UsageRepository
 	catalog          *catalog.Service
 	search           *search.Service
 	pathFacts        *pathfacts.Service
@@ -30,7 +31,7 @@ type serviceBundle struct {
 }
 
 func (b *serviceBundle) close() error {
-	return errors.Join(b.runner.Close(), b.repository.Close(), b.recordRepository.Close())
+	return errors.Join(b.runner.Close(), b.repository.Close(), b.recordRepository.Close(), b.usageRepository.Close())
 }
 
 type serviceRouter struct {
@@ -110,6 +111,19 @@ func (r *serviceRouter) Restore(ctx context.Context, archive string, byteLimit u
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.current.memoryBackup.Restore(ctx, archive, byteLimit)
+}
+
+func (r *serviceRouter) RecordUsage(ctx context.Context, event store.UsageEvent) error {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	event.WorkspaceID = r.current.root.ID()
+	return r.current.usageRepository.RecordUsage(ctx, event)
+}
+
+func (r *serviceRouter) QueryUsage(ctx context.Context, since, until string) ([]store.UsageAggregate, string, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.current.usageRepository.QueryUsage(ctx, r.current.root.ID(), since, until)
 }
 
 // Adapter methods avoid ambiguous Query method names while satisfying the

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -24,6 +25,7 @@ import (
 	"repoplane/internal/runtimeaccess"
 	"repoplane/internal/runtimeconfig"
 	"repoplane/internal/search"
+	"repoplane/internal/store"
 	"repoplane/internal/workspace"
 )
 
@@ -52,6 +54,7 @@ type operationSpec struct {
 	outputSchema any
 	register     func(*mcp.Server)
 	invoke       func(context.Context, *mcp.CallToolRequest, json.RawMessage) (*mcp.CallToolResult, any, error)
+	setObserver  func(func(context.Context, store.UsageEvent))
 }
 
 type toolboxRequest struct {
@@ -93,18 +96,44 @@ func newOperation[In, Out any](name, toolbox, description, scope, sideEffect, ap
 		panic(fmt.Sprintf("operation %s output schema: %v", name, err))
 	}
 	tool := &mcp.Tool{Name: name, Description: description, Annotations: annotations}
+	var observe func(context.Context, store.UsageEvent)
+	observed := func(ctx context.Context, request *mcp.CallToolRequest, input In) (*mcp.CallToolResult, Out, error) {
+		if observe == nil {
+			return handler(ctx, request, input)
+		}
+		started := time.Now()
+		result, output, err := handler(ctx, request, input)
+		duration := time.Since(started)
+		inputJSON, _ := json.Marshal(input)
+		outputJSON, _ := json.Marshal(output)
+		outcome := "ok"
+		if err != nil {
+			outcome = "error"
+			outputJSON = nil
+		} else if result != nil {
+			outcome = "approval"
+			outputJSON, _ = json.Marshal(result)
+		} else if execution, ok := any(output).(runner.ExecuteResponse); ok && execution.State == "reused" {
+			outcome = "reused"
+		}
+		observe(ctx, store.UsageEvent{At: time.Now().UTC(), Tool: name, Outcome: outcome,
+			RequestBytes: uint64(len(inputJSON)), ResponseBytes: uint64(len(outputJSON)),
+			DurationNS: uint64(duration.Nanoseconds())})
+		return result, output, err
+	}
 	return operationSpec{
 		name: name, toolbox: toolbox, description: description, scope: scope,
 		sideEffect: sideEffect, approval: approval, inputSchema: inputSchema, outputSchema: outputSchema,
-		register: func(server *mcp.Server) { mcp.AddTool(server, tool, handler) },
+		register: func(server *mcp.Server) { mcp.AddTool(server, tool, observed) },
 		invoke: func(ctx context.Context, request *mcp.CallToolRequest, raw json.RawMessage) (*mcp.CallToolResult, any, error) {
 			input, err := decodeStrict[In](raw)
 			if err != nil {
 				return nil, nil, publicError(err)
 			}
-			result, output, err := handler(ctx, request, input)
+			result, output, err := observed(ctx, request, input)
 			return result, output, err
 		},
+		setObserver: func(callback func(context.Context, store.UsageEvent)) { observe = callback },
 	}
 }
 
@@ -285,7 +314,7 @@ func operationRegistry(options Options) []operationSpec {
 	if options.Runner != nil {
 		nonDestructive, destructive := false, true
 		operations = append(operations,
-			newOperation(ToolRunPrepare, ToolboxRunner, "Validate a capability and create a durable environment-bound plan; requests session execution approval when needed.", ScopeRunnerExecute, "plan_write", "conditional", &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &nonDestructive, IdempotentHint: false},
+			newOperation(ToolRunPrepare, ToolboxRunner, "Prepare a registered run; return a concise plan. Use run_inspect detail for the full receipt.", ScopeRunnerExecute, "plan_write", "conditional", &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &nonDestructive, IdempotentHint: false},
 				func(ctx context.Context, request *mcp.CallToolRequest, input runner.PrepareRequest) (*mcp.CallToolResult, runner.PrepareResponse, error) {
 					if err := authorize(ctx, options, ToolRunPrepare); err != nil {
 						return nil, runner.PrepareResponse{}, publicError(err)
@@ -307,7 +336,7 @@ func operationRegistry(options Options) []operationSpec {
 					output, err := options.Runner.Execute(ctx, input)
 					return nil, output, publicError(err)
 				}),
-			newOperation(ToolRunInspect, ToolboxRunner, "Inspect/cancel a run or page retained streams and artifacts; requests session execution approval when needed.", ScopeRunnerExecute, "inspect_or_cancel", "conditional", &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false},
+			newOperation(ToolRunInspect, ToolboxRunner, "Summarize a run, page raw unredacted streams or artifacts, or cancel; detail returns the full receipt.", ScopeRunnerExecute, "inspect_or_cancel", "conditional", &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false},
 				func(ctx context.Context, request *mcp.CallToolRequest, input runner.InspectRequest) (*mcp.CallToolResult, runner.InspectResponse, error) {
 					if err := authorize(ctx, options, ToolRunInspect); err != nil {
 						return nil, runner.InspectResponse{}, publicError(err)
@@ -397,6 +426,9 @@ func operationRegistry(options Options) []operationSpec {
 				output, err := options.RuntimeAccess.CompleteConfig(ctx, request.Params.RequestState, accepted, options.RuntimeConfig)
 				return nil, output, publicError(err)
 			}))
+	}
+	for i := range operations {
+		operations[i].setObserver(options.ObserveUsage)
 	}
 	return operations
 }

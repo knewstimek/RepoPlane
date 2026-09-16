@@ -7,42 +7,42 @@
     {
       "name": "read",
       "tool_count": 6,
-      "complete_contract_bytes": 20945,
-      "name_description_input_bytes": 7803,
-      "input_schema_bytes": 6826,
+      "complete_contract_bytes": 21154,
+      "name_description_input_bytes": 8012,
+      "input_schema_bytes": 7035,
       "output_schema_bytes": 13040
     },
     {
       "name": "writes",
       "tool_count": 3,
-      "complete_contract_bytes": 6791,
-      "name_description_input_bytes": 3467,
-      "input_schema_bytes": 3145,
+      "complete_contract_bytes": 6922,
+      "name_description_input_bytes": 3598,
+      "input_schema_bytes": 3276,
       "output_schema_bytes": 3273
     },
     {
       "name": "runner",
       "tool_count": 3,
-      "complete_contract_bytes": 5345,
-      "name_description_input_bytes": 2076,
-      "input_schema_bytes": 1582,
-      "output_schema_bytes": 3218
+      "complete_contract_bytes": 5356,
+      "name_description_input_bytes": 2055,
+      "input_schema_bytes": 1590,
+      "output_schema_bytes": 3250
     },
     {
       "name": "state",
       "tool_count": 2,
-      "complete_contract_bytes": 1658,
-      "name_description_input_bytes": 856,
-      "input_schema_bytes": 522,
+      "complete_contract_bytes": 2040,
+      "name_description_input_bytes": 1238,
+      "input_schema_bytes": 904,
       "output_schema_bytes": 768
     },
     {
       "name": "all",
       "tool_count": 14,
-      "complete_contract_bytes": 34739,
-      "name_description_input_bytes": 14202,
-      "input_schema_bytes": 12075,
-      "output_schema_bytes": 20299
+      "complete_contract_bytes": 35472,
+      "name_description_input_bytes": 14903,
+      "input_schema_bytes": 12805,
+      "output_schema_bytes": 20331
     },
     {
       "name": "toolbox",

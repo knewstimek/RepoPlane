@@ -86,6 +86,34 @@ type AuditEvent struct {
 	CompletedAt   time.Time
 }
 
+// UsageRepository stores aggregate tool-call measurements, never arguments or results.
+type UsageRepository interface {
+	RecordUsage(context.Context, UsageEvent) error
+	QueryUsage(context.Context, string, string, string) ([]UsageAggregate, string, error)
+	Close() error
+}
+
+type UsageEvent struct {
+	At            time.Time
+	WorkspaceID   string
+	Transport     string
+	Tool          string
+	Outcome       string
+	RequestBytes  uint64
+	ResponseBytes uint64
+	DurationNS    uint64
+}
+
+type UsageAggregate struct {
+	Transport     string `json:"transport"`
+	Tool          string `json:"tool"`
+	Outcome       string `json:"outcome"`
+	Calls         uint64 `json:"calls"`
+	RequestBytes  uint64 `json:"request_bytes"`
+	ResponseBytes uint64 `json:"response_bytes"`
+	DurationMS    uint64 `json:"duration_ms"`
+}
+
 type RecordReader interface {
 	GetRecord(ctx context.Context, projectID, workspaceID, id string) (Record, error)
 	QueryRecords(ctx context.Context, query RecordQuery) (RecordPage, error)

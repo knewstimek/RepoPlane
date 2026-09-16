@@ -50,7 +50,8 @@ type PlanResult struct {
 	Argv                 []string          `json:"argv"`
 	CWD                  string            `json:"cwd"`
 	ExecutableIdentity   string            `json:"executable_identity"`
-	InputHashes          map[string]string `json:"input_hashes"`
+	InputHashes          map[string]string `json:"input_hashes,omitempty"`
+	InputCount           int               `json:"input_count"`
 	OutputPaths          []string          `json:"output_paths"`
 	PreflightRecordRef   string            `json:"preflight_record_ref"`
 	Ready                bool              `json:"ready"`
@@ -81,7 +82,7 @@ type ExecuteResponse struct {
 
 type InspectRequest struct {
 	RunID       string `json:"run_id" jsonschema:"prepared or started run ID"`
-	Action      string `json:"action,omitempty" jsonschema:"status, stdout, stderr, artifact, or cancel; default status"`
+	Action      string `json:"action,omitempty" jsonschema:"status, detail, stdout, stderr, artifact, or cancel; default status"`
 	ArtifactRef string `json:"artifact_ref,omitempty" jsonschema:"artifact record ref required by the artifact action"`
 	Offset      uint64 `json:"offset,omitempty" jsonschema:"zero-based stream byte offset"`
 	ByteLimit   uint64 `json:"byte_limit,omitempty" jsonschema:"stream bytes; default 65536, max 1048576"`

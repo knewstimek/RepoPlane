@@ -19,6 +19,7 @@ import (
 	"repoplane/internal/runner"
 	"repoplane/internal/runtimeaccess"
 	"repoplane/internal/search"
+	"repoplane/internal/store"
 )
 
 type catalogToolboxStub struct {
@@ -39,6 +40,36 @@ func fullRegistryOptions() Options {
 		MemoWriter: &records.Service{}, ReportImporter: &records.Service{}, Runner: &runner.Service{},
 		RuntimeAccess: runtimeaccess.New(nil, false, runtimeaccess.Initial{}), RuntimeConfig: testRuntimeConfig{},
 		MemoryBackup: &memorybackup.Service{},
+	}
+}
+
+func TestUsageObserverCountsTypedAndToolboxOperationCalls(t *testing.T) {
+	for _, surface := range []string{SurfaceTypedV1, SurfaceToolboxV1} {
+		t.Run(surface, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			stub := &catalogToolboxStub{}
+			var events []store.UsageEvent
+			session := connectTestClient(t, ctx, Options{Surface: surface, Catalog: stub,
+				ObserveUsage: func(_ context.Context, event store.UsageEvent) { events = append(events, event) }})
+			defer session.Close()
+			if surface == SurfaceTypedV1 {
+				if _, err := session.CallTool(ctx, &mcp.CallToolParams{Name: ToolCatalogQuery,
+					Arguments: map[string]any{"mode": "list"}}); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				described := callToolbox(t, ctx, session, ToolboxRead,
+					map[string]any{"action": "describe", "operation": ToolCatalogQuery})
+				callToolbox(t, ctx, session, ToolboxRead, map[string]any{"action": "call",
+					"operation": ToolCatalogQuery, "schema_handle": described.SchemaHandle,
+					"arguments": map[string]any{"mode": "list"}})
+			}
+			if stub.calls != 1 || len(events) != 1 || events[0].Tool != ToolCatalogQuery ||
+				events[0].Outcome != "ok" || events[0].RequestBytes == 0 || events[0].ResponseBytes == 0 {
+				t.Fatalf("calls=%d events=%+v", stub.calls, events)
+			}
+		})
 	}
 }
 

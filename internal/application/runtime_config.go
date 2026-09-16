@@ -58,7 +58,7 @@ func (a *Application) Apply(ctx context.Context, request runtimeconfig.Request) 
 }
 
 func (a *Application) snapshotLocked() runtimeconfig.Snapshot {
-		result := runtimeconfig.Snapshot{
+	result := runtimeconfig.Snapshot{
 		runtimeconfig.TargetWorkspace:     {a.settings.Workspace},
 		runtimeconfig.TargetStateDir:      {a.settings.StateDir},
 		runtimeconfig.TargetCatalogRoot:   append([]string(nil), a.settings.CatalogRoots...),
@@ -289,6 +289,7 @@ func (a *Application) startHTTPLocked(ctx context.Context, profilePath string) e
 	}
 	_, _ = audit.DeleteExpiredAudit(ctx, time.Now().UTC().AddDate(0, 0, -profile.Audit.RetentionDays), 256)
 	options := a.MCPOptions()
+	options.ObserveUsage = a.usageObserver("http")
 	// HTTP keeps the same stable tool contract, but cannot consume or create
 	// local stdio leases. Host startup flags remain its second authorization gate.
 	a.router.mu.RLock()
