@@ -32,6 +32,7 @@ const (
 	maximumInputFiles  = 256
 	defaultTimeoutSec  = uint64(300)
 	maximumProbeOutput = 4096
+	preflightProbeTime = 10 * time.Second
 )
 
 var (
@@ -611,7 +612,7 @@ func (s *Service) runPreflightCheckAt(ctx context.Context, declaration catalog.P
 		}
 		result.Status, result.Summary, result.Identity = "passed", filepath.Base(path), identity
 		if len(declaration.Argv) > 0 {
-			probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			probeCtx, cancel := context.WithTimeout(ctx, preflightProbeTime)
 			defer cancel()
 			command, commandErr := newProcessCommand(probeCtx, path, declaration.Argv)
 			if commandErr != nil {

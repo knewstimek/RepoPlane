@@ -25,6 +25,8 @@ Notable changes to RepoPlane are documented here.
   `TEMP`, making Go build-workspace failures distinguishable without exposing a local absolute path.
 - Windows CI installs the pinned upstream ripgrep release with its published SHA-256 checksum,
   avoiding Chocolatey feed failures and misleading zero exit statuses.
+- Runner executable-version probes allow bounded Windows cold-start overhead without making the
+  first probe fail while an identical warm probe succeeds.
 
 ## [1.1.0] - 2026-09-16
 
