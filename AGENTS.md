@@ -51,6 +51,9 @@
   fallback reason. If its tools are deferred, find `mcp__repoplane__` in `ALL_TOOLS` before treating
   RepoPlane as unavailable.
 
+- For MCP agent UX, fix what agents see through tools; never treat README or usage edits as the
+  solution on the assumption that agents read them.
+
 ## Verification discipline
 
 - After editing a package, compile and test that affected package before starting the repository
