@@ -1,6 +1,7 @@
 {
   "schema_version": "tool-footprint.v1",
   "source_schema": "schemas/tools.v1.json",
+  "toolbox_source_schema": "schemas/toolboxes.v1.json",
   "measurement": "compact serialized JSON bytes; not observed model tokens or client exposure",
   "sets": [
     {
@@ -42,6 +43,14 @@
       "name_description_input_bytes": 14202,
       "input_schema_bytes": 12075,
       "output_schema_bytes": 20299
+    },
+    {
+      "name": "toolbox",
+      "tool_count": 5,
+      "complete_contract_bytes": 7827,
+      "name_description_input_bytes": 4387,
+      "input_schema_bytes": 3797,
+      "output_schema_bytes": 3355
     }
   ]
 }

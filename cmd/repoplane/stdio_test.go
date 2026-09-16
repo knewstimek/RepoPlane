@@ -27,6 +27,7 @@ func TestStdioHelperProcess(t *testing.T) {
 	app, err := application.Open(context.Background(), config.Settings{
 		Workspace:      os.Getenv("REPOPLANE_STDIO_WORKSPACE"),
 		StateDir:       os.Getenv("REPOPLANE_STDIO_STATE"),
+		ToolSurface:    os.Getenv("REPOPLANE_STDIO_TOOL_SURFACE"),
 		CatalogRoots:   []string{"catalog"},
 		CandidateRoots: []string{},
 		RuleFiles:      []string{"AGENTS.md"},
@@ -42,6 +43,45 @@ func TestStdioHelperProcess(t *testing.T) {
 		os.Exit(1)
 	}
 	os.Exit(0)
+}
+
+func TestStdioToolboxSurfaceNegotiatesFiveFixedTools(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	workspace := t.TempDir()
+	state := t.TempDir()
+	if err := os.Mkdir(filepath.Join(workspace, "catalog"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestStdioHelperProcess$")
+	command.Env = append(os.Environ(),
+		"REPOPLANE_STDIO_HELPER=1",
+		"REPOPLANE_STDIO_WORKSPACE="+workspace,
+		"REPOPLANE_STDIO_STATE="+state,
+		"REPOPLANE_STDIO_TOOL_SURFACE=toolbox.v1",
+	)
+	var stderr bytes.Buffer
+	command.Stderr = &stderr
+	client := mcp.NewClient(&mcp.Implementation{Name: "stdio-toolbox-test", Version: "test"}, nil)
+	session, err := client.Connect(ctx, &mcp.CommandTransport{Command: command}, nil)
+	if err != nil {
+		t.Fatalf("connect over stdio: %v; stderr=%q", err, stderr.String())
+	}
+	defer session.Close()
+	var names []string
+	for tool, err := range session.Tools(ctx, nil) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		names = append(names, tool.Name)
+	}
+	if len(names) != 5 {
+		t.Fatalf("toolbox tools=%v", names)
+	}
+	result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "repoplane_read", Arguments: map[string]any{"action": "describe", "operation": "catalog_query"}})
+	if err != nil || result.IsError || result.StructuredContent == nil {
+		t.Fatalf("describe result=%+v err=%v", result, err)
+	}
 }
 
 func TestStdioNegotiationHasNoOutputPollution(t *testing.T) {

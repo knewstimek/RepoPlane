@@ -58,13 +58,14 @@ func (a *Application) Apply(ctx context.Context, request runtimeconfig.Request) 
 }
 
 func (a *Application) snapshotLocked() runtimeconfig.Snapshot {
-	result := runtimeconfig.Snapshot{
+		result := runtimeconfig.Snapshot{
 		runtimeconfig.TargetWorkspace:     {a.settings.Workspace},
 		runtimeconfig.TargetStateDir:      {a.settings.StateDir},
 		runtimeconfig.TargetCatalogRoot:   append([]string(nil), a.settings.CatalogRoots...),
 		runtimeconfig.TargetCandidateRoot: append([]string(nil), a.settings.CandidateRoots...),
 		runtimeconfig.TargetRuleFile:      append([]string(nil), a.settings.RuleFiles...),
 		runtimeconfig.TargetSymbolIndex:   append([]string(nil), a.settings.SymbolIndexes...),
+		runtimeconfig.TargetToolSurface:   {a.settings.ToolSurface},
 	}
 	result[runtimeconfig.TargetHTTPTransport] = make([]string, 0)
 	if a.httpRunning != nil {

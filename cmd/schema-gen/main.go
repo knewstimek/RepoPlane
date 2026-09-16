@@ -13,25 +13,33 @@ import (
 
 func main() {
 	output := flag.String("out", "schemas/tools.v1.json", "output schema path")
+	toolboxOutput := flag.String("toolbox-out", "", "optional toolbox schema path")
 	metricsOutput := flag.String("metrics-out", "", "optional serialized-byte footprint report path")
 	flag.Parse()
 	encoded, err := schemaexport.Generate(context.Background())
 	if err != nil {
 		fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Dir(*output), 0o755); err != nil {
+	if err := writeAtomic(*output, encoded); err != nil {
 		fatal(err)
 	}
-	temporary := *output + ".tmp"
-	if err := os.WriteFile(temporary, encoded, 0o644); err != nil {
-		fatal(err)
-	}
-	if err := os.Rename(temporary, *output); err != nil {
-		_ = os.Remove(temporary)
-		fatal(err)
+	var toolboxEncoded []byte
+	if *toolboxOutput != "" {
+		toolboxEncoded, err = schemaexport.GenerateToolboxes(context.Background())
+		if err != nil {
+			fatal(err)
+		}
+		if err := writeAtomic(*toolboxOutput, toolboxEncoded); err != nil {
+			fatal(err)
+		}
 	}
 	if *metricsOutput != "" {
-		metrics, err := schemaexport.GenerateFootprint(encoded)
+		var metrics []byte
+		if len(toolboxEncoded) == 0 {
+			metrics, err = schemaexport.GenerateFootprint(encoded)
+		} else {
+			metrics, err = schemaexport.GenerateFootprint(encoded, toolboxEncoded)
+		}
 		if err != nil {
 			fatal(err)
 		}
@@ -47,6 +55,21 @@ func main() {
 			fatal(err)
 		}
 	}
+}
+
+func writeAtomic(path string, data []byte) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	temporary := path + ".tmp"
+	if err := os.WriteFile(temporary, data, 0o644); err != nil {
+		return err
+	}
+	if err := os.Rename(temporary, path); err != nil {
+		_ = os.Remove(temporary)
+		return err
+	}
+	return nil
 }
 
 func fatal(err error) {

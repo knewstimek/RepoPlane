@@ -6,9 +6,18 @@ Notable changes to RepoPlane are documented here.
 
 ### Added
 
-- An implementation-ready draft and staged evaluation plan for an opt-in five-toolbox MCP surface
-  with lazy operation contracts, content-bound schema handles, fixed discovery, compaction-aware
-  rehydration, and typed-surface compatibility; no runtime behavior or default tool exposure changes yet.
+- An opt-in `toolbox.v1` MCP surface with five fixed authorization-aligned tools, lazy compact or
+  complete operation contracts, deterministic content-bound schema handles, strict dispatch through
+  the existing concrete request types and handlers, and fixed discovery. The 14-tool `typed.v1`
+  surface remains the default.
+- A reference harness contract cache that inserts handles automatically while tracking cached
+  contracts separately from active model-context residency, forcing rehydration after compaction.
+
+### Changed
+
+- Typed and toolbox surfaces now derive from one operation registry, and generated schema footprint
+  data reports both surfaces. Startup `--tool-surface` selection is read-only at runtime.
+- Toolbox authorization, approval, and HTTP audit retain the resolved concrete operation identity.
 
 ### Fixed
 

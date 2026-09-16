@@ -28,7 +28,11 @@ func TestGeneratedFootprintIsCurrentAndSeparatesMeasurements(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	footprint, err := GenerateFootprint(generated)
+	toolboxes, err := GenerateToolboxes(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	footprint, err := GenerateFootprint(generated, toolboxes)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +47,7 @@ func TestGeneratedFootprintIsCurrentAndSeparatesMeasurements(t *testing.T) {
 	if err := json.Unmarshal(footprint, &report); err != nil {
 		t.Fatal(err)
 	}
-	wantCounts := map[string]int{"read": 6, "writes": 3, "runner": 3, "state": 2, "all": 14}
+	wantCounts := map[string]int{"read": 6, "writes": 3, "runner": 3, "state": 2, "all": 14, "toolbox": 5}
 	for _, set := range report.Sets {
 		if set.ToolCount != wantCounts[set.Name] {
 			t.Fatalf("%s tool_count=%d, want %d", set.Name, set.ToolCount, wantCounts[set.Name])
@@ -51,6 +55,30 @@ func TestGeneratedFootprintIsCurrentAndSeparatesMeasurements(t *testing.T) {
 		if set.NameDescriptionInputBytes >= set.CompleteContractBytes {
 			t.Fatalf("%s does not separate candidate exposure from the complete contract: %+v", set.Name, set)
 		}
+		if set.Name == "toolbox" && set.NameDescriptionInputBytes > 5*1024 {
+			t.Fatalf("toolbox exposure bytes=%d, budget=%d", set.NameDescriptionInputBytes, 5*1024)
+		}
+	}
+}
+
+func TestGeneratedToolboxSchemasAreCurrent(t *testing.T) {
+	generated, err := GenerateToolboxes(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	committed, err := os.ReadFile(filepath.Join("..", "..", "schemas", "toolboxes.v1.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(generated, committed) {
+		t.Fatal("schemas/toolboxes.v1.json is stale; run go generate ./internal/mcpserver")
+	}
+	var parsed document
+	if err := json.Unmarshal(generated, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	if len(parsed.Tools) != 5 {
+		t.Fatalf("toolbox count=%d, want 5", len(parsed.Tools))
 	}
 }
 

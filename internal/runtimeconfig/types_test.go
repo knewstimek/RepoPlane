@@ -26,6 +26,7 @@ func TestValidateRuntimeConfigurationMatrix(t *testing.T) {
 		{Action: ActionSelect, Target: TargetWorkspace},
 		{Action: ActionStart, Target: TargetHTTPTransport},
 		{Action: ActionStop, Target: TargetHTTPTransport, Values: []string{"x"}},
+		{Action: ActionSelect, Target: TargetToolSurface, Values: []string{"toolbox.v1"}},
 	}
 	for _, request := range invalid {
 		if err := Validate(request); err == nil {

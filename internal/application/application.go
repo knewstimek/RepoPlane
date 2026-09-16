@@ -45,6 +45,12 @@ type Application struct {
 }
 
 func Open(ctx context.Context, settings config.Settings, version string) (*Application, error) {
+	if settings.ToolSurface == "" {
+		settings.ToolSurface = mcpserver.SurfaceTypedV1
+	}
+	if settings.ToolSurface != mcpserver.SurfaceTypedV1 && settings.ToolSurface != mcpserver.SurfaceToolboxV1 {
+		return nil, errors.New("unsupported MCP tool surface")
+	}
 	if settings.Transport == "http" {
 		profile, err := httptransport.LoadProfile(settings.HTTPProfile)
 		if err != nil {
@@ -201,6 +207,7 @@ func (a *Application) Run(ctx context.Context) error {
 
 func (a *Application) MCPOptions() mcpserver.Options {
 	options := mcpserver.Options{
+		Surface: a.settings.ToolSurface,
 		Catalog: a.router, Search: searchRoute{a.router}, PathFacts: a.router, DataQuery: dataRoute{a.router},
 		Records: recordsRoute{a.router}, CheckpointWriter: a.router, MemoWriter: a.router, ReportImporter: a.router,
 		Runner: a.router, RuntimeAccess: a.runtimeAccess, RuntimeConfig: a, MemoryBackup: a.router,

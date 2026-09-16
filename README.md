@@ -60,6 +60,7 @@ deployments retain host opt-in plus bearer/OAuth scopes and do not use local run
 - Git-history and configured symbol-index search with independent evidence and freshness classes
 - Bounded JSON Pointer, log, CSV, and TSV queries plus strict Markdown frontmatter catalogs
 - Opt-in authenticated Streamable HTTP with scopes, Origin/Host checks, audit, and request limits
+- Opt-in five-toolbox MCP surface with fixed discovery and lazy, content-bound operation contracts
 
 ## Requirements
 
@@ -132,6 +133,35 @@ the state directory must be outside the primary workspace.
 }
 ```
 
+The default `typed.v1` surface exposes the 14 concrete tools above. Hosts that want a smaller fixed
+discovery prefix can opt into `toolbox.v1` at process startup:
+
+```json
+{
+  "mcpServers": {
+    "repoplane": {
+      "command": "repoplane",
+      "args": ["--tool-surface", "toolbox.v1"]
+    }
+  }
+}
+```
+
+That surface always exposes `repoplane_read`, `repoplane_write`, `repoplane_import`,
+`repoplane_runner`, and `repoplane_state`. First describe an allowlisted operation, then call it
+with the returned content-bound handle and its ordinary typed arguments:
+
+```json
+{"action":"describe","operation":"workspace_search"}
+{"action":"call","operation":"workspace_search","schema_handle":"SCHEMA_HANDLE","arguments":{"mode":"exact","pattern":"TODO","root":"internal"}}
+```
+
+`known_schema_handle` lets a caller receive a short `unchanged` response when it still has the
+contract in active model context. After compaction, a harness must re-inject its cached contract or
+describe without that field. Handles identify contracts; they never grant authority. The surface is
+startup-only and remains fixed for the process lifetime, so rollback is a new session without the
+flag. `typed.v1` remains the default while client/model A/B evidence is pending.
+
 No later TOML edit or RepoPlane restart is required. Access-controlled operations request approval
 inside the attempted call. External paths are read-only and only the requested existing file or
 directory is added. Inspect or revoke grants explicitly when needed:
@@ -170,9 +200,10 @@ Confirmation-only proposals use an explicit MCP form schema so strict clients ca
 
 The four source targets are `catalog_root`, `candidate_root`, `rule_file`, and `symbol_index`.
 The status response returns a compact `configuration` map keyed by those targets plus `workspace`,
-`state_dir`, and `http_transport`; a running HTTP endpoint has its profile path as the sole
-`http_transport` value. HTTP is a child transport of the stdio control session, so starting or
-stopping it does not disconnect stdio. HTTP clients cannot call `runtime_config`.
+`state_dir`, `http_transport`, and the read-only startup `tool_surface`; a running HTTP endpoint has
+its profile path as the sole `http_transport` value. `runtime_config` cannot switch the tool
+surface. HTTP is a child transport of the stdio control session, so starting or stopping it does
+not disconnect stdio. HTTP clients cannot call `runtime_config`.
 
 All CLI arguments below are optional startup pre-registration for compatibility or unattended
 hosts; they are not the normal way to change a running session. The legacy enable flags
@@ -208,6 +239,7 @@ Available flags:
 --rule-file NAME        rule filename searched from root to target; repeatable; default: AGENTS.md
 --symbol-index PATH     workspace-relative symbol-index.v1 or ctags JSONL; repeatable
 --transport MODE        stdio (default) or http
+--tool-surface SURFACE  typed.v1 (default) or toolbox.v1; startup only
 --http-profile PATH     ignored local HTTP YAML profile; required for HTTP
 --enable-intention-writes  pre-authorize checkpoint_write and memo_write prompts
 --enable-report-import     pre-authorize check_report_import prompts
@@ -495,9 +527,10 @@ Runner tools). Its wording is deduplicated without dropping response fields, lim
 state semantics; cross-tool references are avoided because each MCP tool schema must stand alone.
 The generated [`tool-footprint.v1.json`](schemas/tool-footprint.v1.json) separates complete-contract
 bytes from a name/description/input-only comparison. These are deterministic serialized byte
-counts—not observed model tokens or proof of what a particular MCP client exposes. RepoPlane keeps
-all 14 typed tools and stable discovery; clients may defer model exposure natively without changing
-the server contract. See the
+counts—not observed model tokens or proof of what a particular MCP client exposes. The default 14
+typed tools total 14,202 name/description/input bytes; the five fixed opt-in toolboxes total 4,387
+bytes. Both surfaces keep stable discovery. Lazy operation contracts are application-level MCP
+calls, not a claim of client-native deferred loading. See the
 [`context-efficiency specification`](docs/Context-Efficiency-Spec.md).
 
 ## Security model and limitations
@@ -533,9 +566,9 @@ See [SECURITY.md](SECURITY.md) for vulnerability reporting and
 
 The read-only MVP, all adopted roadmap slices through Search Adapters and HTTP/Auth, runtime access,
 and portable memory backup are complete. Ongoing work is compatibility, measured dogfooding, and
-release maintenance. A proposed, not-yet-implemented context experiment evaluates five fixed
+release maintenance. An experimental opt-in surface now provides five fixed,
 authorization-aligned toolbox tools with lazy operation contracts while keeping the current 14 typed
-tools as the default. See the
+tools as the default; measured client/model A/B adoption remains pending. See the
 [`full implementation roadmap`](docs/Full-Implementation-Roadmap.md), the
 [`lazy toolbox exposure specification`](docs/Toolbox-Exposure-Spec.md), the
 [`Records specification`](docs/Records-Spec.md), and the full

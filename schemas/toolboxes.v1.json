@@ -1,0 +1,575 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://repoplane.local/schemas/toolboxes.v1.json",
+  "tools": [
+    {
+      "name": "repoplane_import",
+      "description": "Describe or call verification report import operations.",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "description": "describe an operation contract or call it",
+            "enum": [
+              "describe",
+              "call"
+            ],
+            "type": "string"
+          },
+          "arguments": {
+            "description": "operation arguments validated against the described contract",
+            "type": "object"
+          },
+          "detail": {
+            "description": "describe detail; default compact",
+            "enum": [
+              "compact",
+              "complete"
+            ],
+            "type": "string"
+          },
+          "known_schema_handle": {
+            "description": "current handle already available to the caller; describe only",
+            "type": "string"
+          },
+          "operation": {
+            "description": "operation in this toolbox",
+            "enum": [
+              "check_report_import"
+            ],
+            "type": "string"
+          },
+          "schema_handle": {
+            "description": "exact handle returned by describe; call only",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "operation"
+        ],
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "contract": {
+            "additionalProperties": false,
+            "properties": {
+              "approval": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "input_schema": true,
+              "output_schema": true,
+              "result_summary": {
+                "type": "string"
+              },
+              "retry": {
+                "type": "string"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "scope": {
+                "type": "string"
+              },
+              "side_effect": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "schema_version",
+              "description",
+              "input_schema",
+              "result_summary",
+              "scope",
+              "side_effect",
+              "approval",
+              "retry"
+            ],
+            "type": [
+              "null",
+              "object"
+            ]
+          },
+          "operation": {
+            "type": "string"
+          },
+          "result": true,
+          "schema_handle": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "operation",
+          "schema_handle"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "repoplane_read",
+      "description": "Describe or call bounded repository read and runtime-access operations.",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "description": "describe an operation contract or call it",
+            "enum": [
+              "describe",
+              "call"
+            ],
+            "type": "string"
+          },
+          "arguments": {
+            "description": "operation arguments validated against the described contract",
+            "type": "object"
+          },
+          "detail": {
+            "description": "describe detail; default compact",
+            "enum": [
+              "compact",
+              "complete"
+            ],
+            "type": "string"
+          },
+          "known_schema_handle": {
+            "description": "current handle already available to the caller; describe only",
+            "type": "string"
+          },
+          "operation": {
+            "description": "operation in this toolbox",
+            "enum": [
+              "catalog_query",
+              "data_query",
+              "path_explain",
+              "project_records",
+              "runtime_access",
+              "workspace_search"
+            ],
+            "type": "string"
+          },
+          "schema_handle": {
+            "description": "exact handle returned by describe; call only",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "operation"
+        ],
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "contract": {
+            "additionalProperties": false,
+            "properties": {
+              "approval": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "input_schema": true,
+              "output_schema": true,
+              "result_summary": {
+                "type": "string"
+              },
+              "retry": {
+                "type": "string"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "scope": {
+                "type": "string"
+              },
+              "side_effect": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "schema_version",
+              "description",
+              "input_schema",
+              "result_summary",
+              "scope",
+              "side_effect",
+              "approval",
+              "retry"
+            ],
+            "type": [
+              "null",
+              "object"
+            ]
+          },
+          "operation": {
+            "type": "string"
+          },
+          "result": true,
+          "schema_handle": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "operation",
+          "schema_handle"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "repoplane_runner",
+      "description": "Describe or call registered Runner operations.",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "description": "describe an operation contract or call it",
+            "enum": [
+              "describe",
+              "call"
+            ],
+            "type": "string"
+          },
+          "arguments": {
+            "description": "operation arguments validated against the described contract",
+            "type": "object"
+          },
+          "detail": {
+            "description": "describe detail; default compact",
+            "enum": [
+              "compact",
+              "complete"
+            ],
+            "type": "string"
+          },
+          "known_schema_handle": {
+            "description": "current handle already available to the caller; describe only",
+            "type": "string"
+          },
+          "operation": {
+            "description": "operation in this toolbox",
+            "enum": [
+              "run_execute",
+              "run_inspect",
+              "run_prepare"
+            ],
+            "type": "string"
+          },
+          "schema_handle": {
+            "description": "exact handle returned by describe; call only",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "operation"
+        ],
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "contract": {
+            "additionalProperties": false,
+            "properties": {
+              "approval": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "input_schema": true,
+              "output_schema": true,
+              "result_summary": {
+                "type": "string"
+              },
+              "retry": {
+                "type": "string"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "scope": {
+                "type": "string"
+              },
+              "side_effect": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "schema_version",
+              "description",
+              "input_schema",
+              "result_summary",
+              "scope",
+              "side_effect",
+              "approval",
+              "retry"
+            ],
+            "type": [
+              "null",
+              "object"
+            ]
+          },
+          "operation": {
+            "type": "string"
+          },
+          "result": true,
+          "schema_handle": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "operation",
+          "schema_handle"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "repoplane_state",
+      "description": "Describe or call runtime configuration and memory export operations.",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "description": "describe an operation contract or call it",
+            "enum": [
+              "describe",
+              "call"
+            ],
+            "type": "string"
+          },
+          "arguments": {
+            "description": "operation arguments validated against the described contract",
+            "type": "object"
+          },
+          "detail": {
+            "description": "describe detail; default compact",
+            "enum": [
+              "compact",
+              "complete"
+            ],
+            "type": "string"
+          },
+          "known_schema_handle": {
+            "description": "current handle already available to the caller; describe only",
+            "type": "string"
+          },
+          "operation": {
+            "description": "operation in this toolbox",
+            "enum": [
+              "memory_backup",
+              "runtime_config"
+            ],
+            "type": "string"
+          },
+          "schema_handle": {
+            "description": "exact handle returned by describe; call only",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "operation"
+        ],
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "contract": {
+            "additionalProperties": false,
+            "properties": {
+              "approval": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "input_schema": true,
+              "output_schema": true,
+              "result_summary": {
+                "type": "string"
+              },
+              "retry": {
+                "type": "string"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "scope": {
+                "type": "string"
+              },
+              "side_effect": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "schema_version",
+              "description",
+              "input_schema",
+              "result_summary",
+              "scope",
+              "side_effect",
+              "approval",
+              "retry"
+            ],
+            "type": [
+              "null",
+              "object"
+            ]
+          },
+          "operation": {
+            "type": "string"
+          },
+          "result": true,
+          "schema_handle": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "operation",
+          "schema_handle"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "repoplane_write",
+      "description": "Describe or call checkpoint and memo write operations.",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "description": "describe an operation contract or call it",
+            "enum": [
+              "describe",
+              "call"
+            ],
+            "type": "string"
+          },
+          "arguments": {
+            "description": "operation arguments validated against the described contract",
+            "type": "object"
+          },
+          "detail": {
+            "description": "describe detail; default compact",
+            "enum": [
+              "compact",
+              "complete"
+            ],
+            "type": "string"
+          },
+          "known_schema_handle": {
+            "description": "current handle already available to the caller; describe only",
+            "type": "string"
+          },
+          "operation": {
+            "description": "operation in this toolbox",
+            "enum": [
+              "checkpoint_write",
+              "memo_write"
+            ],
+            "type": "string"
+          },
+          "schema_handle": {
+            "description": "exact handle returned by describe; call only",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "operation"
+        ],
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "contract": {
+            "additionalProperties": false,
+            "properties": {
+              "approval": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "input_schema": true,
+              "output_schema": true,
+              "result_summary": {
+                "type": "string"
+              },
+              "retry": {
+                "type": "string"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "scope": {
+                "type": "string"
+              },
+              "side_effect": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "schema_version",
+              "description",
+              "input_schema",
+              "result_summary",
+              "scope",
+              "side_effect",
+              "approval",
+              "retry"
+            ],
+            "type": [
+              "null",
+              "object"
+            ]
+          },
+          "operation": {
+            "type": "string"
+          },
+          "result": true,
+          "schema_handle": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "operation",
+          "schema_handle"
+        ],
+        "type": "object"
+      }
+    }
+  ]
+}

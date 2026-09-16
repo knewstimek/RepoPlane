@@ -34,8 +34,24 @@ func TestParseDefaultsCatalogRoot(t *testing.T) {
 	if len(got.RuleFiles) != 1 || got.RuleFiles[0] != "AGENTS.md" {
 		t.Fatalf("rule files=%v", got.RuleFiles)
 	}
+	if got.ToolSurface != "typed.v1" {
+		t.Fatalf("tool surface=%q, want typed.v1", got.ToolSurface)
+	}
 	if got.EnableIntentionWrites || got.EnableReportImport || got.EnableRunner || got.EnableCache {
 		t.Fatal("mutation and execution flags must default to disabled")
+	}
+}
+
+func TestParseToolSurfaceIsStartupOnlyChoice(t *testing.T) {
+	got, err := Parse([]string{"--tool-surface", "toolbox.v1"}, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ToolSurface != "toolbox.v1" {
+		t.Fatalf("tool surface=%q", got.ToolSurface)
+	}
+	if _, err := Parse([]string{"--tool-surface", "automatic"}, io.Discard); err == nil {
+		t.Fatal("unknown tool surface succeeded")
 	}
 }
 

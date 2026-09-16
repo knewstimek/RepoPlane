@@ -50,7 +50,7 @@ func run() error {
 	}
 	if len(requiredFiles) == 0 && operation == "preflight" {
 		requiredFiles = []string{
-			"go.mod", "schemas/tools.v1.json", "schemas/environment-record.v1.schema.json",
+			"go.mod", "schemas/tools.v1.json", "schemas/toolboxes.v1.json", "schemas/environment-record.v1.schema.json",
 			"schemas/run-receipt.v1.schema.json", "schemas/artifact-record.v1.schema.json",
 		}
 	}

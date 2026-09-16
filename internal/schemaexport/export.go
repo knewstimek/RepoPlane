@@ -35,10 +35,11 @@ type toolSchema struct {
 }
 
 type footprintDocument struct {
-	SchemaVersion string         `json:"schema_version"`
-	SourceSchema  string         `json:"source_schema"`
-	Measurement   string         `json:"measurement"`
-	Sets          []footprintSet `json:"sets"`
+	SchemaVersion       string         `json:"schema_version"`
+	SourceSchema        string         `json:"source_schema"`
+	ToolboxSourceSchema string         `json:"toolbox_source_schema,omitempty"`
+	Measurement         string         `json:"measurement"`
+	Sets                []footprintSet `json:"sets"`
 }
 
 type footprintSet struct {
@@ -66,7 +67,16 @@ func (configurationSchemaController) Apply(context.Context, runtimeconfig.Reques
 }
 
 func Generate(ctx context.Context) ([]byte, error) {
+	return generate(ctx, mcpserver.SurfaceTypedV1, "https://repoplane.local/schemas/tools.v1.json", 14)
+}
+
+func GenerateToolboxes(ctx context.Context) ([]byte, error) {
+	return generate(ctx, mcpserver.SurfaceToolboxV1, "https://repoplane.local/schemas/toolboxes.v1.json", 5)
+}
+
+func generate(ctx context.Context, surface, id string, capacity int) ([]byte, error) {
 	server := mcpserver.New("schema-export", mcpserver.Options{
+		Surface: surface,
 		Catalog: &catalog.Service{}, Search: &search.Service{},
 		PathFacts: &pathfacts.Service{}, DataQuery: &dataquery.Service{}, Records: &records.Service{},
 		CheckpointWriter: &records.Service{}, MemoWriter: &records.Service{}, ReportImporter: &records.Service{},
@@ -90,8 +100,8 @@ func Generate(ctx context.Context) ([]byte, error) {
 
 	document := document{
 		Schema: "https://json-schema.org/draft/2020-12/schema",
-		ID:     "https://repoplane.local/schemas/tools.v1.json",
-		Tools:  make([]toolSchema, 0, 14),
+		ID:     id,
+		Tools:  make([]toolSchema, 0, capacity),
 	}
 	for tool, err := range session.Tools(ctx, nil) {
 		if err != nil {
@@ -112,7 +122,7 @@ func Generate(ctx context.Context) ([]byte, error) {
 
 // GenerateFootprint reports serialized contract bytes without claiming that a
 // particular client, tokenizer, model, or code path exposes those bytes.
-func GenerateFootprint(toolDocument []byte) ([]byte, error) {
+func GenerateFootprint(toolDocument []byte, toolboxDocuments ...[]byte) ([]byte, error) {
 	var parsed document
 	if err := json.Unmarshal(toolDocument, &parsed); err != nil {
 		return nil, fmt.Errorf("decode tool schema document: %w", err)
@@ -123,6 +133,16 @@ func GenerateFootprint(toolDocument []byte) ([]byte, error) {
 		"runner": {},
 		"state":  {},
 		"all":    {},
+	}
+	var toolboxParsed document
+	if len(toolboxDocuments) > 0 {
+		if err := json.Unmarshal(toolboxDocuments[0], &toolboxParsed); err != nil {
+			return nil, fmt.Errorf("decode toolbox schema document: %w", err)
+		}
+		groups["toolbox"] = map[string]bool{}
+		for _, tool := range toolboxParsed.Tools {
+			groups["toolbox"][tool.Name] = true
+		}
 	}
 	reads, writes, imports, runners, state := mcpserver.ToolNames()
 	for _, name := range reads {
@@ -141,14 +161,22 @@ func GenerateFootprint(toolDocument []byte) ([]byte, error) {
 		groups["all"][tool.Name] = true
 	}
 	report := footprintDocument{
-		SchemaVersion: "tool-footprint.v1",
-		SourceSchema:  "schemas/tools.v1.json",
-		Measurement:   "compact serialized JSON bytes; not observed model tokens or client exposure",
-		Sets:          make([]footprintSet, 0, 5),
+		SchemaVersion: "tool-footprint.v1", SourceSchema: "schemas/tools.v1.json",
+		Measurement: "compact serialized JSON bytes; not observed model tokens or client exposure",
+		Sets:        make([]footprintSet, 0, 6),
 	}
-	for _, group := range []string{"read", "writes", "runner", "state", "all"} {
+	groupOrder := []string{"read", "writes", "runner", "state", "all"}
+	if len(toolboxDocuments) > 0 {
+		report.ToolboxSourceSchema = "schemas/toolboxes.v1.json"
+		groupOrder = append(groupOrder, "toolbox")
+	}
+	for _, group := range groupOrder {
 		set := footprintSet{Name: group}
-		for _, tool := range parsed.Tools {
+		tools := parsed.Tools
+		if group == "toolbox" {
+			tools = toolboxParsed.Tools
+		}
+		for _, tool := range tools {
 			if !groups[group][tool.Name] {
 				continue
 			}

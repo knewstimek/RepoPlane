@@ -29,19 +29,24 @@ const (
 // Unknown tools fail closed.
 func RequiredScope(tool string) (string, bool) {
 	switch tool {
-	case ToolCatalogQuery, ToolWorkspaceSearch, ToolPathExplain, ToolDataQuery, ToolProjectRecords, ToolRuntimeAccess:
+	case ToolCatalogQuery, ToolWorkspaceSearch, ToolPathExplain, ToolDataQuery, ToolProjectRecords, ToolRuntimeAccess, ToolboxRead:
 		return ScopeRead, true
-	case ToolMemoryBackup, ToolRuntimeConfig:
+	case ToolMemoryBackup, ToolRuntimeConfig, ToolboxState:
 		return ScopeStateExport, true
-	case ToolCheckpointWrite, ToolMemoWrite:
+	case ToolCheckpointWrite, ToolMemoWrite, ToolboxWrite:
 		return ScopeIntentWrite, true
-	case ToolCheckReportImport:
+	case ToolCheckReportImport, ToolboxImport:
 		return ScopeReportImport, true
-	case ToolRunPrepare, ToolRunExecute, ToolRunInspect:
+	case ToolRunPrepare, ToolRunExecute, ToolRunInspect, ToolboxRunner:
 		return ScopeRunnerExecute, true
 	default:
 		return "", false
 	}
+}
+
+// ToolboxNames returns the fixed toolbox.v1 discovery order.
+func ToolboxNames() []string {
+	return []string{ToolboxRead, ToolboxWrite, ToolboxImport, ToolboxRunner, ToolboxState}
 }
 
 // ToolNames returns the stable public tool names in authorization classes.

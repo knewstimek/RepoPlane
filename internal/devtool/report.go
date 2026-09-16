@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -118,7 +119,7 @@ func WriteReport(path string, report Report) error {
 
 func sanitizeDiagnostic(value, root string) string {
 	value = replaceLocalPath(value, root, "WORKSPACE")
-	value = replaceLocalPath(value, os.Getenv("GOTMPDIR"), "GO_TMP")
+	value = replaceLocalPath(value, configuredGoTemporaryDirectory(), "GO_TMP")
 	value = replaceLocalPath(value, os.TempDir(), "TEMP")
 	if home, err := os.UserHomeDir(); err == nil {
 		value = replaceLocalPath(value, home, "USER_HOME")
@@ -128,6 +129,17 @@ func sanitizeDiagnostic(value, root string) string {
 		return value[len(value)-8192:]
 	}
 	return value
+}
+
+func configuredGoTemporaryDirectory() string {
+	if value := strings.TrimSpace(os.Getenv("GOTMPDIR")); value != "" {
+		return value
+	}
+	output, err := exec.Command("go", "env", "GOTMPDIR").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
 }
 
 func replaceLocalPath(value, path, replacement string) string {

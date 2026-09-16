@@ -65,6 +65,7 @@ type ReportReceipt struct {
 // request arguments, response bodies, credentials, addresses, or local paths.
 type AuditRepository interface {
 	AdmitAudit(ctx context.Context, event AuditEvent) error
+	ResolveAuditOperation(ctx context.Context, requestID, operation string) error
 	CompleteAudit(ctx context.Context, requestID, status string, responseBytes uint64, completedAt time.Time) error
 	DeleteExpiredAudit(ctx context.Context, before time.Time, limit uint64) (uint64, error)
 	Close() error
@@ -76,6 +77,7 @@ type AuditEvent struct {
 	WorkspaceID   string
 	Method        string
 	Tool          string
+	Operation     string
 	Decision      string
 	Status        string
 	RequestBytes  uint64

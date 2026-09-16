@@ -119,6 +119,13 @@ func (r *Running) Close(ctx context.Context) error {
 
 func Handler(version string, options mcpserver.Options, profile Profile, verifier auth.TokenVerifier, audit store.AuditRepository, auditKey []byte) (http.Handler, error) {
 	options.Authorize = Authorizer
+	options.AuditOperation = func(ctx context.Context, _ string, operation string) error {
+		requestID, _ := ctx.Value(auditRequestIDKey{}).(string)
+		if requestID == "" {
+			return errors.New("audit request identity unavailable")
+		}
+		return audit.ResolveAuditOperation(ctx, requestID, bounded(operation, 128))
+	}
 	mcpService := mcpserver.New(version, options)
 	mcpHandler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return mcpService }, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, MaxRequestBodyBytes: profile.Limits.BodyBytes, PropagateRequestCancellation: true, DisableLocalhostProtection: true})
 	limiter := newAdmissionLimiter(profile.Limits)
@@ -267,6 +274,7 @@ func auditMiddleware(next http.Handler, repository store.AuditRepository, key []
 			return
 		}
 		counter := &responseCounter{ResponseWriter: w}
+		r = r.WithContext(context.WithValue(r.Context(), auditRequestIDKey{}, requestID))
 		next.ServeHTTP(counter, r)
 		status := fmt.Sprintf("http_%d", counter.status)
 		completeCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -276,6 +284,8 @@ func auditMiddleware(next http.Handler, repository store.AuditRepository, key []
 		}
 	})
 }
+
+type auditRequestIDKey struct{}
 
 func randomID() (string, error) {
 	data := make([]byte, 16)

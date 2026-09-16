@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -71,6 +72,21 @@ func TestSanitizeDiagnosticDistinguishesGoTemporaryRoot(t *testing.T) {
 	}
 	if !strings.Contains(redacted, filepath.Join("GO_TMP", "go-build123", "records.test.exe")) {
 		t.Fatalf("Go temporary marker missing from %q", redacted)
+	}
+}
+
+func TestConfiguredGoTemporaryDirectoryFallsBackToGoEnvironment(t *testing.T) {
+	t.Setenv("GOTMPDIR", "")
+	output, err := exec.Command("go", "env", "GOTMPDIR").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := strings.TrimSpace(string(output))
+	if want == "" {
+		t.Skip("Go temporary directory is not configured")
+	}
+	if got := configuredGoTemporaryDirectory(); filepath.Clean(got) != filepath.Clean(want) {
+		t.Fatalf("configured Go temporary directory=%q, want %q", got, want)
 	}
 }
 

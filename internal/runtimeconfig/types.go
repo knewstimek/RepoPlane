@@ -24,6 +24,7 @@ const (
 	TargetWorkspace     = "workspace"
 	TargetStateDir      = "state_dir"
 	TargetHTTPTransport = "http_transport"
+	TargetToolSurface   = "tool_surface"
 )
 
 var (

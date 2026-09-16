@@ -70,7 +70,7 @@ func TestApplicationReconfiguresSourcesWorkspaceStateAndHTTPAtRuntime(t *testing
 		t.Fatalf("catalog result=%+v err=%v", query, err)
 	}
 	status, err := app.Status(ctx)
-	if err != nil || len(status.Configuration["catalog_root"]) != 2 || len(status.Configuration["candidate_root"]) != 1 || len(status.Configuration["rule_file"]) != 2 || len(status.Configuration["symbol_index"]) != 1 {
+	if err != nil || len(status.Configuration["catalog_root"]) != 2 || len(status.Configuration["candidate_root"]) != 1 || len(status.Configuration["rule_file"]) != 2 || len(status.Configuration["symbol_index"]) != 1 || len(status.Configuration["tool_surface"]) != 1 {
 		t.Fatalf("status=%+v err=%v", status, err)
 	}
 	if response, err := app.Apply(ctx, runtimeconfig.Request{Action: "remove", Target: "candidate_root", Values: []string{"tools"}}); err != nil || !response.Changed {

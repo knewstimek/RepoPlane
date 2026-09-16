@@ -29,13 +29,45 @@ func OpenAudit(ctx context.Context, path string) (*AuditDB, error) {
 	a := &AuditDB{db: db}
 	if _, err := db.ExecContext(ctx, `PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; CREATE TABLE IF NOT EXISTS audit_events (
 request_id TEXT PRIMARY KEY, principal_hash TEXT NOT NULL, workspace_id TEXT NOT NULL,
-method TEXT NOT NULL, tool TEXT NOT NULL, decision TEXT NOT NULL, status TEXT NOT NULL,
+	method TEXT NOT NULL, tool TEXT NOT NULL, operation TEXT NOT NULL DEFAULT '', decision TEXT NOT NULL, status TEXT NOT NULL,
 request_bytes INTEGER NOT NULL, response_bytes INTEGER NOT NULL DEFAULT 0,
 started_at TEXT NOT NULL, completed_at TEXT NOT NULL DEFAULT ''); CREATE INDEX IF NOT EXISTS audit_events_started ON audit_events(started_at);`); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("migrate audit store: %w", err)
 	}
+	if err := ensureAuditOperationColumn(ctx, db); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 	return a, nil
+}
+
+func ensureAuditOperationColumn(ctx context.Context, db *sql.DB) error {
+	rows, err := db.QueryContext(ctx, `PRAGMA table_info(audit_events)`)
+	if err != nil {
+		return fmt.Errorf("inspect audit store: %w", err)
+	}
+	found := false
+	for rows.Next() {
+		var ordinal, notNull, primaryKey int
+		var name, kind string
+		var defaultValue any
+		if err := rows.Scan(&ordinal, &name, &kind, &notNull, &defaultValue, &primaryKey); err != nil {
+			_ = rows.Close()
+			return fmt.Errorf("inspect audit column: %w", err)
+		}
+		found = found || name == "operation"
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("close audit inspection: %w", err)
+	}
+	if found {
+		return nil
+	}
+	if _, err := db.ExecContext(ctx, `ALTER TABLE audit_events ADD COLUMN operation TEXT NOT NULL DEFAULT ''`); err != nil {
+		return fmt.Errorf("migrate audit operation: %w", err)
+	}
+	return nil
 }
 
 func (a *AuditDB) AdmitAudit(ctx context.Context, e store.AuditEvent) error {
@@ -44,7 +76,7 @@ func (a *AuditDB) AdmitAudit(ctx context.Context, e store.AuditEvent) error {
 		return fmt.Errorf("begin audit admission: %w", err)
 	}
 	defer tx.Rollback()
-	_, err = tx.ExecContext(ctx, `INSERT INTO audit_events(request_id,principal_hash,workspace_id,method,tool,decision,status,request_bytes,started_at) VALUES(?,?,?,?,?,?,?,?,?)`, e.RequestID, e.PrincipalHash, e.WorkspaceID, e.Method, e.Tool, e.Decision, e.Status, e.RequestBytes, e.StartedAt.UTC().Format(time.RFC3339Nano))
+	_, err = tx.ExecContext(ctx, `INSERT INTO audit_events(request_id,principal_hash,workspace_id,method,tool,operation,decision,status,request_bytes,started_at) VALUES(?,?,?,?,?,?,?,?,?,?)`, e.RequestID, e.PrincipalHash, e.WorkspaceID, e.Method, e.Tool, e.Operation, e.Decision, e.Status, e.RequestBytes, e.StartedAt.UTC().Format(time.RFC3339Nano))
 	if err != nil {
 		return fmt.Errorf("write audit admission: %w", err)
 	}
@@ -54,6 +86,21 @@ func (a *AuditDB) AdmitAudit(ctx context.Context, e store.AuditEvent) error {
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit audit admission: %w", err)
+	}
+	return nil
+}
+
+func (a *AuditDB) ResolveAuditOperation(ctx context.Context, id, operation string) error {
+	result, err := a.db.ExecContext(ctx, `UPDATE audit_events SET operation=? WHERE request_id=? AND operation=''`, operation, id)
+	if err != nil {
+		return fmt.Errorf("resolve audit operation: %w", err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("resolve audit operation rows: %w", err)
+	}
+	if changed != 1 {
+		return errors.New("resolve audit operation: request not found or already resolved")
 	}
 	return nil
 }

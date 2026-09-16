@@ -32,6 +32,9 @@ type failingAudit struct{}
 func (failingAudit) AdmitAudit(context.Context, store.AuditEvent) error {
 	return errors.New("unavailable")
 }
+func (failingAudit) ResolveAuditOperation(context.Context, string, string) error {
+	return errors.New("unavailable")
+}
 func (failingAudit) CompleteAudit(context.Context, string, string, uint64, time.Time) error {
 	return nil
 }
@@ -83,8 +86,14 @@ func TestLocalTokenAndScopeAuthorization(t *testing.T) {
 	if err != nil || authorizeInfo(info, "catalog_query") != nil {
 		t.Fatalf("info=%+v err=%v", info, err)
 	}
+	if authorizeInfo(info, mcpserver.ToolboxRead) != nil {
+		t.Fatal("read toolbox was not authorized by read scope")
+	}
 	if !errors.Is(authorizeInfo(info, "run_execute"), mcpserver.ErrAuthorizationDenied) {
 		t.Fatal("runner scope unexpectedly authorized")
+	}
+	if !errors.Is(authorizeInfo(info, mcpserver.ToolboxRunner), mcpserver.ErrAuthorizationDenied) {
+		t.Fatal("runner toolbox scope unexpectedly authorized")
 	}
 }
 
