@@ -18,5 +18,5 @@ execution:
     - {id: rg.version, kind: executable, ref: rg, requirement: required, argv: [--version]}
 inputs: [go.mod, go.sum, "cmd/repoplane-dev/**/*.go", "internal/devtool/**/*.go"]
 outputs: [.tmp/reports/preflight.json]
-docs: [docs/Full-Implementation-Roadmap.md, docs/Preflight-Spec.md]
+docs: [CONTRIBUTING.md]
 cache_policy: disabled

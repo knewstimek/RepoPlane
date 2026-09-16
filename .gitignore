@@ -8,6 +8,7 @@
 # Local RepoPlane state and logs
 /.repoplane/
 /.tmp/
+/docs/
 /*.log
 
 # Editors and OS metadata

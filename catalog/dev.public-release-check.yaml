@@ -16,5 +16,5 @@ execution:
     - {id: go.version, kind: executable, ref: go, requirement: required, argv: [version]}
     - {id: git.repository, kind: git, requirement: required}
 outputs: [.tmp/reports/public-release-check.json]
-docs: [docs/Public-Release.md, docs/Runner-Spec.md, AGENTS.md]
+docs: [CONTRIBUTING.md, AGENTS.md]
 cache_policy: disabled

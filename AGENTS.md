@@ -20,15 +20,13 @@
 - If the MCP executable changed, rebuild and replace the installed copy found via the ignored
   local profile or `PATH`; never track its host-specific destination. On Windows, rename an in-use
   copy to `old_repoplane_<timestamp>.exe` before replacement and retain it while in use.
-- After a feature or roadmap status change, check README, `Unreleased`, the active roadmap, the
-  documentation index, and frozen plans. Mark old plan status and link to the active roadmap;
-  include a copyable host configuration example for flags and opt-in tools.
+- After a feature change, update README and `Unreleased`; keep private planning notes outside Git.
+  Include a copyable host configuration example for flags and opt-in tools.
 - Go services use domain interfaces in `internal/store`, not SQL or concrete database adapters.
   Keep MCP diagnostics on stderr, never stdout. Preserve bounded reads, explicit partial states,
   and exact/lower-bound/unknown distinctions.
-- Change public schemas, tests, and the relevant specification together for external contract
-  changes. Keep Runner and cache reuse out of scope until their roadmap prerequisites and specs
-  are complete.
+- Change public schemas, tests, and README tool contracts together for external contract changes.
+  Keep Runner and cache reuse behind their existing approval and qualification gates.
 - At task start or when past decisions matter, search durable records with task terms and small
   limits; fetch only relevant IDs. Request exact `payload_fields` when needed, use
   `response_view=receipt` for writes, and retain validity and decision evidence.

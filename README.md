@@ -1,28 +1,40 @@
 # RepoPlane
 
-RepoPlane is a read-first [Model Context Protocol](https://modelcontextprotocol.io/) server for
-coding agents. It helps an agent find repository tools, search code and data, and recover
-verification evidence without loading the whole workspace into a conversation. Responses have
-explicit limits and report when a result is partial.
+RepoPlane is a local [Model Context Protocol](https://modelcontextprotocol.io/) server for coding
+agents. It finds repository capabilities, searches code and structured data, explains paths, and
+keeps verification and task evidence. Reads have explicit limits: a partial scan reports what it
+did not observe instead of presenting a guess as a complete result.
 
-[Releases](https://github.com/knewstimek/RepoPlane/releases) · [Documentation](docs/README.md) · [Changelog](CHANGELOG.md)
+[Releases](https://github.com/knewstimek/RepoPlane/releases) · [Changelog](CHANGELOG.md) ·
+[Contributing](CONTRIBUTING.md)
 
-## Get started
+## Install and try it
 
-Install a [release](https://github.com/knewstimek/RepoPlane/releases) for Windows or Linux amd64,
-verify its checksum, and put `repoplane` on `PATH`. Install
-[ripgrep](https://github.com/BurntSushi/ripgrep) as `rg`; Git is needed for optional history search.
+Download a Windows or Linux amd64 archive and `SHA256SUMS.txt` from
+[Releases](https://github.com/knewstimek/RepoPlane/releases). Verify the checksum, put
+`repoplane` on `PATH`, and install [ripgrep](https://github.com/BurntSushi/ripgrep) as `rg`.
+Git on `PATH` enables optional history search. Building from source requires Go 1.26 or newer:
 
-Register the local stdio server with Codex:
+```sh
+go test ./...
+go build -trimpath -o bin/repoplane ./cmd/repoplane
+```
 
-~~~text
+On Windows, build to `bin/repoplane.exe`. If the installed executable is serving an active MCP
+session, rename that copy to `old_repoplane_<timestamp>.exe` before replacing it, and retain the
+old copy until its process exits. New sessions use the replacement.
+
+Register the default local stdio server with Codex:
+
+```text
 codex mcp add repoplane -- repoplane
-~~~
+```
 
-By default, the MCP process working directory is the workspace. To pin a workspace and keep
-private state outside it, a generic MCP client can use:
+With no flags, the server uses its process working directory as the workspace and the user cache
+for private state. To pin both locations in a generic MCP client, use paths specific to your host;
+the state directory must be outside the workspace:
 
-~~~json
+```json
 {
   "mcpServers": {
     "repoplane": {
@@ -31,56 +43,138 @@ private state outside it, a generic MCP client can use:
     }
   }
 }
-~~~
+```
 
-Start a new MCP session, then try `catalog_query` with `{"mode":"status"}` and
-`workspace_search` with:
+Start a new MCP session. Call `catalog_query` with `{"mode":"status"}` to see configured
+catalog sources and whether registered execution is available. Then call `workspace_search`:
 
-~~~json
+```json
 {"mode":"exact","pattern":"TODO","root":".","item_limit":20}
-~~~
+```
 
-For source builds, Windows executable replacement, nested repositories, startup flags, and the
-optional toolbox surface, see [installation and configuration](docs/Install-and-Configure.md).
+Search, list, and query replies state their scope, count relation, truncation, warnings, and next
+cursor. A stopped scan reports a lower bound or unknown count. Do not treat `partial` as complete.
 
-## What it helps with
+## Tools and common tasks
 
-| Task | Tools |
+The default `typed.v1` interface exposes 14 tools:
+
+| Task | Tool |
 |---|---|
-| Find registered checks and commands | `catalog_query` |
-| Search filenames, content, Git history, or configured symbols | `workspace_search` |
-| Inspect a path's Git, link, encoding, and rule facts | `path_explain` |
-| Read bounded ranges or query JSON, JSONL, logs, CSV, and TSV | `data_query` |
-| Find durable checks, decisions, run receipts, and evidence | `project_records` |
-| Review runtime grants and live configuration | `runtime_access`, `runtime_config` |
-| Export durable records and retained run evidence | `memory_backup` |
-| Run a registered capability after approval | `run_prepare`, `run_execute`, `run_inspect` |
+| Find registered checks, commands, and missing catalog roots | `catalog_query` |
+| Search names, text, Git history, and configured symbol indexes | `workspace_search` |
+| Explain Git, symlink, encoding, newline, and repository-rule facts | `path_explain` |
+| Read bounded ranges and query JSON, JSONL, logs, CSV, or TSV | `data_query` |
+| Search durable verification, checkpoint, memo, and run evidence | `project_records` |
+| Write intentions or import a local verification report | `checkpoint_write`, `memo_write`, `check_report_import` |
+| Inspect and change session grants or live configuration | `runtime_access`, `runtime_config` |
+| Prepare, execute, and inspect a registered capability | `run_prepare`, `run_execute`, `run_inspect` |
+| Export durable memory and retained Runner evidence | `memory_backup` |
 
-The [tool usage guide](docs/Tool-Usage.md) shows request examples, catalog entries, records,
-Runner, and optional cache reuse. The default interface has 14 typed tools; an optional five-tool
-toolbox interface is explained in the [installation guide](docs/Install-and-Configure.md).
+`project_records(mode=search)` returns compact matches. Fetch a full payload by ID only when
+needed. For checkpoint, memo, and report-import writes, set `response_view=receipt` when the ID,
+revision, validity, and warnings are enough; this avoids echoing the submitted payload. Records do
+not infer semantic similarity between differently worded memos. A caller can assign a stable
+`topic_key` to a memo and explicitly update or supersede that identity.
 
-## Boundaries and local state
+Catalog entries are YAML, JSON, or Markdown with YAML frontmatter under a configured catalog
+root. A minimal discovery-only entry is:
 
-RepoPlane does not accept arbitrary shell commands from MCP requests. Writes, registered Runner
-execution, cache reuse, external reads, and backup exports require the relevant host setting or
-user approval. HTTP is opt-in and has separate authentication and scopes.
+```yaml
+id: project.check
+revision: 1
+summary: Check the repository
+use_when: [before a release]
+tags: [verification]
+cache_policy: disabled
+```
 
-The server keeps its databases and captured Runner output in a state directory outside the
-workspace. `run_inspect` returns status and stored references by default. Set
-`response_view=bytes` only when a full run receipt or a bounded output page needs to enter the
-MCP response; captured output is not automatically redacted.
+A runnable entry additionally declares its executable, argument template, working directory,
+inputs, outputs, limits, and `trusted_for_run: true`; see
+[`catalog/dev.verify.yaml`](catalog/dev.verify.yaml) for a working example. RepoPlane never
+accepts an arbitrary executable or shell command from an MCP request. Runner validates a
+registered ID with `run_prepare`, executes the returned plan ID once with `run_execute`, and
+retains status and bounded evidence for `run_inspect`. Local execution requires user approval
+unless the host pre-authorized Runner.
 
-`repoplane usage --workspace WORKSPACE --state-dir STATE_DIRECTORY` prints observed call and byte
-counts. It does not measure model tokens or estimate savings. See [operations and local
-state](docs/Operations.md) for backup, removal, HTTP, output references, and limitations.
+`run_prepare` returns a concise plan. `run_inspect(action=status)` returns a compact run summary.
+`detail`, `stdout`, `stderr`, and `artifact` return stored references and sizes by default;
+set `response_view=bytes` only when a full receipt or bounded output page must enter the MCP
+response. A `state:` file reference is relative to the server's local state directory, available
+from `runtime_config(action=status)`. HTTP clients cannot open that server-local file directly.
+Captured process output is raw and is not automatically redacted.
 
-## For contributors
+## Access and configuration
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development checks, the [documentation
-index](docs/README.md) for specifications, the [active
-roadmap](docs/Full-Implementation-Roadmap.md) for project status, and [SECURITY.md](SECURITY.md)
-for vulnerability reporting.
+Local stdio reads stay inside the resolved workspace unless an external path receives an exact,
+read-only session grant. Record writes, report import, Runner, cache reuse, memory export, and
+external reads require the relevant host setting or user approval. Grants last only for the MCP
+process and can be inspected or revoked with `runtime_access`.
+
+`runtime_config(action=status)` shows live catalog roots, candidate roots, rule files, symbol
+indexes, workspace, state directory, HTTP transport, and tool surface. Its approved operations can
+change sources or switch the workspace and state directory without restarting stdio. Use startup
+flags for fixed or unattended hosts:
+
+```text
+--workspace PATH       primary workspace
+--state-dir PATH       private local state outside the workspace
+--catalog-root PATH    workspace-relative catalog source; repeatable
+--candidate-root PATH  executable candidate directory; repeatable
+--rule-file NAME       repository rule filename; repeatable
+--symbol-index PATH    configured symbol index; repeatable
+--transport MODE       stdio (default) or http
+--http-profile PATH    ignored local HTTP profile
+--tool-surface SURFACE typed.v1 (default) or toolbox.v1
+```
+
+The optional `toolbox.v1` startup surface exposes five fixed tools:
+`repoplane_read`, `repoplane_write`, `repoplane_import`, `repoplane_runner`, and
+`repoplane_state`. Describe an allowlisted operation before calling it with the returned
+content-bound schema handle. Changing surfaces requires a new session.
+
+HTTP is opt-in. The example [local](examples/http-profile.local.yaml) and
+[OAuth](examples/http-profile.oauth.yaml) profiles show loopback binding, authentication, and
+scopes. Keep actual tokens, key files, host paths, and profiles outside the tracked tree. HTTP
+authorization is separate from local stdio session grants.
+
+## Local state, backup, and usage
+
+RepoPlane keeps regenerable search indexes and durable records in separate SQLite files under
+`--state-dir`, never inside the workspace. Runner streams and captured artifacts are retained
+there under bounded policies. Removing the state directory also removes local memos, checkpoints,
+imported verification, run receipts, streams, artifacts, and cursors.
+
+Use `memory_backup` or the CLI to export durable records and retained Runner evidence before a
+machine reset:
+
+```text
+repoplane memory export --destination BACKUP_DIRECTORY --workspace WORKSPACE --state-dir STATE_DIRECTORY
+repoplane memory restore --archive BACKUP_ARCHIVE --workspace RESTORED_WORKSPACE --state-dir NEW_STATE_DIRECTORY
+```
+
+The archive may contain sensitive record or process output; store it privately. It excludes local
+HTTP tokens, host profiles, regenerable indexes, and audit data.
+
+```text
+repoplane usage --workspace WORKSPACE --state-dir STATE_DIRECTORY
+```
+
+`usage` reports observed operation calls, serialized request/result bytes, duration, errors,
+approvals, and reused runs. It does not measure model tokens or estimate savings.
+
+## Development and releases
+
+```sh
+go run ./cmd/repoplane-dev preflight
+go run ./cmd/repoplane-dev verify
+go run ./cmd/repoplane-dev public-release-check
+```
+
+These commands write bounded reports under ignored `.tmp/reports`. The release workflow builds
+versioned archives after successful CI and generates release notes from the matching
+`CHANGELOG.md` section. See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution rules and
+[SECURITY.md](SECURITY.md) for vulnerability reporting.
 
 ## License
 

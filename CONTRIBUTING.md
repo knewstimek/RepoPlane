@@ -4,12 +4,11 @@ Thanks for helping make repository tooling easier for agents to inspect safely.
 
 ## Before opening a change
 
-1. Check existing issues, the frozen MVP scope in [`docs/MVP-Spec.md`](docs/MVP-Spec.md), and the
-   [`full implementation roadmap`](docs/Full-Implementation-Roadmap.md).
+1. Check existing issues, the [README](README.md), and public tool schemas in [`schemas/`](schemas/).
 2. Keep query tools read-only. Record mutation tools require explicit host pre-authorization or a
    user-approved ephemeral stdio runtime grant; do not add
    Runner or cache reuse through the record surface.
-3. For a public contract change, update the relevant specification and generated schemas in the
+3. For a public contract change, update the README, generated schemas, and regression tests in the
    same change.
 
 ## Development

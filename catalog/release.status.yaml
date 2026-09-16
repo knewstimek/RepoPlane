@@ -15,5 +15,5 @@ execution:
   artifact_mode: metadata
   preflight:
     - {id: gh.version, kind: executable, ref: gh, requirement: required, argv: [--version]}
-docs: [docs/Release-Notes-Spec.md, docs/Public-Release.md]
+docs: [README.md, CHANGELOG.md]
 cache_policy: disabled
