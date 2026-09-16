@@ -6,8 +6,43 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestRunInspectSchemaExplainsStoredReferencesWithoutREADME(t *testing.T) {
+	generated, err := Generate(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var schema document
+	if err := json.Unmarshal(generated, &schema); err != nil {
+		t.Fatal(err)
+	}
+	for _, tool := range schema.Tools {
+		if tool.Name != "run_inspect" {
+			continue
+		}
+		for _, phrase := range []string{"runtime_config(status).configuration.state_dir[0]", "HTTP", "response_view=bytes"} {
+			if !strings.Contains(tool.Description, phrase) {
+				t.Fatalf("run_inspect description omits %q", phrase)
+			}
+		}
+		input := tool.InputSchema.(map[string]any)["properties"].(map[string]any)
+		view := input["response_view"].(map[string]any)["description"].(string)
+		if !strings.Contains(view, "ref default") || !strings.Contains(view, "bytes") {
+			t.Fatalf("response_view is not self-describing: %q", view)
+		}
+		output := tool.OutputSchema.(map[string]any)["properties"].(map[string]any)
+		stream := output["stream"].(map[string]any)["properties"].(map[string]any)
+		file := stream["file_ref"].(map[string]any)["description"].(string)
+		if !strings.Contains(file, "strip state:") || !strings.Contains(file, "local only") {
+			t.Fatalf("file_ref is not self-describing: %q", file)
+		}
+		return
+	}
+	t.Fatal("run_inspect is absent")
+}
 
 func TestGeneratedToolSchemasAreCurrent(t *testing.T) {
 	generated, err := Generate(context.Background())

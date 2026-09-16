@@ -2094,7 +2094,7 @@
     },
     {
       "name": "run_execute",
-      "description": "Execute or reuse a plan after dependency checks; may request approval.",
+      "description": "Run/reuse a prepared plan; may request approval.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -2165,30 +2165,30 @@
     },
     {
       "name": "run_inspect",
-      "description": "Run status and file/record refs by default; response_view=bytes returns raw content. Cancel.",
+      "description": "Refs default. Local state: file_ref is under runtime_config(status).configuration.state_dir[0]; HTTP use response_view=bytes. Can cancel.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
           "action": {
-            "description": "status, detail, stdout, stderr, artifact, cancel; default status",
+            "description": "status (default), detail, stdout, stderr, artifact, cancel",
             "type": "string"
           },
           "artifact_ref": {
-            "description": "artifact record ref required by the artifact action",
+            "description": "record ref for artifact action",
             "type": "string"
           },
           "byte_limit": {
-            "description": "stream bytes; default 65536, max 1048576",
+            "description": "raw bytes; default 65536, max 1048576",
             "minimum": 0,
             "type": "integer"
           },
           "offset": {
-            "description": "zero-based stream byte offset",
+            "description": "stream byte offset",
             "minimum": 0,
             "type": "integer"
           },
           "response_view": {
-            "description": "ref (default) omits content; bytes returns raw pages or full receipt",
+            "description": "ref default; bytes returns raw pages/full receipt",
             "type": "string"
           },
           "run_id": {
@@ -2196,7 +2196,7 @@
             "type": "string"
           },
           "time_limit_ms": {
-            "description": "deadline ms; default 5000, max 30000",
+            "description": "deadline ms; 5000 default, 30000 max",
             "type": "integer"
           }
         },
@@ -2228,6 +2228,7 @@
                 "type": "boolean"
               },
               "file_ref": {
+                "description": "strip state:; relative to host state_dir; local only",
                 "type": "string"
               },
               "next_offset": {
@@ -2303,7 +2304,7 @@
     },
     {
       "name": "run_prepare",
-      "description": "Prepare a registered run; return a concise plan. Use run_inspect detail for the full receipt.",
+      "description": "Prepare a registered run; return a concise plan and run ID.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {

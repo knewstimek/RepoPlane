@@ -314,7 +314,7 @@ func operationRegistry(options Options) []operationSpec {
 	if options.Runner != nil {
 		nonDestructive, destructive := false, true
 		operations = append(operations,
-			newOperation(ToolRunPrepare, ToolboxRunner, "Prepare a registered run; return a concise plan. Use run_inspect detail for the full receipt.", ScopeRunnerExecute, "plan_write", "conditional", &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &nonDestructive, IdempotentHint: false},
+			newOperation(ToolRunPrepare, ToolboxRunner, "Prepare a registered run; return a concise plan and run ID.", ScopeRunnerExecute, "plan_write", "conditional", &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &nonDestructive, IdempotentHint: false},
 				func(ctx context.Context, request *mcp.CallToolRequest, input runner.PrepareRequest) (*mcp.CallToolResult, runner.PrepareResponse, error) {
 					if err := authorize(ctx, options, ToolRunPrepare); err != nil {
 						return nil, runner.PrepareResponse{}, publicError(err)
@@ -325,7 +325,7 @@ func operationRegistry(options Options) []operationSpec {
 					output, err := options.Runner.Prepare(ctx, input)
 					return nil, output, publicError(err)
 				}),
-			newOperation(ToolRunExecute, ToolboxRunner, "Execute or reuse a plan after dependency checks; may request approval.", ScopeRunnerExecute, "execute", "conditional", &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false},
+			newOperation(ToolRunExecute, ToolboxRunner, "Run/reuse a prepared plan; may request approval.", ScopeRunnerExecute, "execute", "conditional", &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false},
 				func(ctx context.Context, request *mcp.CallToolRequest, input runner.ExecuteRequest) (*mcp.CallToolResult, runner.ExecuteResponse, error) {
 					if err := authorize(ctx, options, ToolRunExecute); err != nil {
 						return nil, runner.ExecuteResponse{}, publicError(err)
@@ -336,7 +336,7 @@ func operationRegistry(options Options) []operationSpec {
 					output, err := options.Runner.Execute(ctx, input)
 					return nil, output, publicError(err)
 				}),
-			newOperation(ToolRunInspect, ToolboxRunner, "Run status and file/record refs by default; response_view=bytes returns raw content. Cancel.", ScopeRunnerExecute, "inspect_or_cancel", "conditional", &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false},
+			newOperation(ToolRunInspect, ToolboxRunner, "Refs default. Local state: file_ref is under runtime_config(status).configuration.state_dir[0]; HTTP use response_view=bytes. Can cancel.", ScopeRunnerExecute, "inspect_or_cancel", "conditional", &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false},
 				func(ctx context.Context, request *mcp.CallToolRequest, input runner.InspectRequest) (*mcp.CallToolResult, runner.InspectResponse, error) {
 					if err := authorize(ctx, options, ToolRunInspect); err != nil {
 						return nil, runner.InspectResponse{}, publicError(err)

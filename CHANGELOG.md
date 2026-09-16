@@ -17,6 +17,8 @@ Notable changes to RepoPlane are documented here.
   concise run summary by default. Detail, stdout, stderr, and artifact inspection now return
   stored record/file references by default; `response_view=bytes` explicitly requests content.
 - Clarified runtime configuration, record search/write, and data-query limit tool descriptions.
+- The `run_inspect` tool schema now explains how local agents resolve `state:` file refs and why
+  HTTP clients must request bounded bytes, without depending on README discovery.
 
 ## [1.1.3] - 2026-09-16
 

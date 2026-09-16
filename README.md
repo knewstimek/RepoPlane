@@ -521,8 +521,9 @@ commit it. See the [portable memory backup specification](docs/Memory-Backup-Spe
 
 Run status returns a compact summary and a `record:` receipt ref. `run_inspect` actions `detail`,
 `stdout`, `stderr`, and `artifact` return refs and size metadata by default, without the stored
-content. Stream and artifact `file_ref` values are relative to the configured local state directory
-(`state:runs/RUN_ID/stdout.log`, for example); the files already exist there. Set
+content. Strip `state:` from a stream or artifact `file_ref` and resolve the remainder under
+`runtime_config(action=status).configuration.state_dir[0]` on the local host; the files already
+exist there. HTTP clients cannot read the server's local files directly. Set
 `response_view=bytes` only when the full receipt or a bounded stream/artifact page must enter the
 MCP response. Raw captured output may contain information emitted by the executed capability.
 

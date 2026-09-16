@@ -82,12 +82,12 @@ type ExecuteResponse struct {
 
 type InspectRequest struct {
 	RunID        string `json:"run_id" jsonschema:"prepared or started run ID"`
-	Action       string `json:"action,omitempty" jsonschema:"status, detail, stdout, stderr, artifact, cancel; default status"`
-	ArtifactRef  string `json:"artifact_ref,omitempty" jsonschema:"artifact record ref required by the artifact action"`
-	ResponseView string `json:"response_view,omitempty" jsonschema:"ref (default) omits content; bytes returns raw pages or full receipt"`
-	Offset       uint64 `json:"offset,omitempty" jsonschema:"zero-based stream byte offset"`
-	ByteLimit    uint64 `json:"byte_limit,omitempty" jsonschema:"stream bytes; default 65536, max 1048576"`
-	TimeLimitMS  int64  `json:"time_limit_ms,omitempty" jsonschema:"deadline ms; default 5000, max 30000"`
+	Action       string `json:"action,omitempty" jsonschema:"status (default), detail, stdout, stderr, artifact, cancel"`
+	ArtifactRef  string `json:"artifact_ref,omitempty" jsonschema:"record ref for artifact action"`
+	ResponseView string `json:"response_view,omitempty" jsonschema:"ref default; bytes returns raw pages/full receipt"`
+	Offset       uint64 `json:"offset,omitempty" jsonschema:"stream byte offset"`
+	ByteLimit    uint64 `json:"byte_limit,omitempty" jsonschema:"raw bytes; default 65536, max 1048576"`
+	TimeLimitMS  int64  `json:"time_limit_ms,omitempty" jsonschema:"deadline ms; 5000 default, 30000 max"`
 }
 
 type artifactPayload struct {
@@ -102,7 +102,7 @@ type artifactPayload struct {
 
 type StreamResult struct {
 	Ref          string `json:"ref"`
-	FileRef      string `json:"file_ref,omitempty"`
+	FileRef      string `json:"file_ref,omitempty" jsonschema:"strip state:; relative to host state_dir; local only"`
 	SizeBytes    uint64 `json:"size_bytes"`
 	Offset       uint64 `json:"offset"`
 	NextOffset   uint64 `json:"next_offset"`

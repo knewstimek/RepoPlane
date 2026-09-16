@@ -23,10 +23,10 @@
     {
       "name": "runner",
       "tool_count": 3,
-      "complete_contract_bytes": 5498,
-      "name_description_input_bytes": 2126,
-      "input_schema_bytes": 1706,
-      "output_schema_bytes": 3321
+      "complete_contract_bytes": 5496,
+      "name_description_input_bytes": 2055,
+      "input_schema_bytes": 1646,
+      "output_schema_bytes": 3390
     },
     {
       "name": "state",
@@ -39,10 +39,10 @@
     {
       "name": "all",
       "tool_count": 14,
-      "complete_contract_bytes": 35614,
-      "name_description_input_bytes": 14974,
-      "input_schema_bytes": 12921,
-      "output_schema_bytes": 20402
+      "complete_contract_bytes": 35612,
+      "name_description_input_bytes": 14903,
+      "input_schema_bytes": 12861,
+      "output_schema_bytes": 20471
     },
     {
       "name": "toolbox",
