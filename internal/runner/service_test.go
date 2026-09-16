@@ -296,7 +296,11 @@ func TestPrepareExecuteInspectAndCapture(t *testing.T) {
 	if _, ok := result.Run["input_hashes"]; ok {
 		t.Fatal("status repeated the full run receipt")
 	}
-	detail, err := service.Inspect(context.Background(), InspectRequest{RunID: executed.RunID, Action: "detail", ByteLimit: 1})
+	detailRef, err := service.Inspect(context.Background(), InspectRequest{RunID: executed.RunID, Action: "detail", ByteLimit: 1})
+	if err != nil || detailRef.Run["receipt_ref"] != "record:"+executed.RunID || detailRef.Run["input_hashes"] != nil {
+		t.Fatalf("detail reference exposed content: %+v err=%v", detailRef.Run, err)
+	}
+	detail, err := service.Inspect(context.Background(), InspectRequest{RunID: executed.RunID, Action: "detail", ResponseView: "bytes", ByteLimit: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -305,6 +309,13 @@ func TestPrepareExecuteInspectAndCapture(t *testing.T) {
 		t.Fatalf("detail did not retain full input evidence: %+v err=%v", detail.Run, err)
 	}
 	stream, err := service.Inspect(context.Background(), InspectRequest{RunID: executed.RunID, Action: "stdout"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stream.Stream.BytesBase64 != "" || stream.Stream.FileRef != "state:runs/"+executed.RunID+"/stdout.log" || stream.Stream.SizeBytes == 0 {
+		t.Fatalf("stdout reference exposed content: %+v", stream.Stream)
+	}
+	stream, err = service.Inspect(context.Background(), InspectRequest{RunID: executed.RunID, Action: "stdout", ResponseView: "bytes"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -318,6 +329,13 @@ func TestPrepareExecuteInspectAndCapture(t *testing.T) {
 	}
 	artifactRef := "record:" + page.Records[0].ID
 	artifact, err := service.Inspect(context.Background(), InspectRequest{RunID: executed.RunID, Action: "artifact", ArtifactRef: artifactRef})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if artifact.Stream.BytesBase64 != "" || !strings.HasPrefix(artifact.Stream.FileRef, "state:artifacts/blobs/") || artifact.Stream.SizeBytes == 0 {
+		t.Fatalf("artifact reference exposed content: %+v", artifact.Stream)
+	}
+	artifact, err = service.Inspect(context.Background(), InspectRequest{RunID: executed.RunID, Action: "artifact", ArtifactRef: artifactRef, ResponseView: "bytes"})
 	if err != nil {
 		t.Fatal(err)
 	}

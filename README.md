@@ -519,9 +519,12 @@ commit it. See the [portable memory backup specification](docs/Memory-Backup-Spe
 
 ## Architecture
 
-Run status returns a compact summary and `run_id`; use `run_inspect` with `action=detail` only
-when the full durable receipt is needed. Captured stdout, stderr, and artifacts are read by offset
-and byte limit. Raw captured output may contain information emitted by the executed capability.
+Run status returns a compact summary and a `record:` receipt ref. `run_inspect` actions `detail`,
+`stdout`, `stderr`, and `artifact` return refs and size metadata by default, without the stored
+content. Stream and artifact `file_ref` values are relative to the configured local state directory
+(`state:runs/RUN_ID/stdout.log`, for example); the files already exist there. Set
+`response_view=bytes` only when the full receipt or a bounded stream/artifact page must enter the
+MCP response. Raw captured output may contain information emitted by the executed capability.
 
 Observed MCP usage is available as bounded JSON from the local CLI:
 
@@ -548,7 +551,7 @@ state semantics; cross-tool references are avoided because each MCP tool schema 
 The generated [`tool-footprint.v1.json`](schemas/tool-footprint.v1.json) separates complete-contract
 bytes from a name/description/input-only comparison. These are deterministic serialized byte
 counts—not observed model tokens or proof of what a particular MCP client exposes. The default 14
-typed tools total 14,903 name/description/input bytes; the five fixed opt-in toolboxes total 4,387
+typed tools total 14,974 name/description/input bytes; the five fixed opt-in toolboxes total 4,387
 bytes. Both surfaces keep stable discovery. Lazy operation contracts are application-level MCP
 calls, not a claim of client-native deferred loading. See the
 [`context-efficiency specification`](docs/Context-Efficiency-Spec.md).

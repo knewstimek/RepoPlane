@@ -325,7 +325,7 @@ func operationRegistry(options Options) []operationSpec {
 					output, err := options.Runner.Prepare(ctx, input)
 					return nil, output, publicError(err)
 				}),
-			newOperation(ToolRunExecute, ToolboxRunner, "Execute or reuse one plan after dependency revalidation; requests session execution approval when needed.", ScopeRunnerExecute, "execute", "conditional", &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false},
+			newOperation(ToolRunExecute, ToolboxRunner, "Execute or reuse a plan after dependency checks; may request approval.", ScopeRunnerExecute, "execute", "conditional", &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false},
 				func(ctx context.Context, request *mcp.CallToolRequest, input runner.ExecuteRequest) (*mcp.CallToolResult, runner.ExecuteResponse, error) {
 					if err := authorize(ctx, options, ToolRunExecute); err != nil {
 						return nil, runner.ExecuteResponse{}, publicError(err)
@@ -336,7 +336,7 @@ func operationRegistry(options Options) []operationSpec {
 					output, err := options.Runner.Execute(ctx, input)
 					return nil, output, publicError(err)
 				}),
-			newOperation(ToolRunInspect, ToolboxRunner, "Summarize a run, page raw unredacted streams or artifacts, or cancel; detail returns the full receipt.", ScopeRunnerExecute, "inspect_or_cancel", "conditional", &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false},
+			newOperation(ToolRunInspect, ToolboxRunner, "Run status and file/record refs by default; response_view=bytes returns raw content. Cancel.", ScopeRunnerExecute, "inspect_or_cancel", "conditional", &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false},
 				func(ctx context.Context, request *mcp.CallToolRequest, input runner.InspectRequest) (*mcp.CallToolResult, runner.InspectResponse, error) {
 					if err := authorize(ctx, options, ToolRunInspect); err != nil {
 						return nil, runner.InspectResponse{}, publicError(err)

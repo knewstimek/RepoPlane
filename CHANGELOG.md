@@ -4,6 +4,8 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+## [1.1.4] - 2026-09-16
+
 ### Added
 
 - Local `repoplane usage` report for observed MCP calls, serialized request/result bytes, duration,
@@ -12,7 +14,8 @@ Notable changes to RepoPlane are documented here.
 ### Changed
 
 - `run_prepare` returns an input count instead of repeated input hashes; `run_inspect` returns a
-  concise run summary by default and exposes the full durable receipt with `action=detail`.
+  concise run summary by default. Detail, stdout, stderr, and artifact inspection now return
+  stored record/file references by default; `response_view=bytes` explicitly requests content.
 - Clarified runtime configuration, record search/write, and data-query limit tool descriptions.
 
 ## [1.1.3] - 2026-09-16

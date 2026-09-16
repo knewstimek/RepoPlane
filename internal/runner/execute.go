@@ -228,6 +228,12 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (InspectR
 	if request.Action == "" {
 		request.Action = "status"
 	}
+	if request.ResponseView == "" {
+		request.ResponseView = "ref"
+	}
+	if request.ResponseView != "ref" && request.ResponseView != "bytes" {
+		return InspectResponse{}, errors.New("response_view must be ref or bytes")
+	}
 	limits, err := contracts.NormalizeLimits(contracts.LimitRequest{ByteLimit: request.ByteLimit, TimeLimitMS: request.TimeLimitMS})
 	if err != nil {
 		return InspectResponse{}, err
@@ -248,9 +254,10 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (InspectR
 		return InspectResponse{}, err
 	}
 	var view any = payload
-	if request.Action != "detail" {
+	if request.Action != "detail" || request.ResponseView != "bytes" {
 		view = map[string]any{
-			"run_id": request.RunID, "state": payload.State, "capability_id": payload.CapabilityID,
+			"run_id": request.RunID, "receipt_ref": "record:" + request.RunID,
+			"state": payload.State, "capability_id": payload.CapabilityID,
 			"ready": payload.Ready, "started_at": payload.StartedAt, "finished_at": payload.FinishedAt,
 			"exit_code": payload.ExitCode, "termination_reason": payload.TerminationReason,
 			"stdout_bytes": payload.StdoutBytes, "stderr_bytes": payload.StderrBytes,
@@ -275,14 +282,14 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (InspectR
 			response.Warnings = append(response.Warnings, contracts.Warning{Code: "stream_expired", Message: "captured stream is no longer retained"})
 			return response, nil
 		}
-		stream, err := s.readStream(request.RunID, request.Action, request.Offset, limits.ByteLimit)
+		stream, err := s.readStream(request.RunID, request.Action, request.Offset, limits.ByteLimit, request.ResponseView == "bytes")
 		if err != nil {
 			return InspectResponse{}, err
 		}
 		response.Stream = &stream
 		return response, nil
 	case "artifact":
-		stream, warning, err := s.readArtifact(ctx, request.RunID, request.ArtifactRef, request.Offset, limits.ByteLimit)
+		stream, warning, err := s.readArtifact(ctx, request.RunID, request.ArtifactRef, request.Offset, limits.ByteLimit, request.ResponseView == "bytes")
 		if err != nil {
 			return InspectResponse{}, err
 		}
@@ -296,7 +303,7 @@ func (s *Service) Inspect(ctx context.Context, request InspectRequest) (InspectR
 	}
 }
 
-func (s *Service) readArtifact(ctx context.Context, runID, ref string, offset, limit uint64) (StreamResult, contracts.Warning, error) {
+func (s *Service) readArtifact(ctx context.Context, runID, ref string, offset, limit uint64, includeBytes bool) (StreamResult, contracts.Warning, error) {
 	id := strings.TrimPrefix(ref, "record:")
 	if !validArtifactID(id) {
 		return StreamResult{}, contracts.Warning{}, errors.New("valid artifact_ref is required")
@@ -342,6 +349,13 @@ func (s *Service) readArtifact(ctx context.Context, runID, ref string, offset, l
 	if offset > uint64(info.Size()) {
 		return StreamResult{}, contracts.Warning{}, errors.New("artifact offset exceeds observed size")
 	}
+	result.FileRef = "state:artifacts/blobs/" + strings.TrimPrefix(payload.ContentHash, "sha256:")
+	result.SizeBytes = uint64(info.Size())
+	result.EOF = offset >= uint64(info.Size())
+	if !includeBytes {
+		result.Truncated = !result.EOF
+		return result, contracts.Warning{}, nil
+	}
 	if _, err := file.Seek(int64(offset), io.SeekStart); err != nil {
 		return StreamResult{}, contracts.Warning{}, err
 	}
@@ -355,7 +369,7 @@ func (s *Service) readArtifact(ctx context.Context, runID, ref string, offset, l
 	return result, contracts.Warning{}, nil
 }
 
-func (s *Service) readStream(runID, stream string, offset, limit uint64) (StreamResult, error) {
+func (s *Service) readStream(runID, stream string, offset, limit uint64, includeBytes bool) (StreamResult, error) {
 	path := filepath.Join(s.stateDir, "runs", runID, stream+".log")
 	file, err := os.Open(path)
 	if err != nil {
@@ -369,6 +383,14 @@ func (s *Service) readStream(runID, stream string, offset, limit uint64) (Stream
 	if offset > uint64(info.Size()) {
 		return StreamResult{}, errors.New("stream offset exceeds observed size")
 	}
+	result := StreamResult{Ref: "stream:" + runID + ":" + stream,
+		FileRef:   "state:runs/" + runID + "/" + stream + ".log",
+		SizeBytes: uint64(info.Size()), Offset: offset, NextOffset: offset,
+		EOF: offset >= uint64(info.Size()), Availability: "stored"}
+	if !includeBytes {
+		result.Truncated = !result.EOF
+		return result, nil
+	}
 	if _, err := file.Seek(int64(offset), io.SeekStart); err != nil {
 		return StreamResult{}, err
 	}
@@ -377,7 +399,9 @@ func (s *Service) readStream(runID, stream string, offset, limit uint64) (Stream
 		return StreamResult{}, err
 	}
 	next := offset + uint64(len(data))
-	return StreamResult{Ref: "stream:" + runID + ":" + stream, Offset: offset, NextOffset: next, BytesBase64: base64.StdEncoding.EncodeToString(data), EOF: next >= uint64(info.Size()), Truncated: next < uint64(info.Size()), Availability: "stored"}, nil
+	result.NextOffset, result.BytesBase64 = next, base64.StdEncoding.EncodeToString(data)
+	result.EOF, result.Truncated = next >= uint64(info.Size()), next < uint64(info.Size())
+	return result, nil
 }
 
 func (s *Service) loadRun(ctx context.Context, id string) (store.Record, runPayload, error) {

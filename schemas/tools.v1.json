@@ -2094,7 +2094,7 @@
     },
     {
       "name": "run_execute",
-      "description": "Execute or reuse one plan after dependency revalidation; requests session execution approval when needed.",
+      "description": "Execute or reuse a plan after dependency checks; may request approval.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -2165,12 +2165,12 @@
     },
     {
       "name": "run_inspect",
-      "description": "Summarize a run, page raw unredacted streams or artifacts, or cancel; detail returns the full receipt.",
+      "description": "Run status and file/record refs by default; response_view=bytes returns raw content. Cancel.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
           "action": {
-            "description": "status, detail, stdout, stderr, artifact, or cancel; default status",
+            "description": "status, detail, stdout, stderr, artifact, cancel; default status",
             "type": "string"
           },
           "artifact_ref": {
@@ -2186,6 +2186,10 @@
             "description": "zero-based stream byte offset",
             "minimum": 0,
             "type": "integer"
+          },
+          "response_view": {
+            "description": "ref (default) omits content; bytes returns raw pages or full receipt",
+            "type": "string"
           },
           "run_id": {
             "description": "prepared or started run ID",
@@ -2223,6 +2227,9 @@
               "eof": {
                 "type": "boolean"
               },
+              "file_ref": {
+                "type": "string"
+              },
               "next_offset": {
                 "minimum": 0,
                 "type": "integer"
@@ -2234,15 +2241,19 @@
               "ref": {
                 "type": "string"
               },
+              "size_bytes": {
+                "minimum": 0,
+                "type": "integer"
+              },
               "truncated": {
                 "type": "boolean"
               }
             },
             "required": [
               "ref",
+              "size_bytes",
               "offset",
               "next_offset",
-              "bytes_base64",
               "eof",
               "truncated",
               "availability"

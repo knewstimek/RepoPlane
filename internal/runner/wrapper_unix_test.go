@@ -44,7 +44,7 @@ func assertWrapperOutput(t *testing.T, service *Service, message string) {
 	if result.Run["state"] != "completed" {
 		t.Fatalf("wrapper failed: %+v", result.Run)
 	}
-	stream, err := service.Inspect(context.Background(), InspectRequest{RunID: executed.RunID, Action: "stdout"})
+	stream, err := service.Inspect(context.Background(), InspectRequest{RunID: executed.RunID, Action: "stdout", ResponseView: "bytes"})
 	if err != nil {
 		t.Fatal(err)
 	}
