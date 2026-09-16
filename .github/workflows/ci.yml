@@ -26,7 +26,14 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ripgrep
       - name: Install ripgrep on Windows
         if: runner.os == 'Windows'
-        run: choco install ripgrep -y --no-progress
+        shell: pwsh
+        run: |
+          foreach ($attempt in 1..3) {
+            choco install ripgrep -y --no-progress
+            if (Get-Command rg -ErrorAction SilentlyContinue) { exit 0 }
+            if ($attempt -lt 3) { Start-Sleep -Seconds 5 }
+          }
+          throw "ripgrep installation failed after 3 attempts"
       - name: Check ripgrep
         run: rg --version
       - name: Preflight
