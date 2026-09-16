@@ -180,6 +180,55 @@ func TestCatalogPublishIsAtomicAndSearchIsDeterministic(t *testing.T) {
 	}
 }
 
+func TestCatalogPublishReactivatesExistingGeneration(t *testing.T) {
+	repository := openTestRepository(t)
+	workspace := seedWorkspace(t, repository)
+	first := generation(workspace.ID, "generation-1", item("first-tool"))
+	second := generation(workspace.ID, "generation-2", item("second-tool"))
+	if err := repository.PublishCatalogGeneration(context.Background(), first); err != nil {
+		t.Fatal(err)
+	}
+	if err := repository.PublishCatalogGeneration(context.Background(), second); err != nil {
+		t.Fatal(err)
+	}
+	if err := repository.PublishCatalogGeneration(context.Background(), first); err != nil {
+		t.Fatalf("reactivate first generation: %v", err)
+	}
+	current, err := repository.CurrentCatalogGeneration(context.Background(), workspace.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.ID != first.Meta.ID {
+		t.Fatalf("current generation=%q, want reactivated %q", current.ID, first.Meta.ID)
+	}
+	if _, err := repository.GetCatalogItem(context.Background(), workspace.ID, current.ID, "first-tool"); err != nil {
+		t.Fatalf("read item from reactivated generation: %v", err)
+	}
+}
+
+func TestCatalogPublishRejectsExistingGenerationFromAnotherWorkspace(t *testing.T) {
+	repository := openTestRepository(t)
+	firstWorkspace := seedWorkspace(t, repository)
+	secondWorkspace := store.Workspace{
+		ID: "ws_other", RootFingerprint: "other-root",
+		CreatedAt: time.Unix(2_000_000_001, 0).UTC(), LastSeenAt: time.Unix(2_000_000_001, 0).UTC(),
+	}
+	if err := repository.UpsertWorkspace(context.Background(), secondWorkspace); err != nil {
+		t.Fatal(err)
+	}
+	first := generation(firstWorkspace.ID, "shared-generation", item("first-tool"))
+	if err := repository.PublishCatalogGeneration(context.Background(), first); err != nil {
+		t.Fatal(err)
+	}
+	conflicting := generation(secondWorkspace.ID, first.Meta.ID, item("other-tool"))
+	if err := repository.PublishCatalogGeneration(context.Background(), conflicting); !errors.Is(err, store.ErrConflict) {
+		t.Fatalf("cross-workspace publish error=%v, want ErrConflict", err)
+	}
+	if _, err := repository.CurrentCatalogGeneration(context.Background(), secondWorkspace.ID); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("second workspace current generation error=%v, want ErrNotFound", err)
+	}
+}
+
 func TestResultSetPaginationAndBoundedExpiry(t *testing.T) {
 	repository := openTestRepository(t)
 	workspace := seedWorkspace(t, repository)

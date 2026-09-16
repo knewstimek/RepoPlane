@@ -303,10 +303,35 @@ func (r *Repository) PublishCatalogGeneration(ctx context.Context, generation st
 	}()
 
 	meta := generation.Meta
-	if _, err = tx.ExecContext(ctx, `
-        INSERT INTO catalog_generations(id, workspace_id, source_fingerprint, created_at)
-        VALUES (?, ?, ?, ?)`, meta.ID, meta.WorkspaceID, meta.SourceFingerprint, unixNano(meta.CreatedAt)); err != nil {
+	result, err := tx.ExecContext(ctx, `
+		INSERT OR IGNORE INTO catalog_generations(id, workspace_id, source_fingerprint, created_at)
+		VALUES (?, ?, ?, ?)`, meta.ID, meta.WorkspaceID, meta.SourceFingerprint, unixNano(meta.CreatedAt))
+	if err != nil {
 		return fmt.Errorf("insert catalog generation: %w: %v", store.ErrConflict, err)
+	}
+	inserted, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("inspect catalog generation insert: %w", err)
+	}
+	if inserted == 0 {
+		var workspaceID, sourceFingerprint string
+		if err = tx.QueryRowContext(ctx, `
+			SELECT workspace_id, source_fingerprint FROM catalog_generations WHERE id=?`, meta.ID).Scan(
+			&workspaceID, &sourceFingerprint); err != nil {
+			return fmt.Errorf("inspect existing catalog generation: %w: %v", store.ErrConflict, err)
+		}
+		if workspaceID != meta.WorkspaceID || sourceFingerprint != meta.SourceFingerprint {
+			return fmt.Errorf("catalog generation identity mismatch: %w", store.ErrConflict)
+		}
+		if _, err = tx.ExecContext(ctx, `
+			INSERT INTO current_catalog(workspace_id, generation_id) VALUES (?, ?)
+			ON CONFLICT(workspace_id) DO UPDATE SET generation_id=excluded.generation_id`, meta.WorkspaceID, meta.ID); err != nil {
+			return fmt.Errorf("reactivate catalog generation: %w", err)
+		}
+		if err = tx.Commit(); err != nil {
+			return fmt.Errorf("commit catalog reactivation: %w", err)
+		}
+		return nil
 	}
 	for _, item := range generation.Items {
 		if _, err = tx.ExecContext(ctx, `

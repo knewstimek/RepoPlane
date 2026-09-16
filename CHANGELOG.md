@@ -4,6 +4,12 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+### Fixed
+
+- Catalog refresh now reactivates a previously stored deterministic generation when workspace
+  sources return to an earlier state, instead of terminating MCP startup on a SQLite uniqueness
+  conflict.
+
 ## [1.1.1] - 2026-09-16
 
 ### Added
