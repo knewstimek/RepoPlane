@@ -5,8 +5,7 @@ agents. It finds repository capabilities, searches code and structured data, exp
 keeps verification and task evidence. Reads have explicit limits: a partial scan reports what it
 did not observe instead of presenting a guess as a complete result.
 
-[Releases](https://github.com/knewstimek/RepoPlane/releases) · [Changelog](CHANGELOG.md) ·
-[Contributing](CONTRIBUTING.md)
+[Releases](https://github.com/knewstimek/RepoPlane/releases) · [Changelog](CHANGELOG.md)
 
 ## Install and try it
 
@@ -173,8 +172,8 @@ go run ./cmd/repoplane-dev public-release-check
 
 These commands write bounded reports under ignored `.tmp/reports`. The release workflow builds
 versioned archives after successful CI and generates release notes from the matching
-`CHANGELOG.md` section. See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution rules and
-[SECURITY.md](SECURITY.md) for vulnerability reporting.
+`CHANGELOG.md` section. RepoPlane is maintainer-led; public issues and pull requests are closed
+for now. See [SECURITY.md](SECURITY.md) for vulnerability reporting.
 
 ## License
 

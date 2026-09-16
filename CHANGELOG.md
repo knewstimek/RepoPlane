@@ -10,6 +10,8 @@ Notable changes to RepoPlane are documented here.
   operational limits. The private `docs/` directory is no longer tracked.
 - The release workflow now generates public notes from the matching `CHANGELOG.md` section instead
   of requiring a tracked document for every version.
+- Paused public contribution intake and automatic dependency-version pull requests while the
+  project is maintained directly.
 
 ## [1.1.4] - 2026-09-16
 

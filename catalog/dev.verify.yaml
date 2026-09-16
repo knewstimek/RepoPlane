@@ -20,5 +20,5 @@ execution:
 inputs: [go.mod, go.sum, "cmd/**/*.go", "internal/**/*.go", "schemas/**", "catalog/**", "checks/**"]
 outputs: [.tmp/reports/verify.json]
 checks: [repository.verify]
-docs: [CONTRIBUTING.md, README.md]
+docs: [README.md]
 cache_policy: disabled
