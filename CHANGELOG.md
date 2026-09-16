@@ -4,6 +4,8 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+## [1.1.1] - 2026-09-16
+
 ### Added
 
 - An opt-in `toolbox.v1` MCP surface with five fixed authorization-aligned tools, lazy compact or
