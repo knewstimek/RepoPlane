@@ -178,6 +178,11 @@ func (s *Service) search(ctx context.Context, meta store.CatalogGenerationMeta, 
 func (s *Service) get(ctx context.Context, meta store.CatalogGenerationMeta, id string, byteLimit uint64) (QueryResponse, error) {
 	item, err := s.repository.GetCatalogItem(ctx, s.workspaceID, meta.ID, id)
 	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			if candidates := s.indexer.unconfiguredCatalogRoots(); len(candidates) > 0 {
+				return QueryResponse{}, fmt.Errorf("%w; unconfigured catalog candidates: %s; inspect runtime_config", err, strings.Join(candidates, ", "))
+			}
+		}
 		return QueryResponse{}, err
 	}
 	result, err := queryResult(item, true, s.executionEnabled)
@@ -197,6 +202,18 @@ func (s *Service) get(ctx context.Context, meta store.CatalogGenerationMeta, id 
 		return QueryResponse{}, ErrResponseTooLarge
 	}
 	return response, nil
+}
+
+func (s *Service) catalogRootWarnings() []contracts.Warning {
+	candidates := s.indexer.unconfiguredCatalogRoots()
+	warnings := make([]contracts.Warning, 0, len(candidates))
+	for _, candidate := range candidates {
+		ref := candidate
+		warnings = append(warnings, contracts.Warning{
+			Code: "catalog_candidate_unconfigured", Message: "catalog candidate is outside the configured catalog_root values; inspect runtime_config before changing sources", Ref: &ref,
+		})
+	}
+	return warnings
 }
 
 func (s *Service) audit(ctx context.Context, meta store.CatalogGenerationMeta, itemLimit, byteLimit uint64) (QueryResponse, error) {
@@ -240,7 +257,7 @@ func (s *Service) status(ctx context.Context, meta store.CatalogGenerationMeta, 
 		}},
 		Counts: contracts.Counts{Matched: &one, Relation: contracts.CountExact, Returned: 1},
 		Scan:   contracts.Scan{State: contracts.ScanComplete}, Truncated: &truncated,
-		SnapshotRef: &snapshot, Warnings: contracts.EmptyWarnings(),
+		SnapshotRef: &snapshot, Warnings: s.catalogRootWarnings(),
 	}
 	if !responseFits(response, byteLimit) {
 		return QueryResponse{}, ErrResponseTooLarge

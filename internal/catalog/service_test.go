@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -131,6 +132,37 @@ func TestServiceAuditReportsManifestFailures(t *testing.T) {
 	}
 	if len(audit.Items) != 3 || audit.Counts.Matched == nil || *audit.Counts.Matched != 3 {
 		t.Fatalf("unexpected audit response: %+v", audit)
+	}
+}
+
+func TestServiceReportsUnconfiguredCatalogCandidates(t *testing.T) {
+	service, catalogPath := newServiceFixture(t, map[string]string{
+		"tool.yaml": "id: configured.tool\nrevision: 1\nsummary: configured\n",
+	})
+	rootPath := filepath.Dir(catalogPath)
+	for _, path := range []string{
+		filepath.Join(rootPath, "code", ".git"),
+		filepath.Join(rootPath, "code", ".repoplane", "catalog"),
+	} {
+		if err := os.MkdirAll(path, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	status, err := service.Query(context.Background(), QueryRequest{Mode: "status"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(status.Warnings) != 1 || status.Warnings[0].Code != "catalog_candidate_unconfigured" || status.Warnings[0].Ref == nil || *status.Warnings[0].Ref != "code/.repoplane/catalog" {
+		t.Fatalf("warnings=%+v", status.Warnings)
+	}
+	_, err = service.Query(context.Background(), QueryRequest{Mode: "get", ID: "missing.tool"})
+	if !errors.Is(err, store.ErrNotFound) || !strings.Contains(err.Error(), "code/.repoplane/catalog") || !strings.Contains(err.Error(), "runtime_config") {
+		t.Fatalf("missing item error=%v", err)
+	}
+	service.indexer.catalogRoots = []string{"catalog", "code"}
+	status, err = service.Query(context.Background(), QueryRequest{Mode: "status"})
+	if err != nil || len(status.Warnings) != 0 {
+		t.Fatalf("configured parent warnings=%+v err=%v", status.Warnings, err)
 	}
 }
 

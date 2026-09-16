@@ -12,6 +12,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,6 +26,7 @@ import (
 const MaxManifestFiles = 10_000
 const MaxCandidateFiles = 10_000
 const MaxExecutableFingerprintBytes uint64 = 64 * 1024 * 1024
+const maxUnconfiguredCatalogRoots = 8
 
 type Indexer struct {
 	root           *workspace.Root
@@ -431,6 +433,68 @@ func pathLikeExecutableRef(ref string) bool {
 func normalizeRelativePath(path string) string {
 	path = filepath.ToSlash(filepath.Clean(filepath.FromSlash(path)))
 	return strings.TrimPrefix(path, "./")
+}
+
+// unconfiguredCatalogRoots returns a bounded set of conventional catalog
+// directories that exist in the workspace but are outside the configured roots.
+func (i *Indexer) unconfiguredCatalogRoots() []string {
+	configured := make([]string, 0, len(i.catalogRoots))
+	for _, root := range i.catalogRoots {
+		configured = append(configured, catalogRootKey(root))
+	}
+	candidates := make([]string, 0)
+	consider := func(relative string) {
+		if len(candidates) >= maxUnconfiguredCatalogRoots {
+			return
+		}
+		relative = normalizeRelativePath(relative)
+		candidateKey := catalogRootKey(relative)
+		for _, root := range configured {
+			if root == "." || candidateKey == root || strings.HasPrefix(candidateKey, root+"/") {
+				return
+			}
+		}
+		absolute, err := i.root.ResolvePrimaryExisting(filepath.FromSlash(relative))
+		if err != nil {
+			return
+		}
+		info, err := os.Stat(absolute)
+		if err != nil || !info.IsDir() {
+			return
+		}
+		candidates = append(candidates, relative)
+	}
+
+	consider(".repoplane/catalog")
+	entries, err := os.ReadDir(i.root.Resolved())
+	if err != nil || len(entries) > 64 {
+		sort.Strings(candidates)
+		return candidates
+	}
+	for _, entry := range entries {
+		if len(candidates) >= maxUnconfiguredCatalogRoots {
+			break
+		}
+		if !entry.IsDir() || entry.Type()&os.ModeSymlink != 0 {
+			continue
+		}
+		repository := filepath.Join(entry.Name(), ".git")
+		if _, err := i.root.ResolvePrimaryExisting(repository); err != nil {
+			continue
+		}
+		consider(filepath.Join(entry.Name(), ".repoplane", "catalog"))
+		consider(filepath.Join(entry.Name(), "catalog"))
+	}
+	sort.Strings(candidates)
+	return candidates
+}
+
+func catalogRootKey(path string) string {
+	key := normalizeRelativePath(path)
+	if runtime.GOOS == "windows" {
+		key = strings.ToLower(key)
+	}
+	return key
 }
 
 func (i *Indexer) manifestPaths(ctx context.Context) ([]string, error) {

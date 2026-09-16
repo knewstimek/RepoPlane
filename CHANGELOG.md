@@ -4,6 +4,20 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+## [1.1.3] - 2026-09-16
+
+### Changed
+
+- Coding-agent guidance now tells Codex hosts to discover deferred `mcp__repoplane__` tools through
+  `ALL_TOOLS` before treating RepoPlane as unavailable, and shows an explicit multi-root catalog
+  override without adding a bootstrap tool.
+
+### Fixed
+
+- Catalog status and missing-ID diagnostics now report bounded workspace-relative catalog
+  candidates that exist outside configured roots, so agents can repair nested-repository source
+  selection without reading repository documentation or silently merging executable declarations.
+
 ## [1.1.2] - 2026-09-16
 
 ### Fixed

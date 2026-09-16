@@ -227,6 +227,8 @@ nearest Git root from the process startup directory, or a direct child Git repos
 directories, merge ambiguous repositories, or infer paths from prose in `AGENTS.md`. Runner Git
 preflight follows each capability's resolved execution `cwd`, so a manifest using `cwd: code`
 observes the Git worktree rooted there.
+`catalog_query(status)` and missing-ID errors report bounded conventional catalog candidates that
+exist outside the configured roots; they never add those sources automatically.
 
 Available flags:
 
