@@ -23,8 +23,8 @@ Notable changes to RepoPlane are documented here.
 
 - Verification diagnostics now label paths beneath `GOTMPDIR` as `GO_TMP` instead of the generic
   `TEMP`, making Go build-workspace failures distinguishable without exposing a local absolute path.
-- Windows CI retries transient Chocolatey feed failures and verifies that `rg` is actually
-  available instead of trusting a misleading zero exit status.
+- Windows CI installs the pinned upstream ripgrep release with its published SHA-256 checksum,
+  avoiding Chocolatey feed failures and misleading zero exit statuses.
 
 ## [1.1.0] - 2026-09-16
 
