@@ -213,11 +213,10 @@ automatically. Runner still requires a catalog entry with `trusted_for_run: true
 When one RepoPlane workspace contains a repository below its root, the default catalog can follow
 the Git repository identified by the process startup directory. Candidate roots and ambiguous or
 multiple repository layouts stay explicit. For a repository rooted at `code/`, a typical
-live-session override is:
+live-session override that keeps both catalogs is:
 
 ```json
-{"action":"add","target":"catalog_root","values":["code/catalog"]}
-{"action":"remove","target":"catalog_root","values":["catalog"]}
+{"action":"replace","target":"catalog_root","values":["catalog","code/.repoplane/catalog"]}
 {"action":"add","target":"candidate_root","values":["code/tools","code/scripts"]}
 {"action":"remove","target":"candidate_root","values":["tools","scripts"]}
 ```
@@ -274,7 +273,8 @@ For coding agents, RepoPlane MCP is the first choice where it has a matching rep
 capability: structured discovery, registered verification/release execution, and durable task
 recovery. It is not a universal replacement for `rg`, `git`, or focused package tests. Use those
 direct tools when RepoPlane MCP reports `unsupported`/`partial` or has no matching capability, and
-make the fallback reason explicit so later sessions do not repeat the same probe.
+make the fallback reason explicit so later sessions do not repeat the same probe. In Codex hosts
+that defer tool schemas, find `mcp__repoplane__` in `ALL_TOOLS` before treating RepoPlane as unavailable.
 
 With report import enabled, a local verification report can be linked to a versioned checklist:
 

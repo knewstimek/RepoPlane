@@ -48,7 +48,8 @@
 - When RepoPlane MCP is available, use it first for repository discovery, registered
   verification/release execution, and durable task recovery. Use direct shell tools only when no
   matching capability exists or RepoPlane MCP reports `unsupported`/`partial`, and state the
-  fallback reason.
+  fallback reason. If its tools are deferred, find `mcp__repoplane__` in `ALL_TOOLS` before treating
+  RepoPlane as unavailable.
 
 ## Verification discipline
 
