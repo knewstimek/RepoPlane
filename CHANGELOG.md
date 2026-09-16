@@ -11,6 +11,8 @@ Notable changes to RepoPlane are documented here.
 - Catalog refresh now reactivates a previously stored deterministic generation when workspace
   sources return to an earlier state, instead of terminating MCP startup on a SQLite uniqueness
   conflict.
+- The Windows Runner test fixture now emits probe output with `cmd` built-ins, avoiding unrelated
+  PowerShell cold-start latency in the release verification gate.
 
 ## [1.1.1] - 2026-09-16
 

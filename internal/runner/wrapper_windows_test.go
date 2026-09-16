@@ -55,7 +55,7 @@ func assertWrapperOutput(t *testing.T, service *Service, message string) {
 
 func writePlatformHelper(t *testing.T, destination string) {
 	t.Helper()
-	script := "@echo off\r\nif \"%REPOPLANE_RUNNER_SLEEP%\"==\"1\" powershell.exe -NoProfile -NonInteractive -Command \"Start-Sleep -Seconds 10\"\r\nif defined REPOPLANE_WRAPPER_ARG (powershell.exe -NoProfile -NonInteractive -Command \"[Console]::Out.Write($env:REPOPLANE_WRAPPER_ARG)\") else (echo runner stdout)\r\n>&2 echo runner stderr\r\nif \"%REPOPLANE_RUNNER_OUTPUT%\"==\"1\" >out.txt echo artifact\r\nif defined REPOPLANE_RUNNER_EXIT exit /b %REPOPLANE_RUNNER_EXIT%\r\nexit /b 0\r\n"
+	script := "@echo off\r\nif \"%REPOPLANE_RUNNER_SLEEP%\"==\"1\" powershell.exe -NoProfile -NonInteractive -Command \"Start-Sleep -Seconds 10\"\r\nif defined REPOPLANE_WRAPPER_ARG (<nul set /p \"=%REPOPLANE_WRAPPER_ARG%\") else (<nul set /p \"=runner stdout\")\r\n>&2 echo runner stderr\r\nif \"%REPOPLANE_RUNNER_OUTPUT%\"==\"1\" >out.txt echo artifact\r\nif defined REPOPLANE_RUNNER_EXIT exit /b %REPOPLANE_RUNNER_EXIT%\r\nexit /b 0\r\n"
 	if err := os.WriteFile(destination, []byte(script), 0o600); err != nil {
 		t.Fatal(err)
 	}
