@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"strings"
 	"testing"
 	"time"
 
@@ -146,10 +147,43 @@ func TestPublicErrorUsesStableSanitizedCodes(t *testing.T) {
 		{errors.New("database exploded at a host path"), "internal_error"},
 	}
 	for _, test := range tests {
-		if got := publicError(test.err).Error(); got != test.want {
-			t.Errorf("publicError(%v)=%q, want %q", test.err, got, test.want)
+		got := decodePublicFailure(t, publicError(test.err))
+		if got.Code != test.want || got.Message == "" || !strings.HasPrefix(got.CorrelationID, "err_") || got.MutationState != "" {
+			t.Errorf("publicError(%v)=%+v, want code %q without mutation state", test.err, got, test.want)
 		}
 	}
+}
+
+func TestPublicMutationErrorReportsClassificationAndApplicationState(t *testing.T) {
+	tests := []struct {
+		err   error
+		code  string
+		state string
+	}{
+		{errors.New("scope is required"), "invalid_argument", "not_applied"},
+		{records.ErrInvalidTransition, "invalid_transition", "not_applied"},
+		{store.ErrConflict, "revision_conflict", "not_applied"},
+		{records.ErrStorageFailure, "storage_failure", "unknown"},
+		{errors.New("unexpected failure"), "internal_error", "unknown"},
+	}
+	for _, test := range tests {
+		got := decodePublicFailure(t, publicMutationError(test.err))
+		if got.Code != test.code || got.MutationState != test.state || !strings.HasPrefix(got.CorrelationID, "err_") {
+			t.Errorf("publicMutationError(%v)=%+v, want code=%q state=%q", test.err, got, test.code, test.state)
+		}
+	}
+}
+
+func decodePublicFailure(t *testing.T, err error) publicFailure {
+	t.Helper()
+	var failure publicFailure
+	if err == nil {
+		t.Fatal("expected public error")
+	}
+	if decodeErr := json.Unmarshal([]byte(err.Error()), &failure); decodeErr != nil {
+		t.Fatalf("decode public error %q: %v", err, decodeErr)
+	}
+	return failure
 }
 
 func TestRequiredScopeCoversEveryPublicTool(t *testing.T) {

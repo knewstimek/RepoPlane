@@ -74,7 +74,16 @@ The default `typed.v1` interface exposes 14 tools:
 needed. For checkpoint, memo, and report-import writes, set `response_view=receipt` when the ID,
 revision, validity, and warnings are enough; this avoids echoing the submitted payload. Records do
 not infer semantic similarity between differently worded memos. A caller can assign a stable
-`topic_key` to a memo and explicitly update or supersede that identity.
+`topic_key` to a memo and explicitly update or supersede that identity. A topic memo's `scope`,
+`configuration`, and `topic_key` form an immutable identity: use `supersede` followed by `create`
+instead of `update` when any identity field changes.
+
+Tool failures return a JSON object in the MCP error text with stable `code`, safe `message`, and
+`correlation_id` fields. Mutation failures also include `mutation_state`: `not_applied` means the
+write was rejected before commit, while `unknown` means a storage, deadline, or unexpected failure
+requires a read-back before retrying. Durable writes distinguish `invalid_argument`,
+`invalid_transition`, `revision_conflict`, and `storage_failure`; server diagnostics retain the
+correlation ID on stderr without exposing database details or host paths to the client.
 
 Catalog entries are YAML, JSON, or Markdown with YAML frontmatter under a configured catalog
 root. A minimal discovery-only entry is:

@@ -3,9 +3,16 @@ package mcpserver
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
+	"os"
 	"strings"
+	"sync/atomic"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -28,6 +35,22 @@ import (
 const serverName = "repoplane"
 
 var ErrAuthorizationDenied = errors.New("mcpserver: authorization denied")
+
+var fallbackErrorID atomic.Uint64
+
+type publicFailure struct {
+	Code          string `json:"code"`
+	Message       string `json:"message"`
+	CorrelationID string `json:"correlation_id"`
+	MutationState string `json:"mutation_state,omitempty"`
+}
+
+type publicClientError struct{ failure publicFailure }
+
+func (e *publicClientError) Error() string {
+	encoded, _ := json.Marshal(e.failure)
+	return string(encoded)
+}
 
 // New constructs a RepoPlane MCP server. Tool registration is added by the
 // feature milestones; constructing the server itself has no workspace side
@@ -214,8 +237,20 @@ func sourcePath(ref string) string {
 // publicError exposes only stable machine codes to MCP clients. In particular,
 // it never forwards database diagnostics or absolute host paths.
 func publicError(err error) error {
+	return publicErrorWithMutationState(err, false)
+}
+
+func publicMutationError(err error) error {
+	return publicErrorWithMutationState(err, true)
+}
+
+func publicErrorWithMutationState(err error, mutation bool) error {
 	if err == nil {
 		return nil
+	}
+	var existing *publicClientError
+	if errors.As(err, &existing) {
+		return err
 	}
 	code := "internal_error"
 	switch {
@@ -251,6 +286,10 @@ func publicError(err error) error {
 		code = "record_not_found"
 	case errors.Is(err, store.ErrConflict):
 		code = "revision_conflict"
+	case errors.Is(err, records.ErrInvalidTransition):
+		code = "invalid_transition"
+	case errors.Is(err, records.ErrStorageFailure):
+		code = "storage_failure"
 	case errors.Is(err, records.ErrPermissionDenied):
 		code = "permission_denied"
 	case errors.Is(err, ErrAuthorizationDenied):
@@ -279,7 +318,47 @@ func publicError(err error) error {
 		strings.Contains(err.Error(), "malformed"):
 		code = "invalid_argument"
 	}
-	return errors.New(code)
+	correlationID := newErrorCorrelationID()
+	mutationState := ""
+	if mutation {
+		mutationState = "not_applied"
+		if code == "storage_failure" || code == "internal_error" || code == "deadline_exceeded" {
+			mutationState = "unknown"
+		}
+	}
+	if code == "storage_failure" || code == "internal_error" {
+		_, _ = fmt.Fprintf(os.Stderr, "repoplane: correlation_id=%s code=%s error=%v\n", correlationID, code, err)
+	}
+	return &publicClientError{failure: publicFailure{
+		Code: code, Message: publicErrorMessage(code), CorrelationID: correlationID, MutationState: mutationState,
+	}}
+}
+
+func newErrorCorrelationID() string {
+	data := make([]byte, 12)
+	if _, err := rand.Read(data); err == nil {
+		return "err_" + hex.EncodeToString(data)
+	}
+	return fmt.Sprintf("err_%x_%x", time.Now().UTC().UnixNano(), fallbackErrorID.Add(1))
+}
+
+func publicErrorMessage(code string) string {
+	switch code {
+	case "invalid_argument":
+		return "request validation failed"
+	case "invalid_transition":
+		return "requested record transition is not allowed"
+	case "revision_conflict":
+		return "expected revision does not match the current record"
+	case "storage_failure":
+		return "durable storage operation failed"
+	case "record_not_found":
+		return "record was not found"
+	case "internal_error":
+		return "internal operation failed"
+	default:
+		return strings.ReplaceAll(code, "_", " ")
+	}
 }
 
 // RunStdio serves MCP frames on stdin/stdout until the client disconnects or

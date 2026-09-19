@@ -276,39 +276,39 @@ func operationRegistry(options Options) []operationSpec {
 		operations = append(operations, newOperation(ToolCheckpointWrite, ToolboxWrite, "Write a checkpoint; may require approval.", ScopeIntentWrite, "write", "conditional", nil,
 			func(ctx context.Context, request *mcp.CallToolRequest, input records.CheckpointRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
 				if err := authorize(ctx, options, ToolCheckpointWrite); err != nil {
-					return nil, records.MutationResponse{}, publicError(err)
+					return nil, records.MutationResponse{}, publicMutationError(err)
 				}
 				if result, ok, err := ensureCapability(request, options.RuntimeAccess, runtimeaccess.KindIntentWrite, ToolCheckpointWrite); err != nil || !ok {
-					return result, records.MutationResponse{}, publicError(err)
+					return result, records.MutationResponse{}, publicMutationError(err)
 				}
 				output, err := options.CheckpointWriter.WriteCheckpoint(ctx, input)
-				return nil, output, publicError(err)
+				return nil, output, publicMutationError(err)
 			}))
 	}
 	if options.MemoWriter != nil {
 		operations = append(operations, newOperation(ToolMemoWrite, ToolboxWrite, "Write a memo or typed host fact; may require approval.", ScopeIntentWrite, "write", "conditional", nil,
 			func(ctx context.Context, request *mcp.CallToolRequest, input records.MemoRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
 				if err := authorize(ctx, options, ToolMemoWrite); err != nil {
-					return nil, records.MutationResponse{}, publicError(err)
+					return nil, records.MutationResponse{}, publicMutationError(err)
 				}
 				if result, ok, err := ensureCapability(request, options.RuntimeAccess, runtimeaccess.KindIntentWrite, ToolMemoWrite); err != nil || !ok {
-					return result, records.MutationResponse{}, publicError(err)
+					return result, records.MutationResponse{}, publicMutationError(err)
 				}
 				output, err := options.MemoWriter.WriteMemo(ctx, input)
-				return nil, output, publicError(err)
+				return nil, output, publicMutationError(err)
 			}))
 	}
 	if options.ReportImporter != nil {
 		operations = append(operations, newOperation(ToolCheckReportImport, ToolboxImport, "Import a local check report; may require approval.", ScopeReportImport, "write", "conditional", nil,
 			func(ctx context.Context, request *mcp.CallToolRequest, input records.ImportRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
 				if err := authorize(ctx, options, ToolCheckReportImport); err != nil {
-					return nil, records.MutationResponse{}, publicError(err)
+					return nil, records.MutationResponse{}, publicMutationError(err)
 				}
 				if result, ok, err := ensureCapability(request, options.RuntimeAccess, runtimeaccess.KindReportImport, ToolCheckReportImport); err != nil || !ok {
-					return result, records.MutationResponse{}, publicError(err)
+					return result, records.MutationResponse{}, publicMutationError(err)
 				}
 				output, err := options.ReportImporter.ImportReport(ctx, input)
-				return nil, output, publicError(err)
+				return nil, output, publicMutationError(err)
 			}))
 	}
 	if options.Runner != nil {

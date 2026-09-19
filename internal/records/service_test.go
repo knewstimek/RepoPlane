@@ -146,7 +146,7 @@ func TestTopicMemoReusesCurrentIdentityAndRequiresSupersedeToRename(t *testing.T
 	if _, err := service.WriteMemo(context.Background(), MemoRequest{
 		Mode: "update", ID: created.Record.ID, ExpectedRevision: updated.Record.Revision,
 		MemoKind: "decision", Scope: "deploy", Configuration: "production", TopicKey: "renamed", Content: "renamed",
-	}); err == nil || !strings.Contains(err.Error(), "supersede") {
+	}); err == nil || !errors.Is(err, ErrInvalidTransition) || !strings.Contains(err.Error(), "supersede") {
 		t.Fatalf("topic rename error=%v", err)
 	}
 
@@ -228,8 +228,20 @@ func TestHostFactValidationIsSeparateFromOrdinaryMemo(t *testing.T) {
 	if _, err := service.WriteMemo(context.Background(), MemoRequest{
 		Mode: "update", ID: ordinary.Record.ID, ExpectedRevision: ordinary.Record.Revision,
 		MemoKind: "host_fact", Host: host, InvalidationCondition: "the host changes",
-	}); err == nil || !strings.Contains(err.Error(), "cannot change memo schema") {
+	}); err == nil || !errors.Is(err, ErrInvalidTransition) || !strings.Contains(err.Error(), "cannot change memo schema") {
 		t.Fatalf("ordinary memo converted to host fact: %v", err)
+	}
+}
+
+func TestMutationStoreErrorClassifiesStorageFailures(t *testing.T) {
+	storageFailure := mutationStoreError(errors.New("database unavailable"))
+	if !errors.Is(storageFailure, ErrStorageFailure) {
+		t.Fatalf("storage error=%v", storageFailure)
+	}
+	for _, preserved := range []error{store.ErrConflict, store.ErrNotFound, context.Canceled, context.DeadlineExceeded} {
+		if got := mutationStoreError(preserved); !errors.Is(got, preserved) {
+			t.Errorf("mutationStoreError(%v)=%v", preserved, got)
+		}
 	}
 }
 

@@ -6,6 +6,9 @@ Notable changes to RepoPlane are documented here.
 
 ### Changed
 
+- MCP tool errors now carry a safe message and correlation ID in structured JSON error text.
+  Durable-write failures distinguish validation, invalid transitions, revision conflicts, and
+  storage failures, and report whether the mutation was not applied or requires read-back.
 - Restored a self-contained README with installation, tool usage, permissions, local state, and
   operational limits. The private `docs/` directory is no longer tracked.
 - The release workflow now generates public notes from the matching `CHANGELOG.md` section instead

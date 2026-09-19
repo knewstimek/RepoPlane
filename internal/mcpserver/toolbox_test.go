@@ -27,6 +27,12 @@ type catalogToolboxStub struct {
 	input catalog.QueryRequest
 }
 
+type memoErrorStub struct{ err error }
+
+func (s memoErrorStub) WriteMemo(context.Context, records.MemoRequest) (records.MutationResponse, error) {
+	return records.MutationResponse{}, s.err
+}
+
 func (s *catalogToolboxStub) Query(_ context.Context, input catalog.QueryRequest) (catalog.QueryResponse, error) {
 	s.calls++
 	s.input = input
@@ -70,6 +76,37 @@ func TestUsageObserverCountsTypedAndToolboxOperationCalls(t *testing.T) {
 				t.Fatalf("calls=%d events=%+v", stub.calls, events)
 			}
 		})
+	}
+}
+
+func TestMemoWriteReturnsStructuredMutationFailureToMCPClient(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	session := connectTestClient(t, ctx, Options{
+		Surface: SurfaceTypedV1, MemoWriter: memoErrorStub{err: records.ErrInvalidTransition},
+		RuntimeAccess: runtimeaccess.New(nil, true, runtimeaccess.Initial{IntentWrite: true}),
+	})
+	defer session.Close()
+	result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: ToolMemoWrite, Arguments: map[string]any{
+		"mode": "update", "id": "memo_example", "expected_revision": 2,
+		"memo_kind": "decision", "content": "updated decision",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.IsError {
+		t.Fatalf("memo_write succeeded: %+v", result)
+	}
+	if len(result.Content) != 1 {
+		t.Fatalf("error content=%+v", result.Content)
+	}
+	content, ok := result.Content[0].(*mcp.TextContent)
+	if !ok {
+		t.Fatalf("error content type=%T", result.Content[0])
+	}
+	failure := decodePublicFailure(t, errors.New(content.Text))
+	if failure.Code != "invalid_transition" || failure.MutationState != "not_applied" || failure.CorrelationID == "" {
+		t.Fatalf("failure=%+v", failure)
 	}
 }
 

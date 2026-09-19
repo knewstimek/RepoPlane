@@ -35,13 +35,15 @@ const (
 )
 
 var (
-	ErrResponseTooLarge = errors.New("records: response cannot fit byte_limit")
-	ErrPermissionDenied = errors.New("records: permission denied")
-	ErrReportInvalid    = errors.New("records: report invalid")
-	checklistIDPattern  = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
-	gitCommitPattern    = regexp.MustCompile(`^[0-9a-f]{40}([0-9a-f]{24})?$`)
-	hostAliasPattern    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
-	topicKeyPattern     = regexp.MustCompile(`^[a-z0-9][a-z0-9._/-]{0,127}$`)
+	ErrResponseTooLarge  = errors.New("records: response cannot fit byte_limit")
+	ErrPermissionDenied  = errors.New("records: permission denied")
+	ErrReportInvalid     = errors.New("records: report invalid")
+	ErrInvalidTransition = errors.New("records: invalid transition")
+	ErrStorageFailure    = errors.New("records: storage failure")
+	checklistIDPattern   = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
+	gitCommitPattern     = regexp.MustCompile(`^[0-9a-f]{40}([0-9a-f]{24})?$`)
+	hostAliasPattern     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
+	topicKeyPattern      = regexp.MustCompile(`^[a-z0-9][a-z0-9._/-]{0,127}$`)
 )
 
 type QueryRequest struct {
@@ -316,10 +318,10 @@ func (s *Service) WriteMemo(ctx context.Context, request MemoRequest) (MutationR
 	if request.Mode == "update" {
 		current, err := s.records.GetRecord(ctx, s.projectID, s.workspaceID, request.ID)
 		if err != nil {
-			return MutationResponse{}, err
+			return MutationResponse{}, mutationStoreError(err)
 		}
 		if current.Kind != "memo" || current.SchemaVersion != schemaVersion {
-			return MutationResponse{}, errors.New("update cannot change memo schema; supersede the existing memo and create the new kind")
+			return MutationResponse{}, fmt.Errorf("%w: update cannot change memo schema; supersede the existing memo and create the new kind", ErrInvalidTransition)
 		}
 		if schemaVersion == "memo.v3" {
 			var existing struct {
@@ -328,7 +330,7 @@ func (s *Service) WriteMemo(ctx context.Context, request MemoRequest) (MutationR
 				TopicKey      string `json:"topic_key"`
 			}
 			if json.Unmarshal(current.Payload, &existing) != nil || existing.Scope != request.Scope || existing.Configuration != request.Configuration || existing.TopicKey != request.TopicKey {
-				return MutationResponse{}, errors.New("memo topic identity cannot change; supersede the existing memo and create a new one")
+				return MutationResponse{}, fmt.Errorf("%w: memo topic identity cannot change; supersede the existing memo and create a new one", ErrInvalidTransition)
 			}
 		}
 	}
@@ -536,6 +538,7 @@ func (s *Service) ImportReport(ctx context.Context, request ImportRequest) (Muta
 		Revision: 1, Source: "imported", WriterClass: "importer", Validity: validity, CreatedAt: now, UpdatedAt: now,
 		Payload: payload, EvidenceRefs: []string{"report:" + sourceHash},
 	}}, importIdentity, parserRevision)
+	err = mutationStoreError(err)
 	return s.mutationResponse(record, duplicate, request.ResponseView, err)
 }
 
@@ -549,9 +552,11 @@ func (s *Service) mutate(ctx context.Context, kind, schemaVersion, source, mode,
 		}
 		record := store.Record{ID: newID, Kind: kind, SchemaVersion: schemaVersion, ProjectID: s.projectID, WorkspaceID: s.workspaceID, Revision: 1, Source: source, WriterClass: "intention", Validity: "current", CreatedAt: now, UpdatedAt: now, Payload: payload, EvidenceRefs: nonNil(evidence)}
 		if kind == "checkpoint" {
-			return s.records.CreateCheckpoint(ctx, store.RecordCreate{Record: record})
+			created, err := s.records.CreateCheckpoint(ctx, store.RecordCreate{Record: record})
+			return created, mutationStoreError(err)
 		}
-		return s.records.CreateMemo(ctx, store.RecordCreate{Record: record})
+		created, err := s.records.CreateMemo(ctx, store.RecordCreate{Record: record})
+		return created, mutationStoreError(err)
 	case "update", "supersede":
 		validity := "current"
 		if mode == "supersede" {
@@ -559,12 +564,21 @@ func (s *Service) mutate(ctx context.Context, kind, schemaVersion, source, mode,
 		}
 		update := store.RecordUpdate{ProjectID: s.projectID, WorkspaceID: s.workspaceID, ID: id, ExpectedRevision: expected, Payload: payload, EvidenceRefs: nonNil(evidence), Validity: validity}
 		if kind == "checkpoint" {
-			return s.records.UpdateCheckpoint(ctx, update)
+			updated, err := s.records.UpdateCheckpoint(ctx, update)
+			return updated, mutationStoreError(err)
 		}
-		return s.records.UpdateMemo(ctx, update)
+		updated, err := s.records.UpdateMemo(ctx, update)
+		return updated, mutationStoreError(err)
 	default:
 		return store.Record{}, fmt.Errorf("unsupported mutation mode %q", mode)
 	}
+}
+
+func mutationStoreError(err error) error {
+	if err == nil || errors.Is(err, store.ErrConflict) || errors.Is(err, store.ErrNotFound) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
+	return fmt.Errorf("%w: %v", ErrStorageFailure, err)
 }
 
 func (s *Service) mutationResponse(record store.Record, duplicate bool, view string, err error) (MutationResponse, error) {
