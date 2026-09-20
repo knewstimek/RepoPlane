@@ -218,6 +218,12 @@ versioned archives after successful CI and generates release notes from the matc
 `CHANGELOG.md` section. RepoPlane is maintainer-led; public issues and pull requests are closed
 for now. See [SECURITY.md](SECURITY.md) for vulnerability reporting.
 
+CI runs on pushes to `main` and on pull requests, cancelling superseded runs for the same ref.
+Source, schema, catalog, and workflow changes retain Ubuntu and Windows verification; main also
+runs race tests and the public-release privacy check. Documentation-only changes, including a
+release changelog promotion, use the lightweight scope check plus the main privacy check so the
+release guard still receives a successful CI result for the exact release commit.
+
 ## License
 
 [MIT](LICENSE)

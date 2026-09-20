@@ -9,6 +9,9 @@ Notable changes to RepoPlane are documented here.
 - Runner limit errors for broad input/output globs now include bounded structured details naming
   the resource, limit kind, responsible pattern, configured maximum, observed lower bound, ignored
   path policy, and a narrower-glob hint.
+- CI now cancels superseded runs, avoids duplicate branch-push and pull-request execution, limits
+  race tests to main source changes, and uses a lightweight release-compatible path for
+  documentation-only commits while retaining Ubuntu and Windows verification for product changes.
 
 ### Fixed
 
