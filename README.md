@@ -79,8 +79,10 @@ not infer semantic similarity between differently worded memos. A caller can ass
 instead of `update` when any identity field changes.
 
 A typed host fact uses `memo_kind=host_fact` and is stored as `memo.v2` (not `memo.v3`). Its
-`host` object requires `alias`, `role`, `os`, `tier`, non-empty `services` and `paths`, and an
-RFC3339 `confirmed_at`; the memo also requires `invalidation_condition`. For example:
+`host` object requires `alias`, `role`, `os`, `tier`, `services`, `paths`, and an RFC3339
+`confirmed_at`; the memo also requires `invalidation_condition`. `services` and `paths` may be
+`null` when unknown, but when supplied their entries must be bounded, unique, and non-empty. A
+host fact cannot use `topic_key`. For example:
 
 ```json
 {

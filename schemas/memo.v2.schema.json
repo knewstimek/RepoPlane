@@ -17,8 +17,8 @@
         "role": { "type": "string", "minLength": 1, "maxLength": 128 },
         "os": { "type": "string", "minLength": 1, "maxLength": 128 },
         "tier": { "enum": ["production", "test", "staging", "development"] },
-        "services": { "type": "array", "minItems": 1, "maxItems": 64, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 1024 } },
-        "paths": { "type": "array", "minItems": 1, "maxItems": 64, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 1024 } },
+        "services": { "type": ["array", "null"], "maxItems": 64, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 1024 } },
+        "paths": { "type": ["array", "null"], "maxItems": 64, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 1024 } },
         "confirmed_at": { "type": "string", "format": "date-time" }
       },
       "additionalProperties": false

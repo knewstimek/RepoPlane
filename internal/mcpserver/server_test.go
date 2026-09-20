@@ -161,7 +161,7 @@ func TestPublicMutationErrorReportsClassificationAndApplicationState(t *testing.
 		state string
 	}{
 		{errors.New("scope is required"), "invalid_argument", "not_applied"},
-		{fmt.Errorf("%w: host_fact requires bounded services and paths", records.ErrInvalidArgument), "invalid_argument", "not_applied"},
+		{fmt.Errorf("%w: %w", records.ErrInvalidArgument, &records.ValidationError{Field: "topic_key", Reason: "is not valid for host_fact"}), "invalid_argument", "not_applied"},
 		{records.ErrInvalidTransition, "invalid_transition", "not_applied"},
 		{store.ErrConflict, "revision_conflict", "not_applied"},
 		{records.ErrStorageFailure, "storage_failure", "unknown"},
@@ -172,6 +172,10 @@ func TestPublicMutationErrorReportsClassificationAndApplicationState(t *testing.
 		if got.Code != test.code || got.MutationState != test.state || !strings.HasPrefix(got.CorrelationID, "err_") {
 			t.Errorf("publicMutationError(%v)=%+v, want code=%q state=%q", test.err, got, test.code, test.state)
 		}
+	}
+	validation := decodePublicFailure(t, publicMutationError(fmt.Errorf("%w: %w", records.ErrInvalidArgument, &records.ValidationError{Field: "host.paths", Reason: "must be an array or null"})))
+	if validation.Message != "validation failed: host.paths must be an array or null" {
+		t.Fatalf("validation message=%q", validation.Message)
 	}
 }
 

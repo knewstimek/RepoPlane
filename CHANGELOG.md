@@ -23,7 +23,8 @@ Notable changes to RepoPlane are documented here.
 - Typed host-fact validation failures now return `invalid_argument` with
   `mutation_state=not_applied` instead of an internal error with unknown mutation state. Regression
   coverage includes normal `memo.v2` creation, receipt read-back, and rejected incomplete host
-  payloads.
+  payloads. Safe field-specific messages identify invalid host fields, and nullable `services` and
+  `paths` now agree between the MCP tool contract, writer, and stored-record schema.
 
 ## [1.1.4] - 2026-09-16
 

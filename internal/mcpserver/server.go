@@ -332,7 +332,7 @@ func publicErrorWithMutationState(err error, mutation bool) error {
 		_, _ = fmt.Fprintf(os.Stderr, "repoplane: correlation_id=%s code=%s error=%v\n", correlationID, code, err)
 	}
 	return &publicClientError{failure: publicFailure{
-		Code: code, Message: publicErrorMessage(code), CorrelationID: correlationID, MutationState: mutationState,
+		Code: code, Message: publicErrorMessage(code, err), CorrelationID: correlationID, MutationState: mutationState,
 	}}
 }
 
@@ -344,9 +344,13 @@ func newErrorCorrelationID() string {
 	return fmt.Sprintf("err_%x_%x", time.Now().UTC().UnixNano(), fallbackErrorID.Add(1))
 }
 
-func publicErrorMessage(code string) string {
+func publicErrorMessage(code string, err error) string {
 	switch code {
 	case "invalid_argument":
+		var validation *records.ValidationError
+		if errors.As(err, &validation) {
+			return "validation failed: " + validation.Error()
+		}
 		return "request validation failed"
 	case "invalid_transition":
 		return "requested record transition is not allowed"

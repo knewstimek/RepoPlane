@@ -232,13 +232,28 @@ func TestHostFactValidationIsSeparateFromOrdinaryMemo(t *testing.T) {
 	if _, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "create", MemoKind: "host_fact", Host: host}); !errors.Is(err, ErrInvalidArgument) {
 		t.Fatalf("host fact without invalidation condition error=%v", err)
 	}
-	host.Services = nil
-	if _, err := service.WriteMemo(context.Background(), MemoRequest{
+	host.Services, host.Paths = nil, nil
+	nullLists, err := service.WriteMemo(context.Background(), MemoRequest{
 		Mode: "create", MemoKind: "host_fact", Host: host, InvalidationCondition: "the host changes",
-	}); !errors.Is(err, ErrInvalidArgument) || !strings.Contains(err.Error(), "bounded services and paths") {
-		t.Fatalf("host fact without services error=%v", err)
+	})
+	if err != nil || nullLists.Record.SchemaVersion != "memo.v2" {
+		t.Fatalf("host fact with unknown services and paths=%+v err=%v", nullLists, err)
 	}
-	host.Services = []string{"worker"}
+	nullHost := nullLists.Record.Payload["host"].(map[string]any)
+	if nullHost["services"] != nil || nullHost["paths"] != nil {
+		t.Fatalf("nullable host lists=%+v", nullHost)
+	}
+	if _, err := service.WriteMemo(context.Background(), MemoRequest{
+		Mode: "create", MemoKind: "host_fact", TopicKey: "host-a", Host: host, InvalidationCondition: "the host changes",
+	}); !errors.Is(err, ErrInvalidArgument) {
+		t.Fatalf("host fact with topic_key error=%v", err)
+	} else {
+		var validation *ValidationError
+		if !errors.As(err, &validation) || validation.Field != "topic_key" {
+			t.Fatalf("host fact validation detail=%v", err)
+		}
+	}
+	host.Services, host.Paths = []string{"worker"}, []string{"/srv/worker"}
 	ordinary, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "create", MemoKind: "decision", Content: "ordinary"})
 	if err != nil {
 		t.Fatal(err)

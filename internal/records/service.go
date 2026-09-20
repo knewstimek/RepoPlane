@@ -47,6 +47,15 @@ var (
 	topicKeyPattern      = regexp.MustCompile(`^[a-z0-9][a-z0-9._/-]{0,127}$`)
 )
 
+// ValidationError identifies a safe request field and the rule it violated.
+// It is suitable for returning to MCP clients without exposing submitted values.
+type ValidationError struct {
+	Field  string
+	Reason string
+}
+
+func (e *ValidationError) Error() string { return e.Field + " " + e.Reason }
+
 type QueryRequest struct {
 	Mode          string   `json:"mode,omitempty" jsonschema:"record operation: search, list, or get; omit when using cursor"`
 	Query         string   `json:"query,omitempty" jsonschema:"space-separated lexical terms; any term may match; required for search"`
@@ -586,7 +595,7 @@ func invalidArgument(err error) error {
 	if err == nil {
 		return nil
 	}
-	return fmt.Errorf("%w: %v", ErrInvalidArgument, err)
+	return fmt.Errorf("%w: %w", ErrInvalidArgument, err)
 }
 
 func (s *Service) mutationResponse(record store.Record, duplicate bool, view string, err error) (MutationResponse, error) {
@@ -764,7 +773,7 @@ func validateMemo(request MemoRequest) error {
 	if request.Mode != "supersede" {
 		if request.MemoKind == "host_fact" {
 			if request.TopicKey != "" {
-				return errors.New("topic_key is not valid for host_fact")
+				return &ValidationError{Field: "topic_key", Reason: "is not valid for host_fact"}
 			}
 			if err := validateHostFact(request.Host, request.InvalidationCondition); err != nil {
 				return err
@@ -786,22 +795,40 @@ func validateMemo(request MemoRequest) error {
 }
 
 func validateHostFact(host *HostFact, invalidation string) error {
-	if host == nil || !hostAliasPattern.MatchString(host.Alias) || strings.TrimSpace(host.Role) == "" || strings.TrimSpace(host.OS) == "" || strings.TrimSpace(invalidation) == "" {
-		return errors.New("host_fact requires host alias, role, os, and invalidation_condition")
+	if host == nil {
+		return &ValidationError{Field: "host", Reason: "is required for host_fact"}
+	}
+	if !hostAliasPattern.MatchString(host.Alias) {
+		return &ValidationError{Field: "host.alias", Reason: "must match ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"}
+	}
+	if strings.TrimSpace(host.Role) == "" {
+		return &ValidationError{Field: "host.role", Reason: "is required"}
+	}
+	if strings.TrimSpace(host.OS) == "" {
+		return &ValidationError{Field: "host.os", Reason: "is required"}
+	}
+	if strings.TrimSpace(invalidation) == "" {
+		return &ValidationError{Field: "invalidation_condition", Reason: "is required for host_fact"}
 	}
 	if strings.TrimSpace(host.Role) != host.Role || strings.TrimSpace(host.OS) != host.OS {
-		return errors.New("host role and os must not have surrounding whitespace")
+		return &ValidationError{Field: "host.role/host.os", Reason: "must not have surrounding whitespace"}
 	}
 	if host.Tier != "production" && host.Tier != "test" && host.Tier != "staging" && host.Tier != "development" {
-		return errors.New("host tier must be production, test, staging, or development")
+		return &ValidationError{Field: "host.tier", Reason: "must be production, test, staging, or development"}
 	}
 	if _, err := time.Parse(time.RFC3339, host.ConfirmedAt); err != nil {
-		return errors.New("host confirmed_at must be RFC3339")
+		return &ValidationError{Field: "host.confirmed_at", Reason: "must be RFC3339"}
 	}
-	if len(host.Role) > 128 || len(host.OS) > 128 || len(host.Services) == 0 || len(host.Paths) == 0 {
-		return errors.New("host_fact requires bounded services and paths")
+	if len(host.Role) > 128 {
+		return &ValidationError{Field: "host.role", Reason: "must contain at most 128 bytes"}
 	}
-	return validateStringList(append(append([]string(nil), host.Services...), host.Paths...), 64, 1024)
+	if len(host.OS) > 128 {
+		return &ValidationError{Field: "host.os", Reason: "must contain at most 128 bytes"}
+	}
+	if err := validateStringList(append(append([]string(nil), host.Services...), host.Paths...), 64, 1024); err != nil {
+		return &ValidationError{Field: "host.services/host.paths", Reason: "must contain at most 64 unique, trimmed entries of at most 1024 bytes combined"}
+	}
+	return nil
 }
 
 func validateStringList(values []string, maximumItems, maximumLength int) error {
