@@ -54,6 +54,13 @@ catalog sources and whether registered execution is available. Then call `worksp
 Search, list, and query replies state their scope, count relation, truncation, warnings, and next
 cursor. A stopped scan reports a lower bound or unknown count. Do not treat `partial` as complete.
 
+### Codex durable-memory skill
+
+The canonical `repo-memory` Codex skill is included at [`skills/repo-memory`](skills/repo-memory).
+Install it by copying that directory to `$CODEX_HOME/skills/repo-memory`, then start a new Codex
+session. Treat the repository copy as the source of truth and resync installed copies after it
+changes.
+
 ## Tools and common tasks
 
 The default `typed.v1` interface exposes 14 tools:
