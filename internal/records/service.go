@@ -38,6 +38,7 @@ var (
 	ErrResponseTooLarge  = errors.New("records: response cannot fit byte_limit")
 	ErrPermissionDenied  = errors.New("records: permission denied")
 	ErrReportInvalid     = errors.New("records: report invalid")
+	ErrInvalidArgument   = errors.New("records: invalid argument")
 	ErrInvalidTransition = errors.New("records: invalid transition")
 	ErrStorageFailure    = errors.New("records: storage failure")
 	checklistIDPattern   = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
@@ -275,7 +276,7 @@ func (s *Service) WriteCheckpoint(ctx context.Context, request CheckpointRequest
 		}
 	}
 	if err := validateCheckpoint(request); err != nil {
-		return MutationResponse{}, err
+		return MutationResponse{}, invalidArgument(err)
 	}
 	payload, _ := json.Marshal(map[string]any{"goal": request.Goal, "baseline_commit": request.BaselineCommit, "dirty": request.Dirty, "run_refs": nonNil(request.RunRefs), "remaining_checks": nonNil(request.RemainingChecks), "next_action": request.NextAction, "risks": nonNil(request.Risks)})
 	if len(payload) > maximumRecordPayload {
@@ -291,7 +292,7 @@ func (s *Service) WriteMemo(ctx context.Context, request MemoRequest) (MutationR
 	}
 	request.TopicKey = strings.ToLower(request.TopicKey)
 	if err := validateMemo(request); err != nil {
-		return MutationResponse{}, err
+		return MutationResponse{}, invalidArgument(err)
 	}
 	if request.Host != nil {
 		request.Host.Alias = strings.ToLower(request.Host.Alias)
@@ -579,6 +580,13 @@ func mutationStoreError(err error) error {
 		return err
 	}
 	return fmt.Errorf("%w: %v", ErrStorageFailure, err)
+}
+
+func invalidArgument(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: %v", ErrInvalidArgument, err)
 }
 
 func (s *Service) mutationResponse(record store.Record, duplicate bool, view string, err error) (MutationResponse, error) {

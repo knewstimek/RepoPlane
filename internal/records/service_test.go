@@ -205,6 +205,17 @@ func TestHostFactIsTypedSearchableAndWarnsOnConflict(t *testing.T) {
 	if err != nil || len(result.Items) != 1 || result.Items[0].Payload["host"] == nil {
 		t.Fatalf("host search=%+v err=%v", result, err)
 	}
+	receiptRequest := request
+	receiptRequest.Host = &HostFact{Alias: "edge-b", Role: "gateway", OS: "linux", Tier: "staging", Services: []string{"proxy"}, Paths: []string{"/srv/proxy"}, ConfirmedAt: confirmed}
+	receiptRequest.ResponseView = "receipt"
+	receipt, err := service.WriteMemo(context.Background(), receiptRequest)
+	if err != nil || receipt.Record.SchemaVersion != "memo.v2" || receipt.Record.Payload != nil || receipt.Record.PayloadComplete {
+		t.Fatalf("host receipt=%+v err=%v", receipt, err)
+	}
+	readBack, err := service.Query(context.Background(), QueryRequest{Mode: "get", ID: receipt.Record.ID})
+	if err != nil || len(readBack.Items) != 1 || readBack.Items[0].SchemaVersion != "memo.v2" || readBack.Items[0].Payload["host"] == nil {
+		t.Fatalf("host receipt read-back=%+v err=%v", readBack, err)
+	}
 	request.Host = &HostFact{Alias: "edge-a", Role: "database", OS: "windows", Tier: "production", Services: []string{"database"}, Paths: []string{"D:/service"}, ConfirmedAt: time.Now().UTC().Format(time.RFC3339)}
 	conflicting, err := service.WriteMemo(context.Background(), request)
 	if err != nil || len(conflicting.Warnings) != 1 || conflicting.Warnings[0].Code != "host_fact_conflict" {
@@ -218,9 +229,16 @@ func TestHostFactValidationIsSeparateFromOrdinaryMemo(t *testing.T) {
 	if _, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "create", MemoKind: "decision", Content: "ordinary", Host: host}); err == nil {
 		t.Fatal("ordinary memo accepted typed host data")
 	}
-	if _, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "create", MemoKind: "host_fact", Host: host}); err == nil {
-		t.Fatal("host fact without invalidation condition was accepted")
+	if _, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "create", MemoKind: "host_fact", Host: host}); !errors.Is(err, ErrInvalidArgument) {
+		t.Fatalf("host fact without invalidation condition error=%v", err)
 	}
+	host.Services = nil
+	if _, err := service.WriteMemo(context.Background(), MemoRequest{
+		Mode: "create", MemoKind: "host_fact", Host: host, InvalidationCondition: "the host changes",
+	}); !errors.Is(err, ErrInvalidArgument) || !strings.Contains(err.Error(), "bounded services and paths") {
+		t.Fatalf("host fact without services error=%v", err)
+	}
+	host.Services = []string{"worker"}
 	ordinary, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "create", MemoKind: "decision", Content: "ordinary"})
 	if err != nil {
 		t.Fatal(err)

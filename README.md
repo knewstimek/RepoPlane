@@ -78,6 +78,30 @@ not infer semantic similarity between differently worded memos. A caller can ass
 `configuration`, and `topic_key` form an immutable identity: use `supersede` followed by `create`
 instead of `update` when any identity field changes.
 
+A typed host fact uses `memo_kind=host_fact` and is stored as `memo.v2` (not `memo.v3`). Its
+`host` object requires `alias`, `role`, `os`, `tier`, non-empty `services` and `paths`, and an
+RFC3339 `confirmed_at`; the memo also requires `invalidation_condition`. For example:
+
+```json
+{
+  "mode": "create",
+  "memo_kind": "host_fact",
+  "scope": "operations/hosts",
+  "source": "user_asserted",
+  "host": {
+    "alias": "host-a",
+    "role": "worker",
+    "os": "linux",
+    "tier": "production",
+    "services": ["worker"],
+    "paths": ["/srv/worker"],
+    "confirmed_at": "2026-01-01T00:00:00Z"
+  },
+  "invalidation_condition": "the host is rebuilt or its role changes",
+  "response_view": "receipt"
+}
+```
+
 Tool failures return a JSON object in the MCP error text with stable `code`, safe `message`, and
 `correlation_id` fields. Mutation failures also include `mutation_state`: `not_applied` means the
 write was rejected before commit, while `unknown` means a storage, deadline, or unexpected failure

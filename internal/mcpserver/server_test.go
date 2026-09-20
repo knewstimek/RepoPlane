@@ -161,6 +161,7 @@ func TestPublicMutationErrorReportsClassificationAndApplicationState(t *testing.
 		state string
 	}{
 		{errors.New("scope is required"), "invalid_argument", "not_applied"},
+		{fmt.Errorf("%w: host_fact requires bounded services and paths", records.ErrInvalidArgument), "invalid_argument", "not_applied"},
 		{records.ErrInvalidTransition, "invalid_transition", "not_applied"},
 		{store.ErrConflict, "revision_conflict", "not_applied"},
 		{records.ErrStorageFailure, "storage_failure", "unknown"},

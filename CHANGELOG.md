@@ -4,6 +4,8 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+## [1.1.5] - 2026-09-20
+
 ### Changed
 
 - MCP tool errors now carry a safe message and correlation ID in structured JSON error text.
@@ -15,6 +17,13 @@ Notable changes to RepoPlane are documented here.
   of requiring a tracked document for every version.
 - Paused public contribution intake and automatic dependency-version pull requests while the
   project is maintained directly.
+
+### Fixed
+
+- Typed host-fact validation failures now return `invalid_argument` with
+  `mutation_state=not_applied` instead of an internal error with unknown mutation state. Regression
+  coverage includes normal `memo.v2` creation, receipt read-back, and rejected incomplete host
+  payloads.
 
 ## [1.1.4] - 2026-09-16
 

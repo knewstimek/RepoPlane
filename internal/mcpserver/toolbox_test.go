@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
 	"testing"
 	"time"
@@ -106,6 +107,39 @@ func TestMemoWriteReturnsStructuredMutationFailureToMCPClient(t *testing.T) {
 	}
 	failure := decodePublicFailure(t, errors.New(content.Text))
 	if failure.Code != "invalid_transition" || failure.MutationState != "not_applied" || failure.CorrelationID == "" {
+		t.Fatalf("failure=%+v", failure)
+	}
+}
+
+func TestMemoWriteReturnsHostFactValidationFailureToMCPClient(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	session := connectTestClient(t, ctx, Options{
+		Surface:       SurfaceTypedV1,
+		MemoWriter:    memoErrorStub{err: fmt.Errorf("%w: host_fact requires bounded services and paths", records.ErrInvalidArgument)},
+		RuntimeAccess: runtimeaccess.New(nil, true, runtimeaccess.Initial{IntentWrite: true}),
+	})
+	defer session.Close()
+	result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: ToolMemoWrite, Arguments: map[string]any{
+		"mode": "create", "memo_kind": "host_fact", "scope": "operations/hosts",
+		"host": map[string]any{
+			"alias": "host-a", "role": "worker", "os": "linux", "tier": "production",
+			"services": []string{}, "paths": []string{"/srv/worker"}, "confirmed_at": "2026-09-20T00:00:00Z",
+		},
+		"invalidation_condition": "the host changes",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.IsError || len(result.Content) != 1 {
+		t.Fatalf("memo_write result=%+v", result)
+	}
+	content, ok := result.Content[0].(*mcp.TextContent)
+	if !ok {
+		t.Fatalf("error content type=%T", result.Content[0])
+	}
+	failure := decodePublicFailure(t, errors.New(content.Text))
+	if failure.Code != "invalid_argument" || failure.MutationState != "not_applied" || failure.CorrelationID == "" {
 		t.Fatalf("failure=%+v", failure)
 	}
 }

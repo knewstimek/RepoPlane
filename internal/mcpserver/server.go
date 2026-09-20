@@ -286,6 +286,8 @@ func publicErrorWithMutationState(err error, mutation bool) error {
 		code = "record_not_found"
 	case errors.Is(err, store.ErrConflict):
 		code = "revision_conflict"
+	case errors.Is(err, records.ErrInvalidArgument):
+		code = "invalid_argument"
 	case errors.Is(err, records.ErrInvalidTransition):
 		code = "invalid_transition"
 	case errors.Is(err, records.ErrStorageFailure):
