@@ -87,7 +87,7 @@ func (s *Service) Execute(ctx context.Context, request ExecuteRequest) (ExecuteR
 	if err != nil || identity != payload.ExecutableIdentity {
 		return ExecuteResponse{}, ErrPlanStale
 	}
-	inputs, err := s.snapshotPatterns(startCtx, capability.Manifest.Inputs)
+	inputs, err := s.snapshotPatterns(startCtx, capability.Manifest.Inputs, "inputs")
 	if err != nil || !reflect.DeepEqual(inputs, payload.InputHashes) {
 		return ExecuteResponse{}, ErrPlanStale
 	}

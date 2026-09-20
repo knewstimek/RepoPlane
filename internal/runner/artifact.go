@@ -15,7 +15,7 @@ import (
 )
 
 func (s *Service) observeArtifacts(ctx context.Context, runID string, payload runPayload) ([]string, map[string]string, bool) {
-	after, err := s.snapshotPatterns(ctx, payload.OutputPaths)
+	after, err := s.snapshotPatterns(ctx, payload.OutputPaths, "outputs")
 	if err != nil {
 		return []string{}, map[string]string{}, true
 	}

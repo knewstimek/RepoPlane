@@ -39,10 +39,11 @@ var ErrAuthorizationDenied = errors.New("mcpserver: authorization denied")
 var fallbackErrorID atomic.Uint64
 
 type publicFailure struct {
-	Code          string `json:"code"`
-	Message       string `json:"message"`
-	CorrelationID string `json:"correlation_id"`
-	MutationState string `json:"mutation_state,omitempty"`
+	Code          string         `json:"code"`
+	Message       string         `json:"message"`
+	CorrelationID string         `json:"correlation_id"`
+	MutationState string         `json:"mutation_state,omitempty"`
+	Details       map[string]any `json:"details,omitempty"`
 }
 
 type publicClientError struct{ failure publicFailure }
@@ -300,6 +301,8 @@ func publicErrorWithMutationState(err error, mutation bool) error {
 		code = "report_invalid"
 	case errors.Is(err, runner.ErrNotExecutable):
 		code = "capability_not_executable"
+	case errors.Is(err, runner.ErrUnsupportedScriptType):
+		code = "unsupported_script_type"
 	case errors.Is(err, runner.ErrPlanStale):
 		code = "plan_stale"
 	case errors.Is(err, runner.ErrRunState):
@@ -333,7 +336,26 @@ func publicErrorWithMutationState(err error, mutation bool) error {
 	}
 	return &publicClientError{failure: publicFailure{
 		Code: code, Message: publicErrorMessage(code, err), CorrelationID: correlationID, MutationState: mutationState,
+		Details: publicErrorDetails(err),
 	}}
+}
+
+func publicErrorDetails(err error) map[string]any {
+	var limit *runner.PatternLimitError
+	if !errors.As(err, &limit) {
+		return nil
+	}
+	details := map[string]any{
+		"resource": limit.Resource, "limit_kind": limit.LimitKind, "maximum": limit.Maximum,
+		"observed_lower_bound": limit.ObservedLowerBound,
+		"ignored_path_policy":  "included",
+		"build_output_policy":  "included",
+		"hint":                 "use narrower source-only globs and exclude build outputs",
+	}
+	if limit.Pattern != "" {
+		details["pattern"] = limit.Pattern
+	}
+	return details
 }
 
 func newErrorCorrelationID() string {
@@ -362,6 +384,8 @@ func publicErrorMessage(code string, err error) string {
 		return "record was not found"
 	case "internal_error":
 		return "internal operation failed"
+	case "unsupported_script_type":
+		return "direct PowerShell script execution is unsupported; use a PowerShell executable_ref and pass the workspace-relative script path in argv_template"
 	default:
 		return strings.ReplaceAll(code, "_", " ")
 	}

@@ -4,6 +4,18 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+### Changed
+
+- Runner limit errors for broad input/output globs now include bounded structured details naming
+  the resource, limit kind, responsible pattern, configured maximum, observed lower bound, ignored
+  path policy, and a narrower-glob hint.
+
+### Fixed
+
+- Windows `run_prepare` now rejects direct `.ps1` executable references with
+  `unsupported_script_type` and guidance to declare PowerShell plus the script argument, instead of
+  reporting a ready plan that later fails to start with an opaque internal error.
+
 ## [1.1.5] - 2026-09-20
 
 ### Changed

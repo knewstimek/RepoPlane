@@ -16,6 +16,7 @@ import (
 	"repoplane/internal/cursor"
 	"repoplane/internal/dataquery"
 	"repoplane/internal/records"
+	"repoplane/internal/runner"
 	"repoplane/internal/runtimeaccess"
 	"repoplane/internal/runtimeconfig"
 	"repoplane/internal/store"
@@ -143,6 +144,7 @@ func TestPublicErrorUsesStableSanitizedCodes(t *testing.T) {
 		{runtimeconfig.ErrUnavailable, "runtime_configuration_unavailable"},
 		{runtimeconfig.ErrBusy, "runtime_configuration_busy"},
 		{contracts.ErrLimitExceeded, "limit_exceeded"},
+		{&runner.UnsupportedScriptTypeError{Extension: ".ps1"}, "unsupported_script_type"},
 		{errors.New("ref is required"), "invalid_argument"},
 		{errors.New("database exploded at a host path"), "internal_error"},
 	}
@@ -151,6 +153,19 @@ func TestPublicErrorUsesStableSanitizedCodes(t *testing.T) {
 		if got.Code != test.want || got.Message == "" || !strings.HasPrefix(got.CorrelationID, "err_") || got.MutationState != "" {
 			t.Errorf("publicError(%v)=%+v, want code %q without mutation state", test.err, got, test.want)
 		}
+	}
+}
+
+func TestPublicErrorIncludesBoundedRunnerLimitDetails(t *testing.T) {
+	got := decodePublicFailure(t, publicError(&runner.PatternLimitError{
+		Resource: "inputs", LimitKind: "matched_file_count", Maximum: 256,
+		ObservedLowerBound: 257, Pattern: "src/**",
+	}))
+	if got.Code != "limit_exceeded" || got.Details["resource"] != "inputs" || got.Details["limit_kind"] != "matched_file_count" || got.Details["pattern"] != "src/**" {
+		t.Fatalf("public failure=%+v", got)
+	}
+	if got.Details["maximum"] != float64(256) || got.Details["observed_lower_bound"] != float64(257) || got.Details["ignored_path_policy"] != "included" || got.Details["build_output_policy"] != "included" {
+		t.Fatalf("limit details=%+v", got.Details)
 	}
 }
 

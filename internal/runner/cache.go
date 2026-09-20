@@ -321,7 +321,7 @@ func (s *Service) executeCacheHit(ctx context.Context, record store.Record, payl
 	exitCode := 0
 	payload.ExitCode = &exitCode
 	payload.StreamsRetained = false
-	payload.OutputsAfter, err = s.snapshotPatterns(ctx, payload.OutputPaths)
+	payload.OutputsAfter, err = s.snapshotPatterns(ctx, payload.OutputPaths, "outputs")
 	if err != nil {
 		s.rollbackMaterialized(created)
 		return ExecuteResponse{}, err

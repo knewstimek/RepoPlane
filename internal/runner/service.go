@@ -36,15 +36,43 @@ const (
 )
 
 var (
-	ErrNotExecutable = errors.New("runner: capability is not executable")
-	ErrPlanStale     = errors.New("runner: plan is stale")
-	ErrRunState      = errors.New("runner: invalid run state")
-	ErrSnapshotBusy  = errors.New("runner: active process prevents memory snapshot")
-	argumentName     = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,63}$`)
-	environmentName  = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
-	hostAlias        = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
-	templateArgument = regexp.MustCompile(`\{([A-Za-z_][A-Za-z0-9_]{0,63})\}`)
+	ErrNotExecutable         = errors.New("runner: capability is not executable")
+	ErrUnsupportedScriptType = errors.New("runner: unsupported script type")
+	ErrPlanStale             = errors.New("runner: plan is stale")
+	ErrRunState              = errors.New("runner: invalid run state")
+	ErrSnapshotBusy          = errors.New("runner: active process prevents memory snapshot")
+	argumentName             = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,63}$`)
+	environmentName          = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+	hostAlias                = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
+	templateArgument         = regexp.MustCompile(`\{([A-Za-z_][A-Za-z0-9_]{0,63})\}`)
 )
+
+type UnsupportedScriptTypeError struct {
+	Extension string
+}
+
+func (e *UnsupportedScriptTypeError) Error() string {
+	return fmt.Sprintf("runner: direct %s execution is unsupported", e.Extension)
+}
+
+func (e *UnsupportedScriptTypeError) Unwrap() error { return ErrUnsupportedScriptType }
+
+type PatternLimitError struct {
+	Resource           string
+	LimitKind          string
+	Maximum            int
+	ObservedLowerBound int
+	Pattern            string
+}
+
+func (e *PatternLimitError) Error() string {
+	if e.Pattern == "" {
+		return fmt.Sprintf("runner: %s %s limit exceeded: maximum %d, observed at least %d", e.Resource, e.LimitKind, e.Maximum, e.ObservedLowerBound)
+	}
+	return fmt.Sprintf("runner: %s %s limit exceeded for pattern %q: maximum %d, observed at least %d", e.Resource, e.LimitKind, e.Pattern, e.Maximum, e.ObservedLowerBound)
+}
+
+func (e *PatternLimitError) Unwrap() error { return contracts.ErrLimitExceeded }
 
 type capabilityResolver interface {
 	ResolveCapability(ctx context.Context, id string) (catalog.Capability, error)
@@ -182,11 +210,11 @@ func (s *Service) Prepare(ctx context.Context, request PrepareRequest) (PrepareR
 	hostChecks, hostWarnings := s.hostFactChecks(ctx, manifest, normalizedArgs)
 	checks = append(checks, hostChecks...)
 	warnings = append(warnings, hostWarnings...)
-	inputHashes, err := s.snapshotPatterns(ctx, manifest.Inputs)
+	inputHashes, err := s.snapshotPatterns(ctx, manifest.Inputs, "inputs")
 	if err != nil {
 		return PrepareResponse{}, err
 	}
-	outputsBefore, err := s.snapshotPatterns(ctx, manifest.Outputs)
+	outputsBefore, err := s.snapshotPatterns(ctx, manifest.Outputs, "outputs")
 	if err != nil {
 		return PrepareResponse{}, err
 	}
@@ -290,6 +318,9 @@ func (s *Service) resolveExecutable(ctx context.Context, ref string) (string, st
 	}
 	if err != nil {
 		return "", "", fmt.Errorf("resolve executable: %w", err)
+	}
+	if err := validateProcessExecutable(path); err != nil {
+		return "", "", err
 	}
 	identity, err := hashFile(ctx, path, 512*1024*1024)
 	if err != nil {
@@ -734,9 +765,9 @@ func hashFile(ctx context.Context, path string, maximum int64) (string, error) {
 	return "sha256:" + hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
-func (s *Service) snapshotPatterns(ctx context.Context, patterns []string) (map[string]string, error) {
+func (s *Service) snapshotPatterns(ctx context.Context, patterns []string, resource string) (map[string]string, error) {
 	if len(patterns) > 128 {
-		return nil, contracts.ErrLimitExceeded
+		return nil, &PatternLimitError{Resource: resource, LimitKind: "pattern_count", Maximum: 128, ObservedLowerBound: len(patterns)}
 	}
 	result := make(map[string]string)
 	for _, pattern := range patterns {
@@ -768,7 +799,10 @@ func (s *Service) snapshotPatterns(ctx context.Context, patterns []string) (map[
 			matched = true
 			key := filepath.ToSlash(relative)
 			if _, exists := result[key]; !exists && len(result) >= maximumInputFiles {
-				return contracts.ErrLimitExceeded
+				return &PatternLimitError{
+					Resource: resource, LimitKind: "matched_file_count", Maximum: maximumInputFiles,
+					ObservedLowerBound: maximumInputFiles + 1, Pattern: filepath.ToSlash(pattern),
+				}
 			}
 			hash, err := hashFile(ctx, path, 512*1024*1024)
 			if err != nil {

@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -361,6 +362,31 @@ func TestPrepareExecuteInspectAndCapture(t *testing.T) {
 	artifact, err = service.Inspect(context.Background(), InspectRequest{RunID: executed.RunID, Action: "artifact", ArtifactRef: artifactRef})
 	if err != nil || artifact.Stream.Availability != "missing" || len(artifact.Warnings) != 1 {
 		t.Fatalf("missing blob was not reported: response=%+v err=%v", artifact, err)
+	}
+}
+
+func TestPrepareReportsMatchedInputFileLimit(t *testing.T) {
+	manifest := testManifest()
+	manifest.Inputs = []string{"src/**"}
+	service, _, cleanup := newTestService(t, manifest)
+	defer cleanup()
+	root := filepath.Join(service.root.Resolved(), "src")
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for index := 0; index <= maximumInputFiles; index++ {
+		name := filepath.Join(root, fmt.Sprintf("input-%03d.txt", index))
+		if err := os.WriteFile(name, []byte("input"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, err := service.Prepare(context.Background(), PrepareRequest{CapabilityID: manifest.ID, CapabilityRevision: "1"})
+	var limit *PatternLimitError
+	if !errors.As(err, &limit) {
+		t.Fatalf("Prepare error=%v, want PatternLimitError", err)
+	}
+	if limit.Resource != "inputs" || limit.LimitKind != "matched_file_count" || limit.Maximum != maximumInputFiles || limit.ObservedLowerBound != maximumInputFiles+1 || limit.Pattern != "src/**" {
+		t.Fatalf("limit details=%+v", limit)
 	}
 }
 

@@ -48,6 +48,14 @@ func newProcessCommand(ctx context.Context, executable string, argv []string) (*
 	return command, nil
 }
 
+func validateProcessExecutable(path string) error {
+	extension := strings.ToLower(filepath.Ext(path))
+	if extension == ".ps1" {
+		return &UnsupportedScriptTypeError{Extension: extension}
+	}
+	return nil
+}
+
 func quoteBatchToken(value string) (string, error) {
 	if strings.ContainsAny(value, "\"%\r\n\x00") {
 		return "", errors.New("batch arguments cannot contain quotes, percent signs, or control characters")

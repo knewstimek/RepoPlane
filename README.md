@@ -138,6 +138,14 @@ response. A `state:` file reference is relative to the server's local state dire
 from `runtime_config(action=status)`. HTTP clients cannot open that server-local file directly.
 Captured process output is raw and is not automatically redacted.
 
+On Windows, register PowerShell explicitly as the executable and put the workspace-relative
+script path in `argv_template`, for example `executable_ref: powershell` with
+`argv_template: [-NoProfile, -File, tools/Example.ps1]`. Direct `.ps1` executable references are
+rejected during `run_prepare` with `unsupported_script_type`. Input and output globs are bounded;
+a matched-file limit failure includes the responsible pattern, configured maximum, observed lower
+bound, and a source-only-glob hint. Gitignored and build-output paths are included unless the
+manifest narrows its patterns; RepoPlane only excludes its internal metadata directories.
+
 ## Access and configuration
 
 Local stdio reads stay inside the resolved workspace unless an external path receives an exact,

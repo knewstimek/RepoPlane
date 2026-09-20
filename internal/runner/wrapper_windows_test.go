@@ -5,6 +5,7 @@ package runner
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,6 +28,23 @@ func TestWindowsRegisteredBatchWrapperPreservesArgumentBoundary(t *testing.T) {
 	}
 	t.Setenv("REPOPLANE_RUNNER_HELPER", "1")
 	assertWrapperOutput(t, service, "공백 값 & 안전")
+}
+
+func TestWindowsPrepareRejectsDirectPowerShellScript(t *testing.T) {
+	manifest := catalog.Manifest{
+		ID: "test.powershell", Revision: 1, Summary: "Windows PowerShell script",
+		Execution: &catalog.Execution{Kind: "cli", ExecutableRef: "tools/example.ps1", CWD: ".", TrustedForRun: true, TimeoutSec: 5},
+	}
+	service, _, cleanup := newTestService(t, manifest)
+	defer cleanup()
+	if err := os.WriteFile(filepath.Join(service.root.Resolved(), "tools", "example.ps1"), []byte("Write-Output 'ok'\r\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := service.Prepare(context.Background(), PrepareRequest{CapabilityID: manifest.ID, CapabilityRevision: "1"})
+	var unsupported *UnsupportedScriptTypeError
+	if !errors.As(err, &unsupported) || unsupported.Extension != ".ps1" {
+		t.Fatalf("Prepare error=%v, want .ps1 UnsupportedScriptTypeError", err)
+	}
 }
 
 func assertWrapperOutput(t *testing.T, service *Service, message string) {

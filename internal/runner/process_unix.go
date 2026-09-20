@@ -9,6 +9,8 @@ import (
 	"syscall"
 )
 
+func validateProcessExecutable(string) error { return nil }
+
 func newProcessCommand(ctx context.Context, executable string, argv []string) (*exec.Cmd, error) {
 	return exec.CommandContext(ctx, executable, argv...), nil
 }
