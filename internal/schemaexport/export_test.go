@@ -142,6 +142,42 @@ func TestCursorCapableToolSchemasAllowCursorOnlyRequests(t *testing.T) {
 	}
 }
 
+func TestCommonInputChoicesAreExposed(t *testing.T) {
+	generated, err := Generate(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var parsed document
+	if err := json.Unmarshal(generated, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]map[string][]string{
+		"catalog_query":    {"mode": {"search", "get", "list", "audit", "status"}},
+		"workspace_search": {"mode": {"filename", "exact", "regex", "git_history", "symbol"}, "ignored": {"exclude", "include"}},
+		"data_query":       {"mode": {"text_range", "jsonl", "json", "delimited", "log"}},
+		"project_records":  {"mode": {"search", "list", "get"}},
+	}
+	for _, tool := range parsed.Tools {
+		fields, ok := want[tool.Name]
+		if !ok {
+			continue
+		}
+		properties := tool.InputSchema.(map[string]any)["properties"].(map[string]any)
+		for field, values := range fields {
+			property := properties[field].(map[string]any)
+			got := property["enum"].([]any)
+			if len(got) != len(values) {
+				t.Fatalf("%s.%s enum=%v, want %v", tool.Name, field, got, values)
+			}
+			for i, value := range values {
+				if got[i] != value {
+					t.Fatalf("%s.%s enum=%v, want %v", tool.Name, field, got, values)
+				}
+			}
+		}
+	}
+}
+
 func TestCompactToolSchemaFootprintStaysBounded(t *testing.T) {
 	generated, err := Generate(context.Background())
 	if err != nil {

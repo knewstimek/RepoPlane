@@ -24,15 +24,15 @@ const resultTTL = 30 * time.Minute
 var ErrResponseTooLarge = errors.New("search: response cannot fit byte_limit")
 
 type Request struct {
-	Mode          string   `json:"mode,omitempty" jsonschema:"filename, exact, regex, git_history, or symbol; omit with cursor"`
+	Mode          string   `json:"mode,omitempty" jsonschema:"omit with cursor"`
 	Pattern       string   `json:"pattern,omitempty" jsonschema:"name/text/Git/symbol pattern; omit with cursor"`
 	Root          string   `json:"root,omitempty" jsonschema:"workspace-relative search root; defaults to ."`
 	Include       []string `json:"include,omitempty" jsonschema:"ripgrep glob patterns to include"`
 	Exclude       []string `json:"exclude,omitempty" jsonschema:"ripgrep glob patterns to exclude"`
 	Hidden        bool     `json:"hidden,omitempty" jsonschema:"include hidden paths"`
-	Ignored       string   `json:"ignored,omitempty" jsonschema:"ignored path policy: exclude or include"`
-	Generated     string   `json:"generated,omitempty" jsonschema:"generated path policy: exclude or include"`
-	Vendor        string   `json:"vendor,omitempty" jsonschema:"vendor path policy: exclude or include"`
+	Ignored       string   `json:"ignored,omitempty" jsonschema:"ignored"`
+	Generated     string   `json:"generated,omitempty" jsonschema:"generated paths"`
+	Vendor        string   `json:"vendor,omitempty" jsonschema:"vendor paths"`
 	Encoding      string   `json:"encoding,omitempty" jsonschema:"text encoding: utf-8, cp949, or euc-kr"`
 	CaseSensitive bool     `json:"case_sensitive,omitempty" jsonschema:"perform case-sensitive matching"`
 	Cursor        string   `json:"cursor,omitempty" jsonschema:"opaque cursor from an earlier workspace_search"`

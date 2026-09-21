@@ -50,7 +50,7 @@ type Filter struct {
 }
 
 type Request struct {
-	Mode            string   `json:"mode,omitempty" jsonschema:"text_range, jsonl, json, delimited, or log; omit with cursor"`
+	Mode            string   `json:"mode,omitempty" jsonschema:"omit with cursor"`
 	Ref             string   `json:"ref,omitempty" jsonschema:"source ref returned by another RepoPlane tool"`
 	Encoding        string   `json:"encoding,omitempty" jsonschema:"utf-8, cp949, or euc-kr; defaults to utf-8"`
 	LineStart       *uint64  `json:"line_start,omitempty" jsonschema:"one-based inclusive line start"`

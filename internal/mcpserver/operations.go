@@ -86,6 +86,31 @@ type toolboxResponse struct {
 	Result       any                `json:"result,omitempty"`
 }
 
+// addInputChoices exposes choices already enforced by the services to MCP clients.
+// Cursor-capable tools keep mode optional so a cursor-only request stays valid.
+func addInputChoices(name string, schema *jsonschema.Schema) {
+	choices := map[string]map[string][]string{
+		ToolCatalogQuery: {"mode": {"search", "get", "list", "audit", "status"}},
+		ToolWorkspaceSearch: {
+			"mode":    {"filename", "exact", "regex", "git_history", "symbol"},
+			"ignored": {"exclude", "include"}, "generated": {"exclude", "include"},
+			"vendor": {"exclude", "include"},
+		},
+		ToolDataQuery:      {"mode": {"text_range", "jsonl", "json", "delimited", "log"}},
+		ToolProjectRecords: {"mode": {"search", "list", "get"}},
+	}
+	for field, values := range choices[name] {
+		property := schema.Properties[field]
+		if property == nil {
+			panic(fmt.Sprintf("operation %s missing input field %s", name, field))
+		}
+		property.Enum = make([]any, len(values))
+		for i, value := range values {
+			property.Enum[i] = value
+		}
+	}
+}
+
 func newOperation[In, Out any](name, toolbox, description, scope, sideEffect, approval string, annotations *mcp.ToolAnnotations, handler mcp.ToolHandlerFor[In, Out]) operationSpec {
 	inputSchema, err := jsonschema.For[In](nil)
 	if err != nil {
@@ -95,7 +120,8 @@ func newOperation[In, Out any](name, toolbox, description, scope, sideEffect, ap
 	if err != nil {
 		panic(fmt.Sprintf("operation %s output schema: %v", name, err))
 	}
-	tool := &mcp.Tool{Name: name, Description: description, Annotations: annotations}
+	addInputChoices(name, inputSchema)
+	tool := &mcp.Tool{Name: name, Description: description, InputSchema: inputSchema, Annotations: annotations}
 	var observe func(context.Context, store.UsageEvent)
 	observed := func(ctx context.Context, request *mcp.CallToolRequest, input In) (*mcp.CallToolResult, Out, error) {
 		if observe == nil {

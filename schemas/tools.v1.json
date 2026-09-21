@@ -27,7 +27,14 @@
             "type": "integer"
           },
           "mode": {
-            "description": "catalog operation: search, get, list, audit, or status; omit when using cursor",
+            "description": "omit with cursor",
+            "enum": [
+              "search",
+              "get",
+              "list",
+              "audit",
+              "status"
+            ],
             "type": "string"
           },
           "query": {
@@ -938,7 +945,14 @@
             "type": "string"
           },
           "mode": {
-            "description": "text_range, jsonl, json, delimited, or log; omit with cursor",
+            "description": "omit with cursor",
+            "enum": [
+              "text_range",
+              "jsonl",
+              "json",
+              "delimited",
+              "log"
+            ],
             "type": "string"
           },
           "pattern": {
@@ -1873,7 +1887,12 @@
             "type": "string"
           },
           "mode": {
-            "description": "record operation: search, list, or get; omit when using cursor",
+            "description": "omit with cursor",
+            "enum": [
+              "search",
+              "list",
+              "get"
+            ],
             "type": "string"
           },
           "payload_fields": {
@@ -2719,7 +2738,11 @@
             ]
           },
           "generated": {
-            "description": "generated path policy: exclude or include",
+            "description": "generated paths",
+            "enum": [
+              "exclude",
+              "include"
+            ],
             "type": "string"
           },
           "hidden": {
@@ -2727,7 +2750,11 @@
             "type": "boolean"
           },
           "ignored": {
-            "description": "ignored path policy: exclude or include",
+            "description": "ignored",
+            "enum": [
+              "exclude",
+              "include"
+            ],
             "type": "string"
           },
           "include": {
@@ -2754,7 +2781,14 @@
             "type": "string"
           },
           "mode": {
-            "description": "filename, exact, regex, git_history, or symbol; omit with cursor",
+            "description": "omit with cursor",
+            "enum": [
+              "filename",
+              "exact",
+              "regex",
+              "git_history",
+              "symbol"
+            ],
             "type": "string"
           },
           "pattern": {
@@ -2790,7 +2824,11 @@
             "type": "string"
           },
           "vendor": {
-            "description": "vendor path policy: exclude or include",
+            "description": "vendor paths",
+            "enum": [
+              "exclude",
+              "include"
+            ],
             "type": "string"
           }
         },

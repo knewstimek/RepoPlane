@@ -22,7 +22,7 @@ const resultSetTTL = 30 * time.Minute
 var ErrResponseTooLarge = errors.New("catalog: response cannot fit byte_limit")
 
 type QueryRequest struct {
-	Mode        string `json:"mode,omitempty" jsonschema:"catalog operation: search, get, list, audit, or status; omit when using cursor"`
+	Mode        string `json:"mode,omitempty" jsonschema:"omit with cursor"`
 	Query       string `json:"query,omitempty" jsonschema:"lexical search text; required for search"`
 	ID          string `json:"id,omitempty" jsonschema:"catalog item ID; required for get"`
 	Cursor      string `json:"cursor,omitempty" jsonschema:"opaque cursor returned by an earlier list or search"`

@@ -57,7 +57,7 @@ type ValidationError struct {
 func (e *ValidationError) Error() string { return e.Field + " " + e.Reason }
 
 type QueryRequest struct {
-	Mode          string   `json:"mode,omitempty" jsonschema:"record operation: search, list, or get; omit when using cursor"`
+	Mode          string   `json:"mode,omitempty" jsonschema:"omit with cursor"`
 	Query         string   `json:"query,omitempty" jsonschema:"space-separated lexical terms; any term may match; required for search"`
 	ID            string   `json:"id,omitempty" jsonschema:"opaque record ID; required for get"`
 	Kind          string   `json:"kind,omitempty" jsonschema:"record kind filter: verification, checkpoint, memo, environment, run, or artifact"`

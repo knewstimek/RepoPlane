@@ -1,9 +1,22 @@
 # RepoPlane
 
 RepoPlane is a local [Model Context Protocol](https://modelcontextprotocol.io/) server for coding
-agents. It finds repository capabilities, searches code and structured data, explains paths, and
-keeps verification and task evidence. Reads have explicit limits: a partial scan reports what it
-did not observe instead of presenting a guess as a complete result.
+agents: bounded repository search, durable task evidence, and gated execution of registered
+commands. It also explains paths and queries structured data. A partial scan reports what it did
+not observe instead of presenting a guess as a complete result.
+
+Discovery tools read workspace content. Record tools write local evidence; Runner executes only
+registered commands after preparation, preflight checks, and any required approval. The server
+includes both read and gated write or execution tools.
+
+| When an agent needs to... | Without RepoPlane | With RepoPlane |
+| --- | --- | --- |
+| Search a large repository | Inspect tool output and infer whether a scan finished | Get bounded matches with scope, count relation, and partial-state evidence |
+| Resume work across sessions | Reconstruct prior decisions from conversation or files | Query durable checkpoints, memos, and verification records |
+| Run a known project check | Find and invoke the command separately | Inspect a registered plan, then run it through preflight and approval gates |
+
+Text search and file inspection support UTF-8, CP949, and EUC-KR for repositories with legacy
+Korean encodings. Text search requires `ripgrep` on `PATH`.
 
 [Releases](https://github.com/knewstimek/RepoPlane/releases) · [Changelog](CHANGELOG.md)
 

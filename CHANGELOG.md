@@ -9,6 +9,13 @@ Notable changes to RepoPlane are documented here.
 - A bundled `repo-memory` Codex skill that guides agents to consult RepoPlane before repository
   work and retain only verified, reusable background knowledge afterward.
 
+### Changed
+
+- Common MCP search and query choices now appear as input-schema enums without increasing the
+  compact tool-contract footprint. Cursor-only calls remain valid.
+- The README introduction now explains bounded search, durable evidence, and gated registered
+  execution, with three task comparisons and legacy Korean encoding support.
+
 ## [1.1.6] - 2026-09-20
 
 ### Changed
