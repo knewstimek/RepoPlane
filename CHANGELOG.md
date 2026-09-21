@@ -4,6 +4,8 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+## [1.1.7] - 2026-09-21
+
 ### Added
 
 - A bundled `repo-memory` Codex skill that guides agents to consult RepoPlane before repository
