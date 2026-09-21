@@ -11,6 +11,11 @@ Notable changes to RepoPlane are documented here.
 
 ### Changed
 
+- The Windows release archive now includes a pinned, checksum-verified ripgrep executable and its
+  license files. RepoPlane prefers the adjacent `rg.exe` before looking on `PATH`.
+- When ripgrep is absent, RepoPlane starts and returns an explicit `unsupported` search result with
+  an actionable `ripgrep_unavailable` warning; path facts mark the basename scan partial. Git
+  history and configured symbol search remain available.
 - Common MCP search, query, write, and inspection choices now appear as input-schema enums within
   the compact tool-contract budget. Cursor-only calls remain valid, and `memo_write.source` is
   correctly marked required.

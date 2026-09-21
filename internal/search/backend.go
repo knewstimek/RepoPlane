@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 
 	"repoplane/internal/content"
@@ -74,13 +75,24 @@ type Backend interface {
 	Search(context.Context, BackendQuery) (BackendOutcome, error)
 }
 
+// UnavailableBackend keeps searches explicit when ripgrep cannot be started.
+// Git history and configured symbol search can still run through AdapterBackend.
+type UnavailableBackend struct{}
+
+func (UnavailableBackend) Search(context.Context, BackendQuery) (BackendOutcome, error) {
+	return BackendOutcome{
+		Matches: []Match{}, Unsupported: true, Engine: "ripgrep unavailable",
+		Warnings: []string{"ripgrep (rg) is unavailable; install rg or use a release archive that includes it to enable filename and text search"},
+	}, nil
+}
+
 type RGBackend struct {
 	executable string
 	version    string
 }
 
 func NewRGBackend(ctx context.Context) (*RGBackend, error) {
-	path, err := exec.LookPath("rg")
+	path, err := rgExecutable()
 	if err != nil {
 		return nil, ErrBackendUnavailable
 	}
@@ -94,6 +106,26 @@ func NewRGBackend(ctx context.Context) (*RGBackend, error) {
 	}
 	version := strings.TrimSpace(strings.SplitN(output.String(), "\n", 2)[0])
 	return &RGBackend{executable: path, version: version}, nil
+}
+
+func rgExecutable() (string, error) {
+	executable, err := os.Executable()
+	if err == nil {
+		return rgExecutableNear(executable)
+	}
+	return exec.LookPath("rg")
+}
+
+func rgExecutableNear(executable string) (string, error) {
+	name := "rg"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	adjacent := filepath.Join(filepath.Dir(executable), name)
+	if info, err := os.Stat(adjacent); err == nil && info.Mode().IsRegular() {
+		return adjacent, nil
+	}
+	return exec.LookPath("rg")
 }
 
 func (b *RGBackend) Search(ctx context.Context, query BackendQuery) (BackendOutcome, error) {

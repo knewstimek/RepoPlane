@@ -140,12 +140,16 @@ func buildBundle(ctx context.Context, settings config.Settings, cacheEnabled fun
 		return fail(fmt.Errorf("initial catalog refresh: %w", err))
 	}
 	searchBackend, err := search.NewRGBackend(ctx)
-	if err != nil {
+	if err != nil && !errors.Is(err, search.ErrBackendUnavailable) {
 		return fail(err)
 	}
-	adapterBackend := search.NewAdapterBackend(ctx, searchBackend, root.Resolved(), settings.SymbolIndexes)
+	var fileBackend search.Backend = searchBackend
+	if err != nil {
+		fileBackend = search.UnavailableBackend{}
+	}
+	adapterBackend := search.NewAdapterBackend(ctx, fileBackend, root.Resolved(), settings.SymbolIndexes)
 	searchService := search.NewService(root, repository, codec, adapterBackend)
-	pathService := pathfacts.NewService(root, searchBackend, settings.RuleFiles)
+	pathService := pathfacts.NewService(root, fileBackend, settings.RuleFiles)
 	dataService := dataquery.NewService(root, repository, codec)
 	recordService := records.NewService(root, recordRepository, repository, codec)
 	service.EnableExecution()

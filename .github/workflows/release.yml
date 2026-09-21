@@ -110,13 +110,27 @@ jobs:
             -ldflags "-s -w -X main.version=$TAG" -o dist/stage/linux/repoplane ./cmd/repoplane
           grep -aFq "$TAG" dist/stage/windows/repoplane.exe
           grep -aFq "$TAG" dist/stage/linux/repoplane
-          (cd dist/stage/windows && zip -q "../../repoplane_${VERSION}_windows_amd64.zip" repoplane.exe)
+          rg_version=15.2.0
+          rg_asset="ripgrep-${rg_version}-x86_64-pc-windows-msvc.zip"
+          curl -fL --retry 3 -o "dist/stage/windows/$rg_asset" \
+            "https://github.com/BurntSushi/ripgrep/releases/download/${rg_version}/${rg_asset}"
+          printf '%s  %s\n' \
+            '71b2fef860abe467217a538ff31de02f5258807c0129f771846f87bd029aafc5' \
+            "dist/stage/windows/$rg_asset" | sha256sum -c -
+          unzip -p "dist/stage/windows/$rg_asset" '*/rg.exe' > dist/stage/windows/rg.exe
+          unzip -p "dist/stage/windows/$rg_asset" '*/COPYING' > dist/stage/windows/ripgrep-COPYING.txt
+          unzip -p "dist/stage/windows/$rg_asset" '*/LICENSE-MIT' > dist/stage/windows/ripgrep-LICENSE-MIT.txt
+          unzip -p "dist/stage/windows/$rg_asset" '*/UNLICENSE' > dist/stage/windows/ripgrep-UNLICENSE.txt
+          test -s dist/stage/windows/rg.exe
+          test -s dist/stage/windows/ripgrep-LICENSE-MIT.txt
+          (cd dist/stage/windows && zip -q "../../repoplane_${VERSION}_windows_amd64.zip" \
+            repoplane.exe rg.exe ripgrep-COPYING.txt ripgrep-LICENSE-MIT.txt ripgrep-UNLICENSE.txt)
           tar -czf "dist/repoplane_${VERSION}_linux_amd64.tar.gz" -C dist/stage/linux repoplane
           printf '%s\n' \
             "$(sha256sum "dist/repoplane_${VERSION}_linux_amd64.tar.gz" | sed 's#  dist/#  #')" \
             "$(sha256sum "dist/repoplane_${VERSION}_windows_amd64.zip" | sed 's#  dist/#  #')" \
             > dist/SHA256SUMS.txt
-          [[ "$(unzip -Z1 "dist/repoplane_${VERSION}_windows_amd64.zip")" == "repoplane.exe" ]]
+          [[ "$(unzip -Z1 "dist/repoplane_${VERSION}_windows_amd64.zip" | sort)" == $'repoplane.exe\nrg.exe\nripgrep-COPYING.txt\nripgrep-LICENSE-MIT.txt\nripgrep-UNLICENSE.txt' ]]
           [[ "$(tar -tzf "dist/repoplane_${VERSION}_linux_amd64.tar.gz")" == "repoplane" ]]
 
       - name: Generate release notes from changelog

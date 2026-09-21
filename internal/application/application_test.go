@@ -15,9 +15,37 @@ import (
 	"repoplane/internal/catalog"
 	"repoplane/internal/config"
 	"repoplane/internal/mcpserver"
+	"repoplane/internal/pathfacts"
+	"repoplane/internal/records"
 	"repoplane/internal/runtimeconfig"
 	"repoplane/internal/search"
 )
+
+func TestApplicationStartsWithoutRipgrepAndKeepsOtherToolsAvailable(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	workspacePath := t.TempDir()
+	if err := os.WriteFile(filepath.Join(workspacePath, "example.txt"), []byte("example"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	app, err := Open(context.Background(), config.Settings{Workspace: workspacePath, StateDir: t.TempDir()}, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = app.Close() })
+	searchResult, err := app.router.SearchQuery(context.Background(), search.Request{Mode: "exact", Pattern: "example"})
+	if err != nil || searchResult.Status != "unsupported" || len(searchResult.Warnings) != 1 || searchResult.Warnings[0].Code != "ripgrep_unavailable" {
+		t.Fatalf("search result=%+v err=%v", searchResult, err)
+	}
+	if result, err := app.router.Query(context.Background(), catalog.QueryRequest{Mode: "status"}); err != nil || result.Status != "ok" {
+		t.Fatalf("catalog result=%+v err=%v", result, err)
+	}
+	if result, err := app.router.RecordsQuery(context.Background(), records.QueryRequest{Mode: "list"}); err != nil || result.Status != "ok" {
+		t.Fatalf("records result=%+v err=%v", result, err)
+	}
+	if result, err := app.router.Explain(context.Background(), pathfacts.Request{Path: "example.txt"}); err != nil || result.Status != "partial" || len(result.Warnings) != 1 || result.Warnings[0].Code != "basename_scan" || !strings.Contains(result.Warnings[0].Message, "ripgrep") {
+		t.Fatalf("path facts result=%+v err=%v", result, err)
+	}
+}
 
 func TestApplicationReconfiguresSourcesWorkspaceStateAndHTTPAtRuntime(t *testing.T) {
 	base := t.TempDir()

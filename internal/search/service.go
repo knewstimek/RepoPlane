@@ -175,6 +175,9 @@ func (s *Service) Query(ctx context.Context, request Request) (Response, error) 
 		code := "backend_warning"
 		if outcome.Unsupported {
 			code = "adapter_unavailable"
+			if outcome.Engine == "ripgrep unavailable" {
+				code = "ripgrep_unavailable"
+			}
 		}
 		warnings = append(warnings, contracts.Warning{Code: code, Message: message})
 	}

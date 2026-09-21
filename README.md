@@ -16,16 +16,21 @@ includes both read and gated write or execution tools.
 | Run a known project check | Find and invoke the command separately | Inspect a registered plan, then run it through preflight and approval gates |
 
 Text search and file inspection support UTF-8, CP949, and EUC-KR for repositories with legacy
-Korean encodings. Text search requires `ripgrep` on `PATH`.
+Korean encodings. Filename and text search use ripgrep (`rg`).
 
 [Releases](https://github.com/knewstimek/RepoPlane/releases) · [Changelog](CHANGELOG.md)
 
 ## Install and try it
 
 Download a Windows or Linux amd64 archive and `SHA256SUMS.txt` from
-[Releases](https://github.com/knewstimek/RepoPlane/releases). Verify the checksum, put
-`repoplane` on `PATH`, and install [ripgrep](https://github.com/BurntSushi/ripgrep) as `rg`.
-Git on `PATH` enables optional history search. Building from source requires Go 1.26 or newer:
+[Releases](https://github.com/knewstimek/RepoPlane/releases). Verify the checksum and put
+`repoplane` on `PATH`. Starting with v1.1.7, the Windows archive includes `rg.exe`; keep it next
+to `repoplane.exe`.
+On Linux, install [ripgrep](https://github.com/BurntSushi/ripgrep) as `rg` to enable filename and
+text search. Starting with v1.1.7, RepoPlane also starts without `rg`: those search modes report
+`unsupported` with `ripgrep_unavailable`, while Git history, configured symbol search, records,
+and Runner remain available. `path_explain` marks its basename scan partial. Git on `PATH` enables
+optional history search. Building from source requires Go 1.26 or newer:
 
 ```sh
 go test ./...

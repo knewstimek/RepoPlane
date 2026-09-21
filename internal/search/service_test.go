@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -95,6 +96,20 @@ func TestServiceUnsupportedEncodingIsExplicit(t *testing.T) {
 	}
 	if response.Status != "unsupported" || response.Counts.Matched != nil || response.Truncated != nil {
 		t.Fatalf("unexpected unsupported response: %+v", response)
+	}
+}
+
+func TestMissingRipgrepReportsUnsupportedWithoutMatches(t *testing.T) {
+	service := newSearchService(t, UnavailableBackend{})
+	response, err := service.Query(context.Background(), Request{Mode: "exact", Pattern: "needle"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Status != "unsupported" || response.Scan.State != "not_applicable" || response.Counts.Matched != nil || response.Counts.Relation != "unknown" || len(response.Items) != 0 {
+		t.Fatalf("unavailable search response=%+v", response)
+	}
+	if len(response.Warnings) != 1 || response.Warnings[0].Code != "ripgrep_unavailable" || !strings.Contains(response.Warnings[0].Message, "rg") {
+		t.Fatalf("unavailable search warnings=%+v", response.Warnings)
 	}
 }
 

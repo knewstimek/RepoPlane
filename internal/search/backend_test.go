@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"repoplane/internal/textcodec"
@@ -20,6 +21,25 @@ func newRGTestBackend(t *testing.T) *RGBackend {
 	return backend
 }
 
+func TestRGExecutablePrefersAdjacentBundle(t *testing.T) {
+	directory := t.TempDir()
+	t.Setenv("PATH", t.TempDir())
+	name := "rg"
+	executable := "repoplane"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+		executable += ".exe"
+	}
+	adjacent := filepath.Join(directory, name)
+	if err := os.WriteFile(adjacent, []byte("test bundle"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	got, err := rgExecutableNear(filepath.Join(directory, executable))
+	if err != nil || got != adjacent {
+		t.Fatalf("rg executable=%q, want %q; err=%v", got, adjacent, err)
+	}
+}
+
 func TestAdapterBackendSymbolAndGitHistory(t *testing.T) {
 	root := t.TempDir()
 	writeSearchFile(t, root, "symbols.jsonl", `{"_type":"tag","name":"FindThing","kind":"function","language":"Go","path":"main.go","line":7}`+"\n")
@@ -28,8 +48,12 @@ func TestAdapterBackendSymbolAndGitHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	resolvedRoot := workspaceRoot.Resolved()
-	base := newRGTestBackend(t)
+	base := UnavailableBackend{}
 	backend := NewAdapterBackend(context.Background(), base, resolvedRoot, []string{"symbols.jsonl"})
+	files, err := backend.Search(context.Background(), BackendQuery{Mode: "filename", Pattern: "main.go", Directory: resolvedRoot})
+	if err != nil || !files.Unsupported || files.Engine != "ripgrep unavailable" {
+		t.Fatalf("filename search=%+v err=%v", files, err)
+	}
 	symbols, err := backend.Search(context.Background(), BackendQuery{Mode: "symbol", Pattern: "Find", Directory: resolvedRoot})
 	if err != nil || len(symbols.Matches) != 1 || symbols.Matches[0].Channel != "prefix" || symbols.Matches[0].Validity != "unknown" {
 		t.Fatalf("symbols=%+v err=%v", symbols, err)
