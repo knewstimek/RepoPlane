@@ -152,10 +152,18 @@ func TestCommonInputChoicesAreExposed(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]map[string][]string{
-		"catalog_query":    {"mode": {"search", "get", "list", "audit", "status"}},
-		"workspace_search": {"mode": {"filename", "exact", "regex", "git_history", "symbol"}, "ignored": {"exclude", "include"}},
-		"data_query":       {"mode": {"text_range", "jsonl", "json", "delimited", "log"}},
-		"project_records":  {"mode": {"search", "list", "get"}},
+		"catalog_query": {"mode": {"search", "get", "list", "audit", "status"}},
+		"workspace_search": {
+			"mode":    {"filename", "exact", "regex", "git_history", "symbol"},
+			"ignored": {"exclude", "include"}, "encoding": {"utf-8", "cp949", "euc-kr"},
+			"match_kind": {"all", "commit", "path", "diff"}, "pattern_syntax": {"exact", "regex"},
+		},
+		"data_query":          {"mode": {"text_range", "jsonl", "json", "delimited", "log"}},
+		"project_records":     {"mode": {"search", "list", "get"}},
+		"checkpoint_write":    {"mode": {"create", "update", "supersede"}, "response_view": {"full", "receipt"}},
+		"memo_write":          {"mode": {"create", "update", "supersede"}, "source": {"user_asserted", "llm_proposed"}, "response_view": {"full", "receipt"}},
+		"check_report_import": {"response_view": {"full", "receipt"}},
+		"run_prepare":         {"cache_mode": {"auto", "bypass"}},
 	}
 	for _, tool := range parsed.Tools {
 		fields, ok := want[tool.Name]
@@ -173,6 +181,16 @@ func TestCommonInputChoicesAreExposed(t *testing.T) {
 				if got[i] != value {
 					t.Fatalf("%s.%s enum=%v, want %v", tool.Name, field, got, values)
 				}
+			}
+		}
+		if tool.Name == "memo_write" {
+			required := tool.InputSchema.(map[string]any)["required"].([]any)
+			found := false
+			for _, field := range required {
+				found = found || field == "source"
+			}
+			if !found {
+				t.Fatal("memo_write.source must be required by the input schema")
 			}
 		}
 	}

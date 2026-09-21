@@ -94,10 +94,20 @@ func addInputChoices(name string, schema *jsonschema.Schema) {
 		ToolWorkspaceSearch: {
 			"mode":    {"filename", "exact", "regex", "git_history", "symbol"},
 			"ignored": {"exclude", "include"}, "generated": {"exclude", "include"},
-			"vendor": {"exclude", "include"},
+			"vendor":         {"exclude", "include"},
+			"encoding":       {"utf-8", "cp949", "euc-kr"},
+			"match_kind":     {"all", "commit", "path", "diff"},
+			"pattern_syntax": {"exact", "regex"},
 		},
-		ToolDataQuery:      {"mode": {"text_range", "jsonl", "json", "delimited", "log"}},
-		ToolProjectRecords: {"mode": {"search", "list", "get"}},
+		ToolDataQuery:       {"mode": {"text_range", "jsonl", "json", "delimited", "log"}},
+		ToolProjectRecords:  {"mode": {"search", "list", "get"}},
+		ToolCheckpointWrite: {"mode": {"create", "update", "supersede"}, "response_view": {"full", "receipt"}},
+		ToolMemoWrite: {
+			"mode":   {"create", "update", "supersede"},
+			"source": {"user_asserted", "llm_proposed"}, "response_view": {"full", "receipt"},
+		},
+		ToolCheckReportImport: {"response_view": {"full", "receipt"}},
+		ToolRunPrepare:        {"cache_mode": {"auto", "bypass"}},
 	}
 	for field, values := range choices[name] {
 		property := schema.Properties[field]

@@ -7,25 +7,25 @@
     {
       "name": "read",
       "tool_count": 6,
-      "complete_contract_bytes": 21150,
-      "name_description_input_bytes": 8008,
-      "input_schema_bytes": 7031,
+      "complete_contract_bytes": 21185,
+      "name_description_input_bytes": 8043,
+      "input_schema_bytes": 7066,
       "output_schema_bytes": 13040
     },
     {
       "name": "writes",
       "tool_count": 3,
-      "complete_contract_bytes": 6922,
-      "name_description_input_bytes": 3598,
-      "input_schema_bytes": 3276,
+      "complete_contract_bytes": 7026,
+      "name_description_input_bytes": 3702,
+      "input_schema_bytes": 3380,
       "output_schema_bytes": 3273
     },
     {
       "name": "runner",
       "tool_count": 3,
-      "complete_contract_bytes": 5496,
-      "name_description_input_bytes": 2055,
-      "input_schema_bytes": 1646,
+      "complete_contract_bytes": 5499,
+      "name_description_input_bytes": 2058,
+      "input_schema_bytes": 1649,
       "output_schema_bytes": 3390
     },
     {
@@ -39,9 +39,9 @@
     {
       "name": "all",
       "tool_count": 14,
-      "complete_contract_bytes": 35608,
-      "name_description_input_bytes": 14899,
-      "input_schema_bytes": 12857,
+      "complete_contract_bytes": 35750,
+      "name_description_input_bytes": 15041,
+      "input_schema_bytes": 12999,
       "output_schema_bytes": 20471
     },
     {

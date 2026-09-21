@@ -90,6 +90,10 @@ The default `typed.v1` interface exposes 14 tools:
 | Prepare, execute, and inspect a registered capability | `run_prepare`, `run_execute`, `run_inspect` |
 | Export durable memory and retained Runner evidence | `memory_backup` |
 
+The typed tool schemas expose fixed choices for common search, query, and write fields. A cursor
+can replace `mode` on paginated reads. `memo_write` requires a `source` value; use
+`user_asserted` for a user-provided fact or `llm_proposed` for an agent proposal.
+
 `project_records(mode=search)` returns compact matches. Fetch a full payload by ID only when
 needed. For checkpoint, memo, and report-import writes, set `response_view=receipt` when the ID,
 revision, validity, and warnings are enough; this avoids echoing the submitted payload. Records do

@@ -89,7 +89,7 @@ func TestMemoWriteReturnsStructuredMutationFailureToMCPClient(t *testing.T) {
 	})
 	defer session.Close()
 	result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: ToolMemoWrite, Arguments: map[string]any{
-		"mode": "update", "id": "memo_example", "expected_revision": 2,
+		"mode": "update", "id": "memo_example", "expected_revision": 2, "source": "llm_proposed",
 		"memo_kind": "decision", "content": "updated decision",
 	}})
 	if err != nil {
@@ -122,7 +122,7 @@ func TestMemoWriteReturnsHostFactValidationFailureToMCPClient(t *testing.T) {
 	})
 	defer session.Close()
 	result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: ToolMemoWrite, Arguments: map[string]any{
-		"mode": "create", "memo_kind": "host_fact", "scope": "operations/hosts", "topic_key": "host-a",
+		"mode": "create", "memo_kind": "host_fact", "scope": "operations/hosts", "topic_key": "host-a", "source": "llm_proposed",
 		"host": map[string]any{
 			"alias": "host-a", "role": "worker", "os": "linux", "tier": "production",
 			"services": []string{"worker"}, "paths": nil, "confirmed_at": "2026-09-20T00:00:00Z",

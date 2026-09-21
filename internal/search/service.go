@@ -33,19 +33,19 @@ type Request struct {
 	Ignored       string   `json:"ignored,omitempty" jsonschema:"ignored"`
 	Generated     string   `json:"generated,omitempty" jsonschema:"generated paths"`
 	Vendor        string   `json:"vendor,omitempty" jsonschema:"vendor paths"`
-	Encoding      string   `json:"encoding,omitempty" jsonschema:"text encoding: utf-8, cp949, or euc-kr"`
+	Encoding      string   `json:"encoding,omitempty" jsonschema:"text encoding"`
 	CaseSensitive bool     `json:"case_sensitive,omitempty" jsonschema:"perform case-sensitive matching"`
 	Cursor        string   `json:"cursor,omitempty" jsonschema:"opaque cursor from an earlier workspace_search"`
 	ItemLimit     uint64   `json:"item_limit,omitempty" jsonschema:"item limit; default 50, max 500"`
 	ByteLimit     uint64   `json:"byte_limit,omitempty" jsonschema:"response bytes; default 65536, max 1048576"`
 	TimeLimitMS   int64    `json:"time_limit_ms,omitempty" jsonschema:"deadline ms; default 5000, max 30000"`
-	MatchKind     string   `json:"match_kind,omitempty" jsonschema:"Git channel: all, commit, path, or diff"`
+	MatchKind     string   `json:"match_kind,omitempty" jsonschema:"Git channel"`
 	Revision      string   `json:"revision,omitempty" jsonschema:"Git revision; default HEAD"`
 	Since         string   `json:"since,omitempty" jsonschema:"optional Git date lower bound"`
 	Until         string   `json:"until,omitempty" jsonschema:"optional Git date upper bound"`
 	SymbolKind    string   `json:"symbol_kind,omitempty" jsonschema:"optional exact symbol kind"`
 	Language      string   `json:"language,omitempty" jsonschema:"optional exact symbol language"`
-	PatternSyntax string   `json:"pattern_syntax,omitempty" jsonschema:"Git pattern: exact or regex; default exact"`
+	PatternSyntax string   `json:"pattern_syntax,omitempty" jsonschema:"Git pattern syntax; default exact"`
 }
 
 type Result struct {

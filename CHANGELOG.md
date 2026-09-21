@@ -11,8 +11,9 @@ Notable changes to RepoPlane are documented here.
 
 ### Changed
 
-- Common MCP search and query choices now appear as input-schema enums without increasing the
-  compact tool-contract footprint. Cursor-only calls remain valid.
+- Common MCP search, query, write, and inspection choices now appear as input-schema enums within
+  the compact tool-contract budget. Cursor-only calls remain valid, and `memo_write.source` is
+  correctly marked required.
 - The README introduction now explains bounded search, durable evidence, and gated registered
   execution, with three task comparisons and legacy Korean encoding support.
 

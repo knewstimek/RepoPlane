@@ -18,7 +18,7 @@ type PrepareRequest struct {
 	CapabilityRevision string         `json:"capability_revision" jsonschema:"selected catalog capability revision"`
 	Arguments          map[string]any `json:"arguments,omitempty" jsonschema:"typed values declared by the capability argument schema"`
 	Configuration      string         `json:"configuration,omitempty" jsonschema:"bounded execution configuration name; default: default"`
-	CacheMode          string         `json:"cache_mode,omitempty" jsonschema:"cache lookup mode: auto or bypass; default: auto"`
+	CacheMode          string         `json:"cache_mode,omitempty" jsonschema:"cache lookup; default auto"`
 	TimeLimitMS        int64          `json:"time_limit_ms,omitempty" jsonschema:"deadline ms; default 5000, max 30000"`
 }
 

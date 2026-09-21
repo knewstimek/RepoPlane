@@ -90,7 +90,7 @@ type RecordResult struct {
 type QueryResponse = contracts.Response[RecordResult]
 
 type CheckpointRequest struct {
-	Mode             string   `json:"mode" jsonschema:"create | update | supersede"`
+	Mode             string   `json:"mode" jsonschema:"mutation action"`
 	ID               string   `json:"id,omitempty" jsonschema:"ID for update/supersede"`
 	ExpectedRevision uint64   `json:"expected_revision,omitempty" jsonschema:"revision for update/supersede"`
 	Goal             string   `json:"goal,omitempty" jsonschema:"task goal"`
@@ -101,11 +101,11 @@ type CheckpointRequest struct {
 	NextAction       string   `json:"next_action,omitempty" jsonschema:"next intended action"`
 	Risks            []string `json:"risks,omitempty" jsonschema:"unverified risks"`
 	EvidenceRefs     []string `json:"evidence_refs,omitempty" jsonschema:"evidence refs"`
-	ResponseView     string   `json:"response_view,omitempty" jsonschema:"full or receipt; default full; receipt omits payload"`
+	ResponseView     string   `json:"response_view,omitempty" jsonschema:"receipt omits payload; default full"`
 }
 
 type MemoRequest struct {
-	Mode                  string    `json:"mode" jsonschema:"create | update | supersede"`
+	Mode                  string    `json:"mode" jsonschema:"mutation action"`
 	ID                    string    `json:"id,omitempty" jsonschema:"ID for update/supersede"`
 	ExpectedRevision      uint64    `json:"expected_revision,omitempty" jsonschema:"revision for update/supersede"`
 	MemoKind              string    `json:"memo_kind,omitempty" jsonschema:"decision | failed_attempt | resolved_failure | limitation | host_fact"`
@@ -115,9 +115,9 @@ type MemoRequest struct {
 	Content               string    `json:"content,omitempty" jsonschema:"memo text"`
 	Host                  *HostFact `json:"host,omitempty" jsonschema:"typed host details for host_fact memos"`
 	InvalidationCondition string    `json:"invalidation_condition,omitempty" jsonschema:"staleness condition"`
-	Source                string    `json:"source,omitempty" jsonschema:"user_asserted | llm_proposed"`
+	Source                string    `json:"source" jsonschema:"memo provenance"`
 	EvidenceRefs          []string  `json:"evidence_refs,omitempty" jsonschema:"evidence refs"`
-	ResponseView          string    `json:"response_view,omitempty" jsonschema:"full or receipt; default full; receipt omits payload"`
+	ResponseView          string    `json:"response_view,omitempty" jsonschema:"receipt omits payload; default full"`
 }
 
 type HostFact struct {
@@ -136,7 +136,7 @@ type ImportRequest struct {
 	Configuration string `json:"configuration" jsonschema:"declared checklist configuration being imported"`
 	ByteLimit     uint64 `json:"byte_limit,omitempty" jsonschema:"maximum report bytes; default and maximum 1048576"`
 	TimeLimitMS   int64  `json:"time_limit_ms,omitempty" jsonschema:"deadline ms; default 5000, max 30000"`
-	ResponseView  string `json:"response_view,omitempty" jsonschema:"full or receipt; default full; receipt omits the imported payload"`
+	ResponseView  string `json:"response_view,omitempty" jsonschema:"receipt omits payload; default full"`
 }
 
 type MutationResponse struct {

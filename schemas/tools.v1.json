@@ -506,7 +506,11 @@
             "type": "string"
           },
           "response_view": {
-            "description": "full or receipt; default full; receipt omits the imported payload",
+            "description": "receipt omits payload; default full",
+            "enum": [
+              "full",
+              "receipt"
+            ],
             "type": "string"
           },
           "time_limit_ms": {
@@ -676,7 +680,12 @@
             "type": "string"
           },
           "mode": {
-            "description": "create | update | supersede",
+            "description": "mutation action",
+            "enum": [
+              "create",
+              "update",
+              "supersede"
+            ],
             "type": "string"
           },
           "next_action": {
@@ -694,7 +703,11 @@
             ]
           },
           "response_view": {
-            "description": "full or receipt; default full; receipt omits payload",
+            "description": "receipt omits payload; default full",
+            "enum": [
+              "full",
+              "receipt"
+            ],
             "type": "string"
           },
           "risks": {
@@ -1250,11 +1263,20 @@
             "type": "string"
           },
           "mode": {
-            "description": "create | update | supersede",
+            "description": "mutation action",
+            "enum": [
+              "create",
+              "update",
+              "supersede"
+            ],
             "type": "string"
           },
           "response_view": {
-            "description": "full or receipt; default full; receipt omits payload",
+            "description": "receipt omits payload; default full",
+            "enum": [
+              "full",
+              "receipt"
+            ],
             "type": "string"
           },
           "scope": {
@@ -1262,7 +1284,11 @@
             "type": "string"
           },
           "source": {
-            "description": "user_asserted | llm_proposed",
+            "description": "memo provenance",
+            "enum": [
+              "user_asserted",
+              "llm_proposed"
+            ],
             "type": "string"
           },
           "topic_key": {
@@ -1271,7 +1297,8 @@
           }
         },
         "required": [
-          "mode"
+          "mode",
+          "source"
         ],
         "type": "object"
       },
@@ -2333,7 +2360,11 @@
             "type": "object"
           },
           "cache_mode": {
-            "description": "cache lookup mode: auto or bypass; default: auto",
+            "description": "cache lookup; default auto",
+            "enum": [
+              "auto",
+              "bypass"
+            ],
             "type": "string"
           },
           "capability_id": {
@@ -2724,7 +2755,12 @@
             "type": "string"
           },
           "encoding": {
-            "description": "text encoding: utf-8, cp949, or euc-kr",
+            "description": "text encoding",
+            "enum": [
+              "utf-8",
+              "cp949",
+              "euc-kr"
+            ],
             "type": "string"
           },
           "exclude": {
@@ -2777,7 +2813,13 @@
             "type": "string"
           },
           "match_kind": {
-            "description": "Git channel: all, commit, path, or diff",
+            "description": "Git channel",
+            "enum": [
+              "all",
+              "commit",
+              "path",
+              "diff"
+            ],
             "type": "string"
           },
           "mode": {
@@ -2796,7 +2838,11 @@
             "type": "string"
           },
           "pattern_syntax": {
-            "description": "Git pattern: exact or regex; default exact",
+            "description": "Git pattern syntax; default exact",
+            "enum": [
+              "exact",
+              "regex"
+            ],
             "type": "string"
           },
           "revision": {
