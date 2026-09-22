@@ -1914,7 +1914,7 @@
             "type": "string"
           },
           "mode": {
-            "description": "omit with cursor",
+            "description": "omit with cursor; inferred as search when query is set",
             "enum": [
               "search",
               "list",
@@ -1933,7 +1933,7 @@
             ]
           },
           "query": {
-            "description": "space-separated lexical terms; any term may match; required for search",
+            "description": "space-separated lexical terms; any term may match; infers search when mode is omitted",
             "type": "string"
           },
           "source": {

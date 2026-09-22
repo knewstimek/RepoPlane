@@ -318,6 +318,8 @@ func publicErrorWithMutationState(err error, mutation bool) error {
 		code = "decode_failed"
 	case errors.Is(err, textcodec.ErrUnsupported), strings.Contains(err.Error(), "unsupported"):
 		code = "unsupported_operation"
+	case strings.Contains(err.Error(), "only valid"):
+		code = "invalid_argument"
 	case strings.Contains(err.Error(), "required"), strings.Contains(err.Error(), "invalid"),
 		strings.Contains(err.Error(), "must be"), strings.Contains(err.Error(), "provide exactly"),
 		strings.Contains(err.Error(), "malformed"):
@@ -371,7 +373,49 @@ func publicErrorMessage(code string, err error) string {
 	case "invalid_argument":
 		var validation *records.ValidationError
 		if errors.As(err, &validation) {
-			return "validation failed: " + validation.Error()
+			return validation.Error()
+		}
+		switch err.Error() {
+		case "mode required":
+			return "mode required"
+		case "query is only valid for search":
+			return "use mode=search"
+		case "query is required for search":
+			return "query required"
+		case "id is required for get":
+			return "id required"
+		case "ref is required":
+			return "ref required"
+		case "path is required":
+			return "path required"
+		case "pattern is required for text, Git, and symbol search", "pattern is required for log mode":
+			return "pattern required"
+		case "invalid record kind":
+			return "invalid kind"
+		case "invalid record validity":
+			return "invalid validity"
+		case "invalid record source":
+			return "invalid source"
+		case "cursor is only valid for search or list":
+			return "cursor: search|list"
+		case "mode must be create, update, or supersede":
+			return "mode: create|update|supersede"
+		case "goal is required for create":
+			return "goal required"
+		case "id and expected_revision are required for update or supersede":
+			return "id, expected_revision required"
+		case "memo_kind and content are required":
+			return "memo_kind, content required"
+		case "host is only valid for host_fact":
+			return "host: host_fact only"
+		case "source must be user_asserted or llm_proposed":
+			return "source: user_asserted|llm_proposed"
+		case "response_view must be full or receipt":
+			return "response_view: full|receipt"
+		case "payload_fields must contain non-empty top-level field names":
+			return "payload_fields: nonempty names"
+		case "payload_fields must not contain duplicates":
+			return "payload_fields: duplicate names"
 		}
 		return "request validation failed"
 	case "invalid_transition":

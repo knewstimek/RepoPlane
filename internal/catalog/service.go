@@ -101,6 +101,9 @@ func (s *Service) ResolveCapability(ctx context.Context, id string) (Capability,
 }
 
 func (s *Service) Query(ctx context.Context, request QueryRequest) (QueryResponse, error) {
+	if request.Mode == "" && request.Cursor == "" {
+		return QueryResponse{}, errors.New("mode required")
+	}
 	limits, err := contracts.NormalizeLimits(contracts.LimitRequest{
 		ItemLimit: request.ItemLimit, ByteLimit: request.ByteLimit, TimeLimitMS: request.TimeLimitMS,
 	})

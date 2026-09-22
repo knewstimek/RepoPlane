@@ -140,7 +140,7 @@ func TestMemoWriteReturnsHostFactValidationFailureToMCPClient(t *testing.T) {
 		t.Fatalf("error content type=%T", result.Content[0])
 	}
 	failure := decodePublicFailure(t, errors.New(content.Text))
-	if failure.Code != "invalid_argument" || failure.Message != "validation failed: topic_key is not valid for host_fact" || failure.MutationState != "not_applied" || failure.CorrelationID == "" {
+	if failure.Code != "invalid_argument" || failure.Message != "topic_key is not valid for host_fact" || failure.MutationState != "not_applied" || failure.CorrelationID == "" {
 		t.Fatalf("failure=%+v", failure)
 	}
 }

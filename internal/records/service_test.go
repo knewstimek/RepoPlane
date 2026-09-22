@@ -403,6 +403,12 @@ func TestRecordSearchReturnsCompactDiscoveryAndSupportsExplicitProjection(t *tes
 
 func TestRecordSearchRequiresBoundedQuery(t *testing.T) {
 	service, _ := testService(t)
+	if _, err := service.Query(context.Background(), QueryRequest{}); err == nil || err.Error() != "mode required" {
+		t.Fatalf("empty query error=%v", err)
+	}
+	if _, err := service.Query(context.Background(), QueryRequest{Query: "memo", Kind: "memo"}); err != nil {
+		t.Fatalf("inferred search error=%v", err)
+	}
 	if _, err := service.Query(context.Background(), QueryRequest{Mode: "search", Kind: "memo"}); err == nil {
 		t.Fatal("search without query was accepted")
 	}

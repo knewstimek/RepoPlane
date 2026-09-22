@@ -209,6 +209,9 @@ func normalizeRequest(request Request) Request {
 }
 
 func validateRequest(request Request) error {
+	if request.Mode == "" {
+		return errors.New("mode required")
+	}
 	switch request.Mode {
 	case "filename", "exact", "regex", "git_history", "symbol":
 	default:

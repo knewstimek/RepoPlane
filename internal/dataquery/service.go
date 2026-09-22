@@ -189,6 +189,9 @@ func (s *Service) Query(ctx context.Context, request Request) (Response, error) 
 		}
 		return s.persist(ctx, request, data, results, persistedMetadata{Status: status, Relation: relation, Scan: scan, Warnings: warnings, Metadata: metadata}, limits.ItemLimit, limits.ByteLimit)
 	default:
+		if request.Mode == "" {
+			return Response{}, errors.New("mode required")
+		}
 		return Response{}, fmt.Errorf("unsupported data query mode %q", request.Mode)
 	}
 }

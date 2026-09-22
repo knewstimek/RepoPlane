@@ -156,6 +156,23 @@ func TestPublicErrorUsesStableSanitizedCodes(t *testing.T) {
 	}
 }
 
+func TestPublicInputErrorsAreActionable(t *testing.T) {
+	for input, want := range map[string]string{
+		"mode required":                           "mode required",
+		"query is required for search":            "query required",
+		"query is only valid for search":          "use mode=search",
+		"ref is required":                         "ref required",
+		"invalid record kind":                     "invalid kind",
+		"cursor is only valid for search or list": "cursor: search|list",
+		"host is only valid for host_fact":        "host: host_fact only",
+	} {
+		got := decodePublicFailure(t, publicError(errors.New(input)))
+		if got.Code != "invalid_argument" || got.Message != want {
+			t.Errorf("%q: %+v", input, got)
+		}
+	}
+}
+
 func TestPublicErrorIncludesBoundedRunnerLimitDetails(t *testing.T) {
 	got := decodePublicFailure(t, publicError(&runner.PatternLimitError{
 		Resource: "inputs", LimitKind: "matched_file_count", Maximum: 256,
@@ -189,7 +206,7 @@ func TestPublicMutationErrorReportsClassificationAndApplicationState(t *testing.
 		}
 	}
 	validation := decodePublicFailure(t, publicMutationError(fmt.Errorf("%w: %w", records.ErrInvalidArgument, &records.ValidationError{Field: "host.paths", Reason: "must be an array or null"})))
-	if validation.Message != "validation failed: host.paths must be an array or null" {
+	if validation.Message != "host.paths must be an array or null" {
 		t.Fatalf("validation message=%q", validation.Message)
 	}
 }

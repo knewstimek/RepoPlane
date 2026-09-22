@@ -57,8 +57,8 @@ type ValidationError struct {
 func (e *ValidationError) Error() string { return e.Field + " " + e.Reason }
 
 type QueryRequest struct {
-	Mode          string   `json:"mode,omitempty" jsonschema:"omit with cursor"`
-	Query         string   `json:"query,omitempty" jsonschema:"space-separated lexical terms; any term may match; required for search"`
+	Mode          string   `json:"mode,omitempty" jsonschema:"omit with cursor; inferred as search when query is set"`
+	Query         string   `json:"query,omitempty" jsonschema:"space-separated lexical terms; any term may match; infers search when mode is omitted"`
 	ID            string   `json:"id,omitempty" jsonschema:"opaque record ID; required for get"`
 	Kind          string   `json:"kind,omitempty" jsonschema:"record kind filter: verification, checkpoint, memo, environment, run, or artifact"`
 	Validity      string   `json:"validity,omitempty" jsonschema:"validity filter: current, stale, unknown, or superseded"`
@@ -161,6 +161,13 @@ func NewService(root *workspace.Root, records store.RecordRepository, results st
 }
 
 func (s *Service) Query(ctx context.Context, request QueryRequest) (QueryResponse, error) {
+	if request.Mode == "" && request.Cursor == "" {
+		if strings.TrimSpace(request.Query) != "" {
+			request.Mode = "search"
+		} else {
+			return QueryResponse{}, errors.New("mode required")
+		}
+	}
 	limits, err := contracts.NormalizeLimits(contracts.LimitRequest{ItemLimit: request.ItemLimit, ByteLimit: request.ByteLimit, TimeLimitMS: request.TimeLimitMS})
 	if err != nil {
 		return QueryResponse{}, err

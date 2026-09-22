@@ -99,7 +99,8 @@ The typed tool schemas expose fixed choices for common search, query, and write 
 can replace `mode` on paginated reads. `memo_write` requires a `source` value; use
 `user_asserted` for a user-provided fact or `llm_proposed` for an agent proposal.
 
-`project_records(mode=search)` returns compact matches. Fetch a full payload by ID only when
+`project_records(query="terms")` infers `mode=search` and returns compact matches. An empty call
+returns `mode required`. Fetch a full payload by ID only when
 needed. For checkpoint, memo, and report-import writes, set `response_view=receipt` when the ID,
 revision, validity, and warnings are enough; this avoids echoing the submitted payload. Records do
 not infer semantic similarity between differently worded memos. A caller can assign a stable

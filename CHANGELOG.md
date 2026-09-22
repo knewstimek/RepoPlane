@@ -4,6 +4,10 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+### Fixed
+
+- `project_records` infers search from a nonempty query. Empty calls and common missing read inputs now return short, actionable errors instead of opaque mode or validation failures.
+
 ## [1.1.7] - 2026-09-21
 
 ### Added
