@@ -58,7 +58,7 @@ func (e *ValidationError) Error() string { return e.Field + " " + e.Reason }
 
 type QueryRequest struct {
 	Mode          string   `json:"mode,omitempty" jsonschema:"omit with cursor; inferred as search when query is set"`
-	Query         string   `json:"query,omitempty" jsonschema:"space-separated lexical terms; results matching more terms rank first"`
+	Query         string   `json:"query,omitempty" jsonschema:"space-separated lexical terms; search ranks coverage, resume defaults to all terms"`
 	ID            string   `json:"id,omitempty" jsonschema:"opaque record ID; required for get"`
 	Kind          string   `json:"kind,omitempty" jsonschema:"record kind filter: verification, checkpoint, memo, environment, run, or artifact"`
 	Validity      string   `json:"validity,omitempty" jsonschema:"validity filter: current, stale, unknown, or superseded"`
@@ -68,7 +68,7 @@ type QueryRequest struct {
 	TopicKey      string   `json:"topic_key,omitempty" jsonschema:"exact memo topic key; get_topic returns a current memo"`
 	Scope         string   `json:"scope,omitempty" jsonschema:"exact memo scope filter"`
 	Configuration string   `json:"configuration,omitempty" jsonschema:"exact memo configuration filter"`
-	MatchMode     string   `json:"match_mode,omitempty" jsonschema:"any (default) or all lexical terms"`
+	MatchMode     string   `json:"match_mode,omitempty" jsonschema:"search: any (default) or all; resume: all (default) or any"`
 	ResponseView  string   `json:"response_view,omitempty" jsonschema:"brief, discovery (legacy search), or full; search defaults brief"`
 	Cursor        string   `json:"cursor,omitempty" jsonschema:"opaque cursor from an earlier project_records query"`
 	ItemLimit     uint64   `json:"item_limit,omitempty" jsonschema:"item limit; search default 8, otherwise 50; max 500"`
@@ -310,6 +310,7 @@ func (s *Service) Query(ctx context.Context, request QueryRequest) (QueryRespons
 			"topic_key matches multiple current memos; provide scope and configuration", limits.ByteLimit)
 	case "resume":
 		var page store.RecordPage
+		partialTerms := false
 		if request.ID != "" {
 			record, err := s.records.GetRecord(ctx, s.projectID, s.workspaceID, request.ID)
 			if err != nil {
@@ -320,16 +321,26 @@ func (s *Service) Query(ctx context.Context, request QueryRequest) (QueryRespons
 			}
 			page = store.RecordPage{Records: []store.Record{record}, Matched: 1, Complete: true}
 		} else {
-			page, err = s.records.QueryRecords(ctx, store.RecordQuery{ProjectID: s.projectID, WorkspaceID: s.workspaceID,
-				Kind: "checkpoint", Validity: "current", Terms: normalizeRecordTerms(request.Query), Limit: maximumRecordQuery})
+			terms := normalizeRecordTerms(request.Query)
+			query := store.RecordQuery{ProjectID: s.projectID, WorkspaceID: s.workspaceID,
+				Kind: "checkpoint", Validity: "current", Terms: terms, MatchAll: request.MatchMode != "any", Limit: maximumRecordQuery}
+			page, err = s.records.QueryRecords(ctx, query)
 			if err != nil {
 				return QueryResponse{}, err
+			}
+			if page.Matched == 0 && query.MatchAll && len(terms) > 1 {
+				query.MatchAll = false
+				page, err = s.records.QueryRecords(ctx, query)
+				if err != nil {
+					return QueryResponse{}, err
+				}
+				partialTerms = page.Matched > 0
 			}
 		}
 		if page.Matched == 0 {
 			return QueryResponse{}, store.ErrNotFound
 		}
-		if page.Matched == 1 {
+		if page.Matched == 1 && !partialTerms {
 			item, err := resumeRecord(page.Records[0])
 			if err != nil {
 				return QueryResponse{}, err
@@ -343,6 +354,10 @@ func (s *Service) Query(ctx context.Context, request QueryRequest) (QueryRespons
 				return QueryResponse{}, err
 			}
 			items = append(items, item)
+		}
+		if partialTerms {
+			return ambiguousResponse(items, page.Matched, "checkpoint_no_full_match",
+				"no current checkpoint matches all goal terms; these candidates match some terms; refine the query or use an id", limits.ByteLimit)
 		}
 		return ambiguousResponse(items, page.Matched, "checkpoint_ambiguous",
 			"multiple current checkpoints match; provide a more specific query or checkpoint id", limits.ByteLimit)

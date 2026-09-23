@@ -195,6 +195,16 @@ func TestResumeUsesRecordedChangesAndHandlesAmbiguousTasks(t *testing.T) {
 	if err != nil || ambiguous.Status != contracts.StatusPartial || len(ambiguous.Items) != 2 || ambiguous.Warnings[0].Code != "checkpoint_ambiguous" {
 		t.Fatalf("ambiguous resume=%+v err=%v", ambiguous, err)
 	}
+	specific, err := service.Query(context.Background(), QueryRequest{Mode: "resume", Query: "repair deployment"})
+	if err != nil || len(specific.Items) != 1 || specific.Items[0].ID != first.Record.ID {
+		t.Fatalf("all-term resume=%+v err=%v", specific, err)
+	}
+	partial, err := service.Query(context.Background(), QueryRequest{Mode: "resume", Query: "repair rollout"})
+	if err != nil || partial.Status != contracts.StatusPartial || len(partial.Items) != 1 ||
+		partial.Items[0].ID != first.Record.ID || partial.Warnings[0].Code != "checkpoint_no_full_match" ||
+		partial.Items[0].NextAction != "" {
+		t.Fatalf("partial-term candidates=%+v err=%v", partial, err)
+	}
 	byID, err := service.Query(context.Background(), QueryRequest{Mode: "resume", ID: first.Record.ID})
 	if err != nil || byID.Items[0].ChangeState != "recorded" {
 		t.Fatalf("resume by ID=%+v err=%v", byID, err)

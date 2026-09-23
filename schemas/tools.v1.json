@@ -2084,7 +2084,7 @@
             "type": "string"
           },
           "match_mode": {
-            "description": "any (default) or all lexical terms",
+            "description": "search: any (default) or all; resume: all (default) or any",
             "enum": [
               "any",
               "all"
@@ -2113,7 +2113,7 @@
             ]
           },
           "query": {
-            "description": "space-separated lexical terms; results matching more terms rank first",
+            "description": "space-separated lexical terms; search ranks coverage, resume defaults to all terms",
             "type": "string"
           },
           "response_view": {

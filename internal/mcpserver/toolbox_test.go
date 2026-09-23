@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -108,6 +109,23 @@ func TestTypedRecordToolKeepsStructuredDataAndCompactText(t *testing.T) {
 	}
 	if result.Meta["repoplane/usage.v1"] == nil {
 		t.Fatalf("missing per-call usage metadata=%+v", result.Meta)
+	}
+	usageJSON, _ := json.Marshal(result.Meta["repoplane/usage.v1"])
+	var usage struct {
+		StructuredBytes int `json:"structured_bytes"`
+		TextBytes       int `json:"text_bytes"`
+	}
+	if err := json.Unmarshal(usageJSON, &usage); err != nil || usage.TextBytes != len(text.Text) || usage.StructuredBytes <= usage.TextBytes {
+		t.Fatalf("incorrect compact usage=%+v err=%v", usage, err)
+	}
+}
+
+func TestResumeTextFallbackLabelsPartialCandidates(t *testing.T) {
+	response := records.QueryResponse{Items: []records.RecordResult{{ID: "checkpoint_example", Title: "Review rollout"}},
+		Warnings: []contracts.Warning{{Code: "checkpoint_no_full_match", Message: "no checkpoint matches all terms"}}}
+	text := compactToolFallback(ToolProjectRecords, records.QueryRequest{Mode: "resume"}, response)
+	if !strings.Contains(text, "checkpoint_example") || !strings.Contains(text, "warning: checkpoint_no_full_match") {
+		t.Fatalf("partial resume text=%q", text)
 	}
 }
 

@@ -17,7 +17,8 @@ Notable changes to RepoPlane are documented here.
   remaining checks, and evidence in one call; checkpoint writes accept `change_summary` without
   inferring Git changes.
 - Typed MCP call metadata reports serialized structured-result bytes and server duration.
-  Missing registered capabilities now give bounded catalog and runtime-configuration next steps.
+  It also reports text-content bytes, exposing full-read compatibility duplication. Missing
+  registered capabilities give bounded catalog and runtime-configuration next steps.
 
 ### Changed
 
@@ -29,6 +30,9 @@ Notable changes to RepoPlane are documented here.
   fallback for brief search, resume, and receipts no longer repeats the full structured payload.
 - Pure memo and checkpoint queries avoid an unnecessary Git status probe, so these reads also work
   in workspaces without Git.
+- `resume` now requires every goal-query term, preventing a distinctive multi-term goal from
+  mixing with older checkpoints that share only one common word. If nothing matches all terms,
+  it returns short partial-match candidates with a warning; `match_mode=any` requests broad matching.
 
 ### Fixed
 

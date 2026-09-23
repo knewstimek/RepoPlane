@@ -170,8 +170,15 @@ func newOperation[In, Out any](name, toolbox, description, scope, sideEffect, ap
 				}
 				encoded, _ := json.Marshal(output)
 				fallback := compactToolFallback(name, any(input), any(output))
+				textBytes := len(fallback)
+				if fallback == "" {
+					// The MCP SDK serializes the structured result into text for
+					// text-only clients when no explicit fallback is supplied.
+					textBytes = len(encoded)
+				}
 				result = &mcp.CallToolResult{Meta: mcp.Meta{"repoplane/usage.v1": map[string]any{
-					"structured_bytes": len(encoded), "server_duration_ms": time.Since(started).Seconds() * 1000,
+					"structured_bytes": len(encoded), "text_bytes": textBytes,
+					"server_duration_ms": time.Since(started).Seconds() * 1000,
 				}}}
 				if fallback != "" {
 					result.Content = []mcp.Content{&mcp.TextContent{Text: fallback}}
@@ -228,6 +235,9 @@ func compactToolFallback(name string, input, output any) string {
 		}
 		if response.NextCursor != nil {
 			lines = append(lines, "next_cursor: "+*response.NextCursor)
+		}
+		for _, warning := range response.Warnings {
+			lines = append(lines, "warning: "+warning.Code+" "+warning.Message)
 		}
 		if len(lines) == 0 {
 			return "no records"

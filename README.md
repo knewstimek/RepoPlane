@@ -123,8 +123,11 @@ run this check, and source should be inspected before using an old procedure.
 
 `checkpoint_write` can store a concise `change_summary` alongside the next action, evidence
 refs, and `background_refs` to relevant current memos. `project_records` with `mode=resume` and
-an exact checkpoint `id`, or a distinctive goal `query`, returns those fields in one call. If the
-goal matches several checkpoints, it returns
+an exact checkpoint `id`, or a distinctive goal `query`, returns those fields in one call.
+`resume` first requires every query term to match, while general record search ranks partial
+matches. If no checkpoint matches every term, `resume` returns short partial-match candidates with
+a warning; `match_mode=any` explicitly requests the broader match. If the goal matches several
+checkpoints, it returns
 short candidates. `change_summary` is written by the caller and is never inferred from Git:
 committed history, uncommitted changes, and workspaces without Git can all be described. If it
 was not recorded, `change_state=unknown` says so. Verify present files and checks before relying
@@ -133,9 +136,11 @@ on a previous agent's summary.
 Checkpoint, memo, and report-import writes now default to `response_view=receipt`, returning the
 record ID and revision without echoing the payload. Request `response_view=full` for the full
 write result. Typed MCP replies include `repoplane/usage.v1` metadata with serialized structured
-result bytes and server duration in milliseconds. These are server measurements, not model-token
-counts or end-to-end network time. Compact search, resume, and write replies use a short text
-fallback for text-only clients rather than duplicating the whole structured result there.
+result bytes, text-content bytes, and server duration in milliseconds. These are server
+measurements, not model-token counts or end-to-end network time. Compact search, resume, and write
+replies use a short text fallback rather than duplicating the whole structured result. Detailed
+reads still carry the full JSON in text for text-only client compatibility; compare both byte
+measurements when estimating their cost.
 Records do not infer semantic similarity between differently worded memos. A caller can assign a
 stable `topic_key` to a memo and explicitly update or supersede that identity. A topic memo's
 `scope`, `configuration`, and `topic_key` form an immutable identity. To replace a memo, create
