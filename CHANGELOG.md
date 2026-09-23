@@ -6,6 +6,13 @@ Notable changes to RepoPlane are documented here.
 
 ## [1.2.0] - 2026-09-23
 
+### Upgrade notes
+
+- Search and write defaults return less data. Clients that consume the old search preview must set
+  `response_view=discovery`; clients that consume the full write echo must set
+  `response_view=full`. Existing record IDs, history, cursor paging, and full ID-based reads remain
+  available.
+
 ### Added
 
 - `project_records(mode=get_topic)` opens a unique current memo by exact `topic_key`, with optional
