@@ -11,6 +11,8 @@ Notable changes to RepoPlane are documented here.
   exact topic, scope, configuration, validity, and update-time filters, plus `match_mode=all`.
 - Memo title, summary, historical-observation/current-guidance marker, assertion time, and atomic
   successor creation. Superseded memo reads retain their content and point to the successor.
+  Detailed memo reads warn when a cited Git basis differs, is dirty, or cannot be observed,
+  without treating that as proof that the memo is wrong.
 - `project_records(mode=resume)` returns a checkpoint's next action, recorded change summary,
   remaining checks, and evidence in one call; checkpoint writes accept `change_summary` without
   inferring Git changes.

@@ -260,10 +260,13 @@ func (s *Service) Query(ctx context.Context, request QueryRequest) (QueryRespons
 			response.Warnings = append(response.Warnings, contracts.Warning{
 				Code: "memo_superseded", Message: "a successor memo exists; inspect it before applying this record", Ref: &ref,
 			})
-			encoded, _ := json.Marshal(response)
-			if uint64(len(encoded)) > limits.ByteLimit {
-				return QueryResponse{}, ErrResponseTooLarge
-			}
+		}
+		if record.Kind == "memo" {
+			response.Warnings = append(response.Warnings, s.memoBasisWarnings(ctx, record)...)
+		}
+		encoded, _ := json.Marshal(response)
+		if uint64(len(encoded)) > limits.ByteLimit {
+			return QueryResponse{}, ErrResponseTooLarge
 		}
 		return response, nil
 	case "get_topic":
@@ -284,7 +287,16 @@ func (s *Service) Query(ctx context.Context, request QueryRequest) (QueryRespons
 			if err != nil {
 				return QueryResponse{}, err
 			}
-			return singleResponse(result, limits.ByteLimit)
+			response, err := singleResponse(result, limits.ByteLimit)
+			if err != nil {
+				return QueryResponse{}, err
+			}
+			response.Warnings = append(response.Warnings, s.memoBasisWarnings(ctx, page.Records[0])...)
+			encoded, _ := json.Marshal(response)
+			if uint64(len(encoded)) > limits.ByteLimit {
+				return QueryResponse{}, ErrResponseTooLarge
+			}
+			return response, nil
 		}
 		items := make([]RecordResult, 0, min(len(page.Records), 8))
 		for _, record := range page.Records[:min(len(page.Records), 8)] {
@@ -1305,6 +1317,35 @@ type subjectObservation struct {
 func (s *Service) observeSubject(ctx context.Context) subjectObservation {
 	commit, dirty, observed := currentSubject(ctx, s.root.Resolved())
 	return subjectObservation{Commit: commit, Dirty: dirty, Observed: observed}
+}
+
+// A Git evidence ref is a basis for review, not proof that memo content still
+// describes the current source. Keep this check on full memo reads so brief
+// discovery and Git-free workspaces stay cheap.
+func (s *Service) memoBasisWarnings(ctx context.Context, record store.Record) []contracts.Warning {
+	var basis string
+	for _, ref := range record.EvidenceRefs {
+		candidate := strings.TrimPrefix(ref, "git:")
+		if candidate != ref && gitCommitPattern.MatchString(candidate) {
+			basis = candidate
+			break
+		}
+	}
+	if basis == "" {
+		return nil
+	}
+	ref := "git:" + basis
+	current := s.observeSubject(ctx)
+	switch {
+	case !current.Observed:
+		return []contracts.Warning{{Code: "memo_basis_unknown", Message: "the cited Git basis could not be compared with this workspace; verify current source before applying the memo", Ref: &ref}}
+	case current.Commit != basis:
+		return []contracts.Warning{{Code: "memo_basis_older", Message: "the workspace is at a different commit than this memo's cited basis; verify relevant source before applying it", Ref: &ref}}
+	case current.Dirty:
+		return []contracts.Warning{{Code: "memo_basis_dirty", Message: "the cited commit matches, but the worktree has uncommitted changes; verify relevant source before applying the memo", Ref: &ref}}
+	default:
+		return nil
+	}
 }
 
 func validityFromPayload(payload map[string]any, current subjectObservation) string {

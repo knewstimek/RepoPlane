@@ -65,6 +65,7 @@ func TestMemoDiscoveryAndResumeWithoutGit(t *testing.T) {
 	service, _ := testServiceWithGit(t, false)
 	if _, err := service.WriteMemo(context.Background(), MemoRequest{
 		Mode: "create", MemoKind: "decision", Scope: "operations", TopicKey: "procedure", Content: "Use the registered procedure.",
+		EvidenceRefs: []string{"git:" + strings.Repeat("0", 40)},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -77,9 +78,46 @@ func TestMemoDiscoveryAndResumeWithoutGit(t *testing.T) {
 	if err != nil || len(search.Items) != 1 {
 		t.Fatalf("Git-free memo search=%+v err=%v", search, err)
 	}
+	topic, err := service.Query(context.Background(), QueryRequest{Mode: "get_topic", TopicKey: "procedure"})
+	if err != nil || len(topic.Items) != 1 || len(topic.Warnings) != 1 || topic.Warnings[0].Code != "memo_basis_unknown" {
+		t.Fatalf("Git-free topic read=%+v err=%v", topic, err)
+	}
 	resume, err := service.Query(context.Background(), QueryRequest{Mode: "resume", Query: "procedure"})
 	if err != nil || len(resume.Items) != 1 || resume.Items[0].ChangeSummary != "recorded the decision" {
 		t.Fatalf("Git-free resume=%+v err=%v", resume, err)
+	}
+}
+
+func TestMemoGitBasisWarningIsEvidenceNotValidity(t *testing.T) {
+	service, root := testService(t)
+	basis := strings.TrimSpace(runGit(t, root, "rev-parse", "HEAD"))
+	created, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "create", MemoKind: "decision",
+		Scope: "operations", TopicKey: "procedure", Content: "Follow the reviewed procedure.",
+		EvidenceRefs: []string{"git:" + basis}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	read := func() QueryResponse {
+		t.Helper()
+		response, err := service.Query(context.Background(), QueryRequest{Mode: "get_topic", TopicKey: "procedure"})
+		if err != nil || len(response.Items) != 1 || response.Items[0].ID != created.Record.ID {
+			t.Fatalf("topic read=%+v err=%v", response, err)
+		}
+		return response
+	}
+	if got := read(); len(got.Warnings) != 0 || got.Items[0].Validity != "current" {
+		t.Fatalf("matching clean basis=%+v", got)
+	}
+	if err := os.WriteFile(filepath.Join(root, "tracked.txt"), []byte("changed\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(); len(got.Warnings) != 1 || got.Warnings[0].Code != "memo_basis_dirty" || got.Items[0].Validity != "current" {
+		t.Fatalf("dirty basis=%+v", got)
+	}
+	runGit(t, root, "add", "tracked.txt")
+	runGit(t, root, "-c", "user.name=Example", "-c", "user.email=example@example.invalid", "commit", "-qm", "fixture update")
+	if got := read(); len(got.Warnings) != 1 || got.Warnings[0].Code != "memo_basis_older" || got.Items[0].Validity != "current" {
+		t.Fatalf("older basis=%+v", got)
 	}
 }
 

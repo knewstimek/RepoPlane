@@ -116,6 +116,10 @@ short candidates rather than selecting one. A record's `validity` says whether t
 active; `temporal_kind` and `as_of` say whether its content was a historical observation or
 asserted as current guidance, and when. Older memos without this information say `unknown`.
 Reading a superseded memo points to its successor and preserves the old content and evidence.
+When a detailed memo cites a `git:<commit>` evidence ref, its read warns if the current commit
+differs, the worktree is dirty, or Git cannot be observed. This compares the cited basis only;
+it does not claim that relevant code changed or that the memo is incorrect. Brief searches do not
+run this check, and source should be inspected before using an old procedure.
 
 `checkpoint_write` can store a concise `change_summary` alongside the next action, evidence
 refs, and `background_refs` to relevant current memos. `project_records` with `mode=resume` and
