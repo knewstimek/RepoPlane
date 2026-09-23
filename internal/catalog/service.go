@@ -197,7 +197,7 @@ func (s *Service) search(ctx context.Context, meta store.CatalogGenerationMeta, 
 	}
 	if query != "" && len(results) == 0 {
 		response.Warnings = append(response.Warnings, contracts.Warning{
-			Code: "catalog_no_match", Message: "No registered match. Call catalog_query(mode=status), then runtime_config(action=status) to inspect configured and candidate catalog roots.",
+			Code: "catalog_no_match", Message: "no match; check catalog_query(mode=status) and runtime_config(action=status)",
 		})
 		if !responseFits(response, byteLimit) {
 			return QueryResponse{}, ErrResponseTooLarge
@@ -239,7 +239,7 @@ func (s *Service) catalogRootWarnings() []contracts.Warning {
 	for _, candidate := range candidates {
 		ref := candidate
 		warnings = append(warnings, contracts.Warning{
-			Code: "catalog_candidate_unconfigured", Message: "catalog candidate is outside the configured catalog_root values; inspect runtime_config before changing sources", Ref: &ref,
+			Code: "catalog_candidate_unconfigured", Message: "unconfigured catalog root; inspect runtime_config", Ref: &ref,
 		})
 	}
 	return warnings

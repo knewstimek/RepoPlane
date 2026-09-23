@@ -22,6 +22,8 @@ Notable changes to RepoPlane are documented here.
 
 ### Changed
 
+- Memo and catalog warnings now use shorter messages while retaining their warning codes and
+  actionable references.
 - Record search defaults to eight brief cards within 8 KiB, ranks current records and multi-term
   coverage first, and retains cursor paging. Explicit `response_view=discovery` restores the prior
   preview shape; `full` and `payload_fields` expose content. Record list and ID-based get defaults

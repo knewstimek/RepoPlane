@@ -258,7 +258,7 @@ func (s *Service) Query(ctx context.Context, request QueryRequest) (QueryRespons
 		if result.SupersededBy != "" {
 			ref := result.SupersededBy
 			response.Warnings = append(response.Warnings, contracts.Warning{
-				Code: "memo_superseded", Message: "a successor memo exists; inspect it before applying this record", Ref: &ref,
+				Code: "memo_superseded", Message: "successor exists; inspect before use", Ref: &ref,
 			})
 		}
 		if record.Kind == "memo" {
@@ -559,7 +559,7 @@ func (s *Service) WriteMemo(ctx context.Context, request MemoRequest) (MutationR
 	warnings := s.hostFactWarnings(ctx, request)
 	if request.Mode == "create" && request.MemoKind != "host_fact" && request.TemporalKind == "" {
 		warnings = append(warnings, contracts.Warning{Code: "memo_time_unknown",
-			Message: "content time is unknown; if verified, get this memo and update temporal_kind/as_of; never infer from created_at"})
+			Message: "time unknown; set temporal_kind/as_of only from evidence"})
 	}
 	if request.Mode == "create" && request.TopicKey != "" && request.Supersedes == "" {
 		if existing, ok, err := s.currentTopicMemo(ctx, request.Scope, request.Configuration, request.TopicKey); err != nil {
@@ -609,7 +609,7 @@ func (s *Service) existingTopicResponse(record store.Record, view string) (Mutat
 	}
 	ref := "record:" + record.ID
 	response.Status = contracts.StatusPartial
-	response.Warnings = []contracts.Warning{{Code: "memo_topic_exists", Message: "this current topic already exists; update it by id/revision or supersede it before creating a replacement", Ref: &ref}}
+	response.Warnings = []contracts.Warning{{Code: "memo_topic_exists", Message: "current topic exists; update by ID/revision or supersede", Ref: &ref}}
 	return response, nil
 }
 
@@ -1357,11 +1357,11 @@ func (s *Service) memoBasisWarnings(ctx context.Context, record store.Record) []
 	current := s.observeSubject(ctx)
 	switch {
 	case !current.Observed:
-		return []contracts.Warning{{Code: "memo_basis_unknown", Message: "the cited Git basis could not be compared with this workspace; verify current source before applying the memo", Ref: &ref}}
+		return []contracts.Warning{{Code: "memo_basis_unknown", Message: "Git basis unavailable; verify current source", Ref: &ref}}
 	case current.Commit != basis:
-		return []contracts.Warning{{Code: "memo_basis_older", Message: "the workspace is at a different commit than this memo's cited basis; verify relevant source before applying it", Ref: &ref}}
+		return []contracts.Warning{{Code: "memo_basis_older", Message: "Git basis differs; verify relevant source", Ref: &ref}}
 	case current.Dirty:
-		return []contracts.Warning{{Code: "memo_basis_dirty", Message: "the cited commit matches, but the worktree has uncommitted changes; verify relevant source before applying the memo", Ref: &ref}}
+		return []contracts.Warning{{Code: "memo_basis_dirty", Message: "worktree changed; verify relevant source", Ref: &ref}}
 	default:
 		return nil
 	}
