@@ -134,11 +134,11 @@ type MemoRequest struct {
 	MemoKind              string    `json:"memo_kind,omitempty" jsonschema:"decision | failed_attempt | resolved_failure | limitation | host_fact"`
 	Scope                 string    `json:"scope,omitempty" jsonschema:"logical scope"`
 	Configuration         string    `json:"configuration,omitempty" jsonschema:"configuration"`
-	TopicKey              string    `json:"topic_key,omitempty" jsonschema:"stable topic key"`
-	Title                 string    `json:"title,omitempty" jsonschema:"short human-readable title for discovery"`
-	Summary               string    `json:"summary,omitempty" jsonschema:"one-line summary for discovery"`
-	TemporalKind          string    `json:"temporal_kind,omitempty" jsonschema:"historical_observation or current_guidance; omitted means unknown"`
-	AsOf                  string    `json:"as_of,omitempty" jsonschema:"RFC3339 time when the observation or guidance was asserted"`
+	TopicKey              string    `json:"topic_key,omitempty" jsonschema:"stable topic key for exact current lookup; supply for reusable decisions"`
+	Title                 string    `json:"title,omitempty" jsonschema:"short discovery title; supply for reusable decisions"`
+	Summary               string    `json:"summary,omitempty" jsonschema:"one-line discovery summary; supply for reusable decisions"`
+	TemporalKind          string    `json:"temporal_kind,omitempty" jsonschema:"historical_observation or current_guidance; omit only when content time is unknown"`
+	AsOf                  string    `json:"as_of,omitempty" jsonschema:"RFC3339 assertion time; provide with temporal_kind"`
 	Content               string    `json:"content,omitempty" jsonschema:"memo text"`
 	Host                  *HostFact `json:"host,omitempty" jsonschema:"typed host details for host_fact memos"`
 	InvalidationCondition string    `json:"invalidation_condition,omitempty" jsonschema:"staleness condition"`

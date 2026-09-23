@@ -30,6 +30,9 @@ Notable changes to RepoPlane are documented here.
   fallback for brief search, resume, and receipts no longer repeats the full structured payload.
 - Pure memo and checkpoint queries avoid an unnecessary Git status probe, so these reads also work
   in workspaces without Git.
+- Tool descriptions now prompt agents to record a stable topic key, concise discovery metadata,
+  explicit time meaning, and invalidation conditions for reusable decisions, and a change summary
+  with background refs for checkpoints. These fields remain optional for older clients.
 - `resume` now requires every goal-query term, preventing a distinctive multi-term goal from
   mixing with older checkpoints that share only one common word. If nothing matches all terms,
   it returns short partial-match candidates with a warning; `match_mode=any` requests broad matching.

@@ -685,7 +685,7 @@
     },
     {
       "name": "checkpoint_write",
-      "description": "Write a checkpoint; may require approval.",
+      "description": "Write a task handoff; include change_summary and background_refs for useful one-call resume. May require approval.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -1273,12 +1273,12 @@
     },
     {
       "name": "memo_write",
-      "description": "Write a memo or typed host fact; may require approval.",
+      "description": "Write a memo or typed host fact. For reusable decisions include topic_key, title, summary, temporal_kind/as_of, and invalidation_condition. May require approval.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
           "as_of": {
-            "description": "RFC3339 time when the observation or guidance was asserted",
+            "description": "RFC3339 assertion time; provide with temporal_kind",
             "type": "string"
           },
           "configuration": {
@@ -1398,7 +1398,7 @@
             "type": "string"
           },
           "summary": {
-            "description": "one-line summary for discovery",
+            "description": "one-line discovery summary; supply for reusable decisions",
             "type": "string"
           },
           "supersedes": {
@@ -1406,15 +1406,15 @@
             "type": "string"
           },
           "temporal_kind": {
-            "description": "historical_observation or current_guidance; omitted means unknown",
+            "description": "historical_observation or current_guidance; omit only when content time is unknown",
             "type": "string"
           },
           "title": {
-            "description": "short human-readable title for discovery",
+            "description": "short discovery title; supply for reusable decisions",
             "type": "string"
           },
           "topic_key": {
-            "description": "stable topic key",
+            "description": "stable topic key for exact current lookup; supply for reusable decisions",
             "type": "string"
           }
         },
@@ -2053,7 +2053,7 @@
     },
     {
       "name": "project_records",
-      "description": "Query durable verification, checkpoint, memo, environment, run, and artifact records.",
+      "description": "Search records as brief cards; get by ID, get_topic by exact current memo key, or resume a checkpoint with next steps and evidence.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {

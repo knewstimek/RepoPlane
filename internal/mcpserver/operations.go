@@ -388,7 +388,7 @@ func operationRegistry(options Options) []operationSpec {
 			}))
 	}
 	if options.Records != nil {
-		operations = append(operations, newOperation(ToolProjectRecords, ToolboxRead, "Query durable verification, checkpoint, memo, environment, run, and artifact records.", ScopeRead, "read_only", "none", nil,
+		operations = append(operations, newOperation(ToolProjectRecords, ToolboxRead, "Search records as brief cards; get by ID, get_topic by exact current memo key, or resume a checkpoint with next steps and evidence.", ScopeRead, "read_only", "none", nil,
 			func(ctx context.Context, _ *mcp.CallToolRequest, input records.QueryRequest) (*mcp.CallToolResult, records.QueryResponse, error) {
 				if err := authorize(ctx, options, ToolProjectRecords); err != nil {
 					return nil, records.QueryResponse{}, publicError(err)
@@ -398,7 +398,7 @@ func operationRegistry(options Options) []operationSpec {
 			}))
 	}
 	if options.CheckpointWriter != nil {
-		operations = append(operations, newOperation(ToolCheckpointWrite, ToolboxWrite, "Write a checkpoint; may require approval.", ScopeIntentWrite, "write", "conditional", nil,
+		operations = append(operations, newOperation(ToolCheckpointWrite, ToolboxWrite, "Write a task handoff; include change_summary and background_refs for useful one-call resume. May require approval.", ScopeIntentWrite, "write", "conditional", nil,
 			func(ctx context.Context, request *mcp.CallToolRequest, input records.CheckpointRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
 				if err := authorize(ctx, options, ToolCheckpointWrite); err != nil {
 					return nil, records.MutationResponse{}, publicMutationError(err)
@@ -411,7 +411,7 @@ func operationRegistry(options Options) []operationSpec {
 			}))
 	}
 	if options.MemoWriter != nil {
-		operations = append(operations, newOperation(ToolMemoWrite, ToolboxWrite, "Write a memo or typed host fact; may require approval.", ScopeIntentWrite, "write", "conditional", nil,
+		operations = append(operations, newOperation(ToolMemoWrite, ToolboxWrite, "Write a memo or typed host fact. For reusable decisions include topic_key, title, summary, temporal_kind/as_of, and invalidation_condition. May require approval.", ScopeIntentWrite, "write", "conditional", nil,
 			func(ctx context.Context, request *mcp.CallToolRequest, input records.MemoRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
 				if err := authorize(ctx, options, ToolMemoWrite); err != nil {
 					return nil, records.MutationResponse{}, publicMutationError(err)
