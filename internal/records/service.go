@@ -557,6 +557,10 @@ func (s *Service) WriteMemo(ctx context.Context, request MemoRequest) (MutationR
 		}
 	}
 	warnings := s.hostFactWarnings(ctx, request)
+	if request.Mode == "create" && request.MemoKind != "host_fact" && request.TemporalKind == "" {
+		warnings = append(warnings, contracts.Warning{Code: "memo_time_unknown",
+			Message: "content time is unknown; if verified, get this memo and update temporal_kind/as_of; never infer from created_at"})
+	}
 	if request.Mode == "create" && request.TopicKey != "" && request.Supersedes == "" {
 		if existing, ok, err := s.currentTopicMemo(ctx, request.Scope, request.Configuration, request.TopicKey); err != nil {
 			warnings = append(warnings, contracts.Warning{Code: "memo_topic_check_unknown", Message: "current memo topics could not be checked"})

@@ -273,7 +273,8 @@ func TestTopicMemoReusesCurrentIdentityAndRequiresSupersedeToRename(t *testing.T
 func TestTopicMemoSurfacesAtMostThreeRelatedCurrentTopics(t *testing.T) {
 	service, _ := testService(t)
 	for _, topic := range []string{"alpha", "beta", "gamma", "delta"} {
-		response, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "create", MemoKind: "decision", Scope: "runtime", TopicKey: topic, Content: topic})
+		response, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "create", MemoKind: "decision", Scope: "runtime", TopicKey: topic, Content: topic,
+			TemporalKind: "historical_observation", AsOf: "2026-01-01T00:00:00Z"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -281,7 +282,8 @@ func TestTopicMemoSurfacesAtMostThreeRelatedCurrentTopics(t *testing.T) {
 			t.Fatalf("topic %q warnings=%d", topic, len(response.Warnings))
 		}
 	}
-	response, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "create", MemoKind: "decision", Scope: "runtime", TopicKey: "epsilon", Content: "epsilon"})
+	response, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "create", MemoKind: "decision", Scope: "runtime", TopicKey: "epsilon", Content: "epsilon",
+		TemporalKind: "historical_observation", AsOf: "2026-01-01T00:00:00Z"})
 	if err != nil || len(response.Warnings) != 3 {
 		t.Fatalf("related topics=%+v err=%v", response.Warnings, err)
 	}
@@ -335,7 +337,7 @@ func TestMemoTemporalMetadataIsExplicitAndSearchable(t *testing.T) {
 		TemporalKind: "current_guidance", AsOf: "2026-09-20T09:00:00+09:00",
 		Content: "Use the registered operation after checking state.", InvalidationCondition: "the service topology changes",
 	})
-	if err != nil {
+	if err != nil || len(created.Warnings) != 0 {
 		t.Fatal(err)
 	}
 	brief, err := service.Query(context.Background(), QueryRequest{Mode: "search", Query: "restart", Kind: "memo"})
@@ -351,6 +353,35 @@ func TestMemoTemporalMetadataIsExplicitAndSearchable(t *testing.T) {
 		Mode: "create", MemoKind: "decision", Content: "Unanchored guidance", TemporalKind: "current_guidance",
 	}); !errors.Is(err, ErrInvalidArgument) {
 		t.Fatalf("unanchored temporal kind error=%v", err)
+	}
+	unknown, err := service.WriteMemo(context.Background(), MemoRequest{
+		Mode: "create", MemoKind: "decision", Scope: "observations", TopicKey: "unspecified-time",
+		Title: "Undated observation", Summary: "The observation time was not recorded.",
+		Content: "The observation time was not recorded.", InvalidationCondition: "new evidence identifies the time",
+		EvidenceRefs: []string{"record:example"}, Source: "llm_proposed",
+	})
+	if err != nil || len(unknown.Warnings) != 1 || unknown.Warnings[0].Code != "memo_time_unknown" {
+		t.Fatalf("unknown time write=%+v err=%v", unknown, err)
+	}
+	read, err := service.Query(context.Background(), QueryRequest{Mode: "get", ID: unknown.Record.ID})
+	if err != nil || read.Items[0].CreatedAt.IsZero() || read.Items[0].Payload["as_of"] != nil || read.Items[0].Payload["temporal_kind"] != nil {
+		t.Fatalf("unknown time read=%+v err=%v", read, err)
+	}
+	updated, err := service.WriteMemo(context.Background(), MemoRequest{
+		Mode: "update", ID: unknown.Record.ID, ExpectedRevision: unknown.Record.Revision,
+		MemoKind: "decision", Scope: "observations", TopicKey: "unspecified-time",
+		Title: "Undated observation", Summary: "The observation time was not recorded.",
+		Content: "The observation time was not recorded.", InvalidationCondition: "new evidence identifies the time",
+		EvidenceRefs: read.Items[0].EvidenceRefs, Source: "llm_proposed",
+		TemporalKind: "historical_observation", AsOf: "2026-09-20T00:00:00Z",
+	})
+	if err != nil || updated.Record.Revision != 2 || len(updated.Warnings) != 0 {
+		t.Fatalf("corrected time write=%+v err=%v", updated, err)
+	}
+	corrected, err := service.Query(context.Background(), QueryRequest{Mode: "get", ID: unknown.Record.ID})
+	if err != nil || corrected.Items[0].Payload["as_of"] != "2026-09-20T00:00:00Z" ||
+		corrected.Items[0].Payload["topic_key"] != "unspecified-time" || len(corrected.Items[0].EvidenceRefs) != 1 {
+		t.Fatalf("corrected time read=%+v err=%v", corrected, err)
 	}
 }
 

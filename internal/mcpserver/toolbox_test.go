@@ -129,6 +129,16 @@ func TestResumeTextFallbackLabelsPartialCandidates(t *testing.T) {
 	}
 }
 
+func TestMemoReceiptTextFallbackShowsUnknownTimeWarning(t *testing.T) {
+	response := records.MutationResponse{Status: contracts.StatusOK,
+		Record:   records.RecordResult{ID: "memo_example", Revision: 1},
+		Warnings: []contracts.Warning{{Code: "memo_time_unknown", Message: "content time is unknown"}}}
+	text := compactToolFallback(ToolMemoWrite, records.MemoRequest{Mode: "create"}, response)
+	if !strings.Contains(text, "memo_example revision=1") || !strings.Contains(text, "warning: memo_time_unknown") {
+		t.Fatalf("memo receipt text=%q", text)
+	}
+}
+
 func TestMemoWriteReturnsStructuredMutationFailureToMCPClient(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

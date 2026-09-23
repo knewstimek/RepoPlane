@@ -33,6 +33,8 @@ Notable changes to RepoPlane are documented here.
 - Tool descriptions now prompt agents to record a stable topic key, concise discovery metadata,
   explicit time meaning, and invalidation conditions for reusable decisions, and a change summary
   with background refs for checkpoints. These fields remain optional for older clients.
+- New non-host memos without an explicit content time return `memo_time_unknown` in structured
+  warnings and the short text receipt. The write succeeds and does not invent an `as_of` value.
 - `resume` now requires every goal-query term, preventing a distinctive multi-term goal from
   mixing with older checkpoints that share only one common word. If nothing matches all terms,
   it returns short partial-match candidates with a warning; `match_mode=any` requests broad matching.

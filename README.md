@@ -115,6 +115,13 @@ add exact `scope` and `configuration` when the key names several current memos. 
 short candidates rather than selecting one. A record's `validity` says whether the record is
 active; `temporal_kind` and `as_of` say whether its content was a historical observation or
 asserted as current guidance, and when. Older memos without this information say `unknown`.
+Creating a non-host memo without both time fields succeeds but returns `memo_time_unknown` in
+structured warnings and the short text receipt. It is valid to leave the content time unknown.
+If evidence later establishes it, read the memo by ID and update it with `expected_revision`,
+`temporal_kind`, and `as_of`. Updates replace the memo payload and evidence refs, so resubmit the
+existing content, identity, invalidation condition, discovery fields, and evidence refs as well.
+Never copy automatic `created_at` or `updated_at` into `as_of` without evidence that the content
+was confirmed then. Typed host facts use their separate `confirmed_at` field.
 Reading a superseded memo points to its successor and preserves the old content and evidence.
 When a detailed memo cites a `git:<commit>` evidence ref, its read warns if the current commit
 differs, the worktree is dirty, or Git cannot be observed. This compares the cited basis only;

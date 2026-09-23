@@ -257,7 +257,11 @@ func compactToolFallback(name string, input, output any) string {
 			return ""
 		}
 		response := output.(records.MutationResponse)
-		return fmt.Sprintf("%s id=%s revision=%d", response.Status, response.Record.ID, response.Record.Revision)
+		line := fmt.Sprintf("%s id=%s revision=%d", response.Status, response.Record.ID, response.Record.Revision)
+		for _, warning := range response.Warnings {
+			line += "; warning: " + warning.Code + " " + warning.Message
+		}
+		return line
 	}
 	return ""
 }

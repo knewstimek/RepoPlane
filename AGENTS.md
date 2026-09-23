@@ -30,6 +30,10 @@
 - At task start or when past decisions matter, search durable records with task terms and small
   limits; fetch only relevant IDs. Request exact `payload_fields` when needed, use
   `response_view=receipt` for writes, and retain validity and decision evidence.
+- For new non-host memos, provide `temporal_kind` and `as_of` only when evidence supports the
+  content time. A `memo_time_unknown` write warning is honest when it does not; do not substitute
+  `created_at` or `updated_at`. To correct a memo, read it first and update with the expected
+  revision while preserving the other payload fields and evidence refs.
 - Use RepoPlane MCP first for discovery, registered verification/release, and task recovery. Use
   shell only if no matching tool exists or MCP reports `unsupported`/`partial`, and state why.
   Discover deferred tools by matching `mcp__repoplane__` in `ALL_TOOLS`.
