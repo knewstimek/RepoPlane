@@ -11,6 +11,8 @@
     "run_refs": { "type": "array", "maxItems": 128, "items": { "type": "string", "maxLength": 1024 } },
     "remaining_checks": { "type": "array", "maxItems": 128, "items": { "type": "string", "maxLength": 1024 } },
     "next_action": { "type": "string", "maxLength": 32768 },
+    "change_summary": { "type": "string", "maxLength": 32768 },
+    "background_refs": { "type": "array", "maxItems": 128, "items": { "type": "string", "maxLength": 1024 } },
     "risks": { "type": "array", "maxItems": 128, "items": { "type": "string", "maxLength": 1024 } }
   },
   "additionalProperties": false

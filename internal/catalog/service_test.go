@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -156,7 +155,8 @@ func TestServiceReportsUnconfiguredCatalogCandidates(t *testing.T) {
 		t.Fatalf("warnings=%+v", status.Warnings)
 	}
 	_, err = service.Query(context.Background(), QueryRequest{Mode: "get", ID: "missing.tool"})
-	if !errors.Is(err, store.ErrNotFound) || !strings.Contains(err.Error(), "code/.repoplane/catalog") || !strings.Contains(err.Error(), "runtime_config") {
+	var missing *MissingCapabilityError
+	if !errors.Is(err, store.ErrNotFound) || !errors.As(err, &missing) || len(missing.CandidateRoots) != 1 || missing.CandidateRoots[0] != "code/.repoplane/catalog" {
 		t.Fatalf("missing item error=%v", err)
 	}
 	service.indexer.catalogRoots = []string{"catalog", "code"}

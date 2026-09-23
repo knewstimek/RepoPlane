@@ -99,14 +99,45 @@ The typed tool schemas expose fixed choices for common search, query, and write 
 can replace `mode` on paginated reads. `memo_write` requires a `source` value; use
 `user_asserted` for a user-provided fact or `llm_proposed` for an agent proposal.
 
-`project_records(query="terms")` infers `mode=search` and returns compact matches. An empty call
-returns `mode required`. Fetch a full payload by ID only when
-needed. For checkpoint, memo, and report-import writes, set `response_view=receipt` when the ID,
-revision, validity, and warnings are enough; this avoids echoing the submitted payload. Records do
-not infer semantic similarity between differently worded memos. A caller can assign a stable
-`topic_key` to a memo and explicitly update or supersede that identity. A topic memo's `scope`,
-`configuration`, and `topic_key` form an immutable identity: use `supersede` followed by `create`
-instead of `update` when any identity field changes.
+`project_records(query="terms")` infers `mode=search`. Search now defaults to eight brief cards
+within 8 KiB: ID, title, one-line summary, topic key when present, validity, and time markers.
+It ranks current records first, then records matching more search terms; `match_mode=all` requires
+every term. Search supports exact `topic_key`, `scope`, and `configuration` filters,
+`updated_after` (inclusive), `updated_before` (exclusive), and `validity`. Use `next_cursor` for
+the next page. The 30-minute cursor snapshot contains at most 1,000 candidates; a larger match
+set is explicitly partial. `response_view=discovery` requests the earlier 320-character preview,
+and `response_view=full` or `payload_fields` requests payload data. `list` keeps its existing
+50-item, 64 KiB default. An empty call returns `mode required`.
+
+Find a topic key with a brief search, then open one record with `mode=get` and `id`. If the key is
+already known, `mode=get_topic` with an exact `topic_key` fetches the one current memo directly;
+add exact `scope` and `configuration` when the key names several current memos. Ambiguity returns
+short candidates rather than selecting one. A record's `validity` says whether the record is
+active; `temporal_kind` and `as_of` say whether its content was a historical observation or
+asserted as current guidance, and when. Older memos without this information say `unknown`.
+Reading a superseded memo points to its successor and preserves the old content and evidence.
+
+`checkpoint_write` can store a concise `change_summary` alongside the next action, evidence
+refs, and `background_refs` to relevant current memos. `project_records` with `mode=resume` and
+an exact checkpoint `id`, or a distinctive goal `query`, returns those fields in one call. If the
+goal matches several checkpoints, it returns
+short candidates. `change_summary` is written by the caller and is never inferred from Git:
+committed history, uncommitted changes, and workspaces without Git can all be described. If it
+was not recorded, `change_state=unknown` says so. Verify present files and checks before relying
+on a previous agent's summary.
+
+Checkpoint, memo, and report-import writes now default to `response_view=receipt`, returning the
+record ID and revision without echoing the payload. Request `response_view=full` for the full
+write result. Typed MCP replies include `repoplane/usage.v1` metadata with serialized structured
+result bytes and server duration in milliseconds. These are server measurements, not model-token
+counts or end-to-end network time. Compact search, resume, and write replies use a short text
+fallback for text-only clients rather than duplicating the whole structured result there.
+Records do not infer semantic similarity between differently worded memos. A caller can assign a
+stable `topic_key` to a memo and explicitly update or supersede that identity. A topic memo's
+`scope`, `configuration`, and `topic_key` form an immutable identity. To replace a memo, create
+its successor with `supersedes` and the old `expected_revision`; that atomically supersedes the
+old record and links the new one. New decision or procedure memos can carry `title`, `summary`,
+`temporal_kind`, and `as_of` for reliable discovery. Host facts retain their separate schema.
 
 A typed host fact uses `memo_kind=host_fact` and is stored as `memo.v2` (not `memo.v3`). Its
 `host` object requires `alias`, `role`, `os`, `tier`, `services`, `paths`, and an RFC3339
@@ -198,6 +229,28 @@ flags for fixed or unattended hosts:
 --transport MODE       stdio (default) or http
 --http-profile PATH    ignored local HTTP profile
 --tool-surface SURFACE typed.v1 (default) or toolbox.v1
+```
+
+For a private registered deployment capability, check `catalog_query(mode=status)` and then
+`catalog_query(mode=search, query="deploy")`. If the ID is absent, inspect the configured and
+candidate roots with `runtime_config(action=status)`. The server cannot discover an external
+private profile whose path was never configured. Supply that path in the host's ignored local
+configuration, restart or update the catalog root through approved runtime configuration, and
+query the catalog again before calling `run_prepare`. A missing capability error names these next
+tools and reports the profile location as unknown when appropriate. Keep private profile content
+and host paths out of tracked files. A copyable host configuration is:
+
+```json
+{
+  "mcpServers": {
+    "repoplane": {
+      "command": "repoplane",
+      "args": ["--workspace", "WORKSPACE", "--state-dir", "STATE_DIRECTORY",
+               "--catalog-root", "catalog", "--catalog-root", "PRIVATE_CATALOG_ROOT",
+               "--candidate-root", "PRIVATE_TOOLS_ROOT"]
+    }
+  }
+}
 ```
 
 The optional `toolbox.v1` startup surface exposes five fixed tools:

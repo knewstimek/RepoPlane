@@ -12,6 +12,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"repoplane/internal/catalog"
 	"repoplane/internal/contracts"
 	"repoplane/internal/cursor"
 	"repoplane/internal/dataquery"
@@ -183,6 +184,16 @@ func TestPublicErrorIncludesBoundedRunnerLimitDetails(t *testing.T) {
 	}
 	if got.Details["maximum"] != float64(256) || got.Details["observed_lower_bound"] != float64(257) || got.Details["ignored_path_policy"] != "included" || got.Details["build_output_policy"] != "included" {
 		t.Fatalf("limit details=%+v", got.Details)
+	}
+}
+
+func TestMissingCapabilityErrorGuidesPrivateCatalogDiscovery(t *testing.T) {
+	got := decodePublicFailure(t, publicError(&catalog.MissingCapabilityError{
+		CandidateRoots: []string{".repoplane/catalog"},
+	}))
+	if got.Code != "capability_not_found" || !strings.Contains(got.Message, "runtime_config") ||
+		got.Details["profile_location"] != "unknown_unless_configured" || got.Details["candidate_catalog_roots"] == nil {
+		t.Fatalf("missing capability failure=%+v", got)
 	}
 }
 

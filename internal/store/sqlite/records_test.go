@@ -254,8 +254,12 @@ func TestRecordRepositoryLexicalTermsFilterAndRank(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if page.Matched != 2 || len(page.Records) != 2 || page.Records[0].ID != "memo_windows" || page.Records[1].ID != "memo_payload" {
+	if page.Matched != 2 || len(page.Records) != 2 || page.Records[0].ID != "memo_payload" || page.Records[1].ID != "memo_windows" {
 		t.Fatalf("search page=%+v", page)
+	}
+	all, err := repository.QueryRecords(context.Background(), store.RecordQuery{ProjectID: "project", WorkspaceID: "workspace", Kind: "memo", Terms: []string{"windows", "executable"}, MatchAll: true, Limit: 10})
+	if err != nil || all.Matched != 1 || len(all.Records) != 1 || all.Records[0].ID != "memo_payload" {
+		t.Fatalf("all-term search=%+v err=%v", all, err)
 	}
 	keys, err := repository.QueryRecords(context.Background(), store.RecordQuery{ProjectID: "project", WorkspaceID: "workspace", Kind: "memo", Terms: []string{"content"}, Limit: 10})
 	if err != nil || keys.Matched != 0 {

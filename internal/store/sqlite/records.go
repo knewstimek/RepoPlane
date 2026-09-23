@@ -35,7 +35,7 @@ func OpenRecords(ctx context.Context, path string) (*RecordRepository, error) {
 
 func (r *RecordRepository) Close() error { return r.db.Close() }
 
-const recordsSchemaVersion = 2
+const recordsSchemaVersion = 4
 
 func (r *RecordRepository) initialize(ctx context.Context) (err error) {
 	for _, statement := range []string{`PRAGMA foreign_keys = ON`, `PRAGMA busy_timeout = 5000`} {
@@ -144,6 +144,30 @@ func (r *RecordRepository) initialize(ctx context.Context) (err error) {
 			return fmt.Errorf("record durable migration 2: %w", err)
 		}
 	}
+	if version < 3 {
+		if _, err = tx.ExecContext(ctx, `CREATE INDEX records_memo_topic_lookup ON records(
+            project_id, workspace_id,
+            json_extract(CAST(payload_json AS TEXT), '$.topic_key'),
+            json_extract(CAST(payload_json AS TEXT), '$.scope'),
+            json_extract(CAST(payload_json AS TEXT), '$.configuration'))
+          WHERE kind='memo' AND validity='current'
+            AND json_type(CAST(payload_json AS TEXT), '$.topic_key')='text'`); err != nil {
+			return fmt.Errorf("apply durable records migration 3: %w", err)
+		}
+		if _, err = tx.ExecContext(ctx, `INSERT INTO schema_migrations(version, applied_at) VALUES (3, ?)`, time.Now().UTC().UnixNano()); err != nil {
+			return fmt.Errorf("record durable migration 3: %w", err)
+		}
+	}
+	if version < 4 {
+		if _, err = tx.ExecContext(ctx, `CREATE UNIQUE INDEX records_memo_successor ON records(
+            project_id, workspace_id, supersedes)
+          WHERE kind='memo' AND supersedes<>''`); err != nil {
+			return fmt.Errorf("apply durable records migration 4: %w", err)
+		}
+		if _, err = tx.ExecContext(ctx, `INSERT INTO schema_migrations(version, applied_at) VALUES (4, ?)`, time.Now().UTC().UnixNano()); err != nil {
+			return fmt.Errorf("record durable migration 4: %w", err)
+		}
+	}
 	if err = tx.Commit(); err != nil {
 		return fmt.Errorf("commit durable records migrations: %w", err)
 	}
@@ -168,13 +192,34 @@ func (r *RecordRepository) QueryRecords(ctx context.Context, query store.RecordQ
 			args = append(args, value)
 		}
 	}
+	if query.Supersedes != "" {
+		where = append(where, "supersedes=?")
+		args = append(args, query.Supersedes)
+	}
 	if !query.UpdatedAfter.IsZero() {
 		where = append(where, "updated_at>=?")
 		args = append(args, unixNano(query.UpdatedAfter))
 	}
+	if !query.UpdatedBefore.IsZero() {
+		where = append(where, "updated_at<?")
+		args = append(args, unixNano(query.UpdatedBefore))
+	}
+	for _, filter := range []struct{ field, value string }{
+		{"topic_key", query.TopicKey}, {"scope", query.Scope}, {"configuration", query.Configuration},
+	} {
+		if filter.value != "" {
+			if filter.field == "topic_key" {
+				where = append(where, "json_type(CAST(payload_json AS TEXT), '$.topic_key')='text'")
+			}
+			where = append(where, "json_extract(CAST(payload_json AS TEXT), '$."+filter.field+"')=?")
+			args = append(args, filter.value)
+		}
+	}
 	metadataText := "lower(id || ' ' || kind || ' ' || schema_version || ' ' || source)"
 	payloadMatch := "EXISTS (SELECT 1 FROM json_tree(CAST(payload_json AS TEXT)) AS value WHERE value.type='text' AND instr(lower(CAST(value.value AS TEXT)), ?) > 0)"
 	score := make([]string, 0, len(query.Terms))
+	coverage := make([]string, 0, len(query.Terms))
+	coverageArgs := make([]any, 0, len(query.Terms)*2)
 	scoreArgs := make([]any, 0, len(query.Terms)*3)
 	if len(query.Terms) > 0 {
 		matches := make([]string, 0, len(query.Terms))
@@ -185,10 +230,16 @@ func (r *RecordRepository) QueryRecords(ctx context.Context, query store.RecordQ
 			}
 			matches = append(matches, "(instr("+metadataText+", ?) > 0 OR "+payloadMatch+")")
 			args = append(args, term, term)
+			coverage = append(coverage, "CASE WHEN instr("+metadataText+", ?) > 0 OR "+payloadMatch+" THEN 1 ELSE 0 END")
+			coverageArgs = append(coverageArgs, term, term)
 			score = append(score, "CASE WHEN instr(lower(id), ?) > 0 THEN 8 WHEN instr("+metadataText+", ?) > 0 THEN 4 WHEN "+payloadMatch+" THEN 1 ELSE 0 END")
 			scoreArgs = append(scoreArgs, term, term, term)
 		}
-		where = append(where, "("+strings.Join(matches, " OR ")+")")
+		join := " OR "
+		if query.MatchAll {
+			join = " AND "
+		}
+		where = append(where, "("+strings.Join(matches, join)+")")
 	}
 	clause := strings.Join(where, " AND ")
 	var matched uint64
@@ -197,7 +248,8 @@ func (r *RecordRepository) QueryRecords(ctx context.Context, query store.RecordQ
 	}
 	order := "updated_at DESC, id"
 	if len(score) > 0 {
-		order = "(" + strings.Join(score, " + ") + ") DESC, " + order
+		order = "CASE WHEN validity='current' THEN 1 ELSE 0 END DESC, (" + strings.Join(coverage, " + ") + ") DESC, (" + strings.Join(score, " + ") + ") DESC, " + order
+		args = append(args, coverageArgs...)
 		args = append(args, scoreArgs...)
 	}
 	args = append(args, query.Limit)
@@ -461,6 +513,54 @@ func (r *RecordRepository) CreateMemo(ctx context.Context, create store.RecordCr
 
 func (r *RecordRepository) UpdateMemo(ctx context.Context, update store.RecordUpdate) (store.Record, error) {
 	return r.update(ctx, "memo", update)
+}
+
+func (r *RecordRepository) ReplaceMemo(ctx context.Context, replace store.RecordReplace) (store.Record, error) {
+	if replace.ProjectID == "" || replace.WorkspaceID == "" || replace.OldID == "" || replace.ExpectedRevision == 0 ||
+		replace.New.Kind != "memo" || replace.New.Supersedes != replace.OldID ||
+		replace.New.ProjectID != replace.ProjectID || replace.New.WorkspaceID != replace.WorkspaceID {
+		return store.Record{}, store.ErrConflict
+	}
+	if err := validateRecord(replace.New); err != nil {
+		return store.Record{}, err
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return store.Record{}, fmt.Errorf("begin memo replacement: %w", err)
+	}
+	defer tx.Rollback()
+	old, err := getRecordTx(ctx, tx, replace.ProjectID, replace.WorkspaceID, replace.OldID)
+	if err != nil {
+		return store.Record{}, err
+	}
+	if old.Kind != "memo" || old.Validity != "current" || old.Revision != replace.ExpectedRevision {
+		return store.Record{}, store.ErrConflict
+	}
+	old.Revision++
+	old.UpdatedAt = replace.New.CreatedAt
+	old.Validity = "superseded"
+	result, err := tx.ExecContext(ctx, `UPDATE records SET revision=?, updated_at=?, validity=?
+        WHERE id=? AND project_id=? AND workspace_id=? AND revision=? AND validity='current'`,
+		old.Revision, unixNano(old.UpdatedAt), old.Validity, old.ID, old.ProjectID, old.WorkspaceID, replace.ExpectedRevision)
+	if err != nil {
+		return store.Record{}, fmt.Errorf("supersede replaced memo: %w", err)
+	}
+	changed, _ := result.RowsAffected()
+	if changed != 1 {
+		return store.Record{}, store.ErrConflict
+	}
+	evidence, _ := json.Marshal(old.EvidenceRefs)
+	if _, err := tx.ExecContext(ctx, `INSERT INTO record_revisions(record_id, revision, updated_at, payload_json, evidence_json, validity, supersedes)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`, old.ID, old.Revision, unixNano(old.UpdatedAt), []byte(old.Payload), evidence, old.Validity, old.Supersedes); err != nil {
+		return store.Record{}, fmt.Errorf("record replaced memo revision: %w", err)
+	}
+	if err := insertRecord(ctx, tx, replace.New); err != nil {
+		return store.Record{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return store.Record{}, fmt.Errorf("commit memo replacement: %w", err)
+	}
+	return replace.New, nil
 }
 
 func (r *RecordRepository) ImportVerification(ctx context.Context, create store.RecordCreate, sourceHash, parserRevision string) (store.Record, bool, error) {

@@ -21,6 +21,19 @@ const resultSetTTL = 30 * time.Minute
 
 var ErrResponseTooLarge = errors.New("catalog: response cannot fit byte_limit")
 
+// MissingCapabilityError tells an MCP client how to inspect registration without
+// pretending that an unspecified private host profile can be discovered.
+type MissingCapabilityError struct{ CandidateRoots []string }
+
+func (e *MissingCapabilityError) Error() string {
+	return "catalog capability is not registered in configured roots"
+}
+func (e *MissingCapabilityError) Unwrap() error { return store.ErrNotFound }
+
+func (s *Service) missingCapability() error {
+	return &MissingCapabilityError{CandidateRoots: s.indexer.unconfiguredCatalogRoots()}
+}
+
 type QueryRequest struct {
 	Mode        string `json:"mode,omitempty" jsonschema:"omit with cursor"`
 	Query       string `json:"query,omitempty" jsonschema:"lexical search text; required for search"`
@@ -91,6 +104,9 @@ func (s *Service) ResolveCapability(ctx context.Context, id string) (Capability,
 	}
 	item, err := s.repository.GetCatalogItem(ctx, s.workspaceID, meta.ID, id)
 	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return Capability{}, s.missingCapability()
+		}
 		return Capability{}, err
 	}
 	var manifest Manifest
@@ -175,16 +191,26 @@ func (s *Service) search(ctx context.Context, meta store.CatalogGenerationMeta, 
 		}
 		results = append(results, result)
 	}
-	return s.persistAndReadFirstPage(ctx, meta, query, results, itemLimit, byteLimit)
+	response, err := s.persistAndReadFirstPage(ctx, meta, query, results, itemLimit, byteLimit)
+	if err != nil {
+		return QueryResponse{}, err
+	}
+	if query != "" && len(results) == 0 {
+		response.Warnings = append(response.Warnings, contracts.Warning{
+			Code: "catalog_no_match", Message: "No registered match. Call catalog_query(mode=status), then runtime_config(action=status) to inspect configured and candidate catalog roots.",
+		})
+		if !responseFits(response, byteLimit) {
+			return QueryResponse{}, ErrResponseTooLarge
+		}
+	}
+	return response, nil
 }
 
 func (s *Service) get(ctx context.Context, meta store.CatalogGenerationMeta, id string, byteLimit uint64) (QueryResponse, error) {
 	item, err := s.repository.GetCatalogItem(ctx, s.workspaceID, meta.ID, id)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			if candidates := s.indexer.unconfiguredCatalogRoots(); len(candidates) > 0 {
-				return QueryResponse{}, fmt.Errorf("%w; unconfigured catalog candidates: %s; inspect runtime_config", err, strings.Join(candidates, ", "))
-			}
+			return QueryResponse{}, s.missingCapability()
 		}
 		return QueryResponse{}, err
 	}

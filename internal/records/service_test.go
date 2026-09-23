@@ -19,17 +19,23 @@ import (
 )
 
 func testService(t *testing.T) (*Service, string) {
+	return testServiceWithGit(t, true)
+}
+
+func testServiceWithGit(t *testing.T, withGit bool) (*Service, string) {
 	t.Helper()
 	rootPath := t.TempDir()
-	runGit(t, rootPath, "init", "-q")
-	if err := os.WriteFile(filepath.Join(rootPath, ".gitignore"), []byte("/.tmp/\n"), 0o600); err != nil {
-		t.Fatal(err)
+	if withGit {
+		runGit(t, rootPath, "init", "-q")
+		if err := os.WriteFile(filepath.Join(rootPath, ".gitignore"), []byte("/.tmp/\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(rootPath, "tracked.txt"), []byte("initial\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		runGit(t, rootPath, "add", ".")
+		runGit(t, rootPath, "-c", "user.name=Example", "-c", "user.email=example@example.invalid", "commit", "-qm", "fixture")
 	}
-	if err := os.WriteFile(filepath.Join(rootPath, "tracked.txt"), []byte("initial\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	runGit(t, rootPath, "add", ".")
-	runGit(t, rootPath, "-c", "user.name=Example", "-c", "user.email=example@example.invalid", "commit", "-qm", "fixture")
 	root, err := workspace.Open(rootPath)
 	if err != nil {
 		t.Fatal(err)
@@ -53,6 +59,28 @@ func testService(t *testing.T) (*Service, string) {
 	}
 	t.Cleanup(func() { _ = cache.Close(); _ = recordStore.Close() })
 	return NewService(root, recordStore, cache, codec), rootPath
+}
+
+func TestMemoDiscoveryAndResumeWithoutGit(t *testing.T) {
+	service, _ := testServiceWithGit(t, false)
+	if _, err := service.WriteMemo(context.Background(), MemoRequest{
+		Mode: "create", MemoKind: "decision", Scope: "operations", TopicKey: "procedure", Content: "Use the registered procedure.",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.WriteCheckpoint(context.Background(), CheckpointRequest{
+		Mode: "create", Goal: "review procedure", NextAction: "inspect capability", ChangeSummary: "recorded the decision",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	search, err := service.Query(context.Background(), QueryRequest{Mode: "search", Kind: "memo", Query: "procedure"})
+	if err != nil || len(search.Items) != 1 {
+		t.Fatalf("Git-free memo search=%+v err=%v", search, err)
+	}
+	resume, err := service.Query(context.Background(), QueryRequest{Mode: "resume", Query: "procedure"})
+	if err != nil || len(resume.Items) != 1 || resume.Items[0].ChangeSummary != "recorded the decision" {
+		t.Fatalf("Git-free resume=%+v err=%v", resume, err)
+	}
 }
 
 func runGit(t *testing.T, root string, args ...string) string {
@@ -81,7 +109,7 @@ func writeChecklist(t *testing.T, root string) string {
 
 func TestCheckpointOptimisticConcurrency(t *testing.T) {
 	service, _ := testService(t)
-	created, err := service.WriteCheckpoint(context.Background(), CheckpointRequest{Mode: "create", Goal: "finish records", RemainingChecks: []string{"tests"}})
+	created, err := service.WriteCheckpoint(context.Background(), CheckpointRequest{Mode: "create", Goal: "finish records", RemainingChecks: []string{"tests"}, ResponseView: "full"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,16 +129,50 @@ func TestCheckpointOptimisticConcurrency(t *testing.T) {
 	}
 }
 
+func TestResumeUsesRecordedChangesAndHandlesAmbiguousTasks(t *testing.T) {
+	service, root := testService(t)
+	first, err := service.WriteCheckpoint(context.Background(), CheckpointRequest{
+		Mode: "create", Goal: "repair deployment", NextAction: "run registered verification",
+		ChangeSummary: "prepared the candidate", EvidenceRefs: []string{"record:run_example"},
+		BackgroundRefs: []string{"record:memo_example"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "tracked.txt"), []byte("uncommitted change\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	resume, err := service.Query(context.Background(), QueryRequest{Mode: "resume", Query: "deployment"})
+	if err != nil || len(resume.Items) != 1 || resume.Items[0].ID != first.Record.ID ||
+		resume.Items[0].ChangeSummary != "prepared the candidate" || resume.Items[0].ChangeState != "recorded" ||
+		resume.Items[0].NextAction != "run registered verification" || len(resume.Items[0].EvidenceRefs) != 1 ||
+		len(resume.Items[0].BackgroundRefs) != 1 || resume.Items[0].BackgroundRefs[0] != "record:memo_example" {
+		t.Fatalf("resume=%+v err=%v", resume, err)
+	}
+	_, err = service.WriteCheckpoint(context.Background(), CheckpointRequest{Mode: "create", Goal: "deployment notes", NextAction: "review"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ambiguous, err := service.Query(context.Background(), QueryRequest{Mode: "resume", Query: "deployment"})
+	if err != nil || ambiguous.Status != contracts.StatusPartial || len(ambiguous.Items) != 2 || ambiguous.Warnings[0].Code != "checkpoint_ambiguous" {
+		t.Fatalf("ambiguous resume=%+v err=%v", ambiguous, err)
+	}
+	byID, err := service.Query(context.Background(), QueryRequest{Mode: "resume", ID: first.Record.ID})
+	if err != nil || byID.Items[0].ChangeState != "recorded" {
+		t.Fatalf("resume by ID=%+v err=%v", byID, err)
+	}
+}
+
 func TestMemoKindsAndSupersede(t *testing.T) {
 	service, _ := testService(t)
-	created, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "create", MemoKind: "decision", Content: "Use a separate durable database."})
+	created, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "create", MemoKind: "decision", Content: "Use a separate durable database.", ResponseView: "full"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if created.Record.Source != "user_asserted" {
 		t.Fatalf("source=%q", created.Record.Source)
 	}
-	superseded, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "supersede", ID: created.Record.ID, ExpectedRevision: 1, Source: "user_asserted"})
+	superseded, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "supersede", ID: created.Record.ID, ExpectedRevision: 1, Source: "user_asserted", ResponseView: "full"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +183,7 @@ func TestMemoKindsAndSupersede(t *testing.T) {
 
 func TestTopicMemoReusesCurrentIdentityAndRequiresSupersedeToRename(t *testing.T) {
 	service, _ := testService(t)
-	request := MemoRequest{Mode: "create", MemoKind: "decision", Scope: "deploy", Configuration: "production", TopicKey: "origin-policy", Content: "Use the configured origin."}
+	request := MemoRequest{Mode: "create", MemoKind: "decision", Scope: "deploy", Configuration: "production", TopicKey: "origin-policy", Content: "Use the configured origin.", ResponseView: "full"}
 	created, err := service.WriteMemo(context.Background(), request)
 	if err != nil {
 		t.Fatal(err)
@@ -150,7 +212,7 @@ func TestTopicMemoReusesCurrentIdentityAndRequiresSupersedeToRename(t *testing.T
 		t.Fatalf("topic rename error=%v", err)
 	}
 
-	superseded, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "supersede", ID: created.Record.ID, ExpectedRevision: updated.Record.Revision})
+	superseded, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "supersede", ID: created.Record.ID, ExpectedRevision: updated.Record.Revision, ResponseView: "full"})
 	if err != nil || superseded.Record.Validity != "superseded" {
 		t.Fatalf("topic supersede=%+v err=%v", superseded, err)
 	}
@@ -182,11 +244,117 @@ func TestTopicMemoSurfacesAtMostThreeRelatedCurrentTopics(t *testing.T) {
 	}
 }
 
+func TestExactCurrentTopicLookupHandlesAmbiguousScopes(t *testing.T) {
+	service, _ := testService(t)
+	first, err := service.WriteMemo(context.Background(), MemoRequest{
+		Mode: "create", MemoKind: "decision", Scope: "operations", TopicKey: "restart", Content: "Use the registered operation.",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.WriteMemo(context.Background(), MemoRequest{
+		Mode: "create", MemoKind: "decision", Scope: "release", TopicKey: "restart", Content: "Check the release receipt.",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ambiguous, err := service.Query(context.Background(), QueryRequest{TopicKey: "restart"})
+	if err != nil || ambiguous.Status != contracts.StatusPartial || len(ambiguous.Items) != 2 || ambiguous.Warnings[0].Code != "memo_topic_ambiguous" {
+		t.Fatalf("ambiguous topic=%+v err=%v", ambiguous, err)
+	}
+	current, err := service.Query(context.Background(), QueryRequest{TopicKey: "RESTART", Scope: "operations"})
+	if err != nil || len(current.Items) != 1 || current.Items[0].ID != first.Record.ID || !current.Items[0].PayloadComplete {
+		t.Fatalf("exact topic=%+v err=%v", current, err)
+	}
+	if current.Items[0].Payload["content"] != "Use the registered operation." {
+		t.Fatalf("exact topic content=%+v", current.Items[0].Payload)
+	}
+	filtered, err := service.Query(context.Background(), QueryRequest{Mode: "list", Kind: "memo", TopicKey: "restart", Scope: "operations", Validity: "current"})
+	if err != nil || len(filtered.Items) != 1 || filtered.Items[0].ID != first.Record.ID {
+		t.Fatalf("exact list filter=%+v err=%v", filtered, err)
+	}
+	_, err = service.Query(context.Background(), QueryRequest{Mode: "get_topic", TopicKey: "missing"})
+	if !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("missing topic error=%v", err)
+	}
+}
+
+func TestMemoTemporalMetadataIsExplicitAndSearchable(t *testing.T) {
+	service, _ := testService(t)
+	created, err := service.WriteMemo(context.Background(), MemoRequest{
+		Mode: "create", MemoKind: "decision", Scope: "operations", TopicKey: "restart",
+		Title: "Restart procedure", Summary: "Use the registered operation after checking state.",
+		TemporalKind: "current_guidance", AsOf: "2026-09-20T09:00:00+09:00",
+		Content: "Use the registered operation after checking state.", InvalidationCondition: "the service topology changes",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	brief, err := service.Query(context.Background(), QueryRequest{Mode: "search", Query: "restart", Kind: "memo"})
+	if err != nil || len(brief.Items) != 1 || brief.Items[0].SearchAsOf.IsZero() || brief.Items[0].Title != "Restart procedure" ||
+		brief.Items[0].TemporalKind != "current_guidance" || brief.Items[0].AsOf != "2026-09-20T00:00:00Z" {
+		t.Fatalf("temporal brief=%+v err=%v", brief, err)
+	}
+	full, err := service.Query(context.Background(), QueryRequest{Mode: "get", ID: created.Record.ID})
+	if err != nil || full.Items[0].Payload["as_of"] != "2026-09-20T00:00:00Z" {
+		t.Fatalf("temporal full=%+v err=%v", full, err)
+	}
+	if _, err := service.WriteMemo(context.Background(), MemoRequest{
+		Mode: "create", MemoKind: "decision", Content: "Unanchored guidance", TemporalKind: "current_guidance",
+	}); !errors.Is(err, ErrInvalidArgument) {
+		t.Fatalf("unanchored temporal kind error=%v", err)
+	}
+}
+
+func TestMemoReplacementLinksSuccessorAndPreservesOldContent(t *testing.T) {
+	service, _ := testService(t)
+	old, err := service.WriteMemo(context.Background(), MemoRequest{
+		Mode: "create", MemoKind: "decision", Scope: "operations", TopicKey: "restart", Content: "Use the first procedure.",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	newMemo, err := service.WriteMemo(context.Background(), MemoRequest{
+		Mode: "create", MemoKind: "decision", Scope: "operations", TopicKey: "restart",
+		Content: "Use the revised procedure.", Supersedes: old.Record.ID, ExpectedRevision: old.Record.Revision,
+	})
+	if err != nil || newMemo.Record.ID == old.Record.ID {
+		t.Fatalf("replacement=%+v err=%v", newMemo, err)
+	}
+	oldRead, err := service.Query(context.Background(), QueryRequest{Mode: "get", ID: old.Record.ID})
+	if err != nil || oldRead.Items[0].Validity != "superseded" || oldRead.Items[0].Payload["content"] != "Use the first procedure." ||
+		oldRead.Items[0].SupersededBy != "record:"+newMemo.Record.ID {
+		t.Fatalf("old memo=%+v err=%v", oldRead, err)
+	}
+	if len(oldRead.Warnings) != 1 || oldRead.Warnings[0].Code != "memo_superseded" {
+		t.Fatalf("old memo successor warning=%+v", oldRead.Warnings)
+	}
+	search, err := service.Query(context.Background(), QueryRequest{Mode: "search", Kind: "memo", Query: "procedure"})
+	if err != nil || len(search.Items) != 2 || search.Items[0].ID != newMemo.Record.ID {
+		t.Fatalf("current memo should rank first: %+v err=%v", search, err)
+	}
+	current, err := service.Query(context.Background(), QueryRequest{TopicKey: "restart", Scope: "operations"})
+	if err != nil || current.Items[0].ID != newMemo.Record.ID || current.Items[0].Supersedes != old.Record.ID {
+		t.Fatalf("current memo=%+v err=%v", current, err)
+	}
+	_, err = service.WriteMemo(context.Background(), MemoRequest{
+		Mode: "create", MemoKind: "decision", Scope: "operations", TopicKey: "restart",
+		Content: "A conflicting revision.", Supersedes: newMemo.Record.ID, ExpectedRevision: 99,
+	})
+	if !errors.Is(err, store.ErrConflict) {
+		t.Fatalf("replacement conflict=%v", err)
+	}
+	stillCurrent, err := service.Query(context.Background(), QueryRequest{TopicKey: "restart", Scope: "operations"})
+	if err != nil || stillCurrent.Items[0].ID != newMemo.Record.ID {
+		t.Fatalf("replacement changed after conflict=%+v err=%v", stillCurrent, err)
+	}
+}
+
 func TestHostFactIsTypedSearchableAndWarnsOnConflict(t *testing.T) {
 	service, _ := testService(t)
 	confirmed := time.Date(2026, 9, 16, 1, 2, 3, 0, time.FixedZone("fixture", 9*60*60)).Format(time.RFC3339)
 	request := MemoRequest{
-		Mode: "create", MemoKind: "host_fact", Scope: "operations/hosts", Source: "user_asserted",
+		Mode: "create", MemoKind: "host_fact", Scope: "operations/hosts", Source: "user_asserted", ResponseView: "full",
 		Host:                  &HostFact{Alias: "EDGE-A", Role: "gateway", OS: "linux", Tier: "production", Services: []string{"proxy"}, Paths: []string{"/srv/proxy"}, ConfirmedAt: confirmed},
 		InvalidationCondition: "the host is rebuilt or its role changes",
 	}
@@ -202,14 +370,14 @@ func TestHostFactIsTypedSearchableAndWarnsOnConflict(t *testing.T) {
 		t.Fatalf("normalized host=%+v", host)
 	}
 	result, err := service.Query(context.Background(), QueryRequest{Mode: "search", Kind: "memo", Query: "edge-a", ItemLimit: 5})
-	if err != nil || len(result.Items) != 1 || result.Items[0].Payload["host"] == nil {
+	if err != nil || len(result.Items) != 1 || result.Items[0].Title != "edge-a" || result.Items[0].Payload != nil {
 		t.Fatalf("host search=%+v err=%v", result, err)
 	}
 	receiptRequest := request
 	receiptRequest.Host = &HostFact{Alias: "edge-b", Role: "gateway", OS: "linux", Tier: "staging", Services: []string{"proxy"}, Paths: []string{"/srv/proxy"}, ConfirmedAt: confirmed}
 	receiptRequest.ResponseView = "receipt"
 	receipt, err := service.WriteMemo(context.Background(), receiptRequest)
-	if err != nil || receipt.Record.SchemaVersion != "memo.v2" || receipt.Record.Payload != nil || receipt.Record.PayloadComplete {
+	if err != nil || receipt.Record.ID == "" || receipt.Record.Revision != 1 || receipt.Record.SchemaVersion != "" || receipt.Record.Payload != nil {
 		t.Fatalf("host receipt=%+v err=%v", receipt, err)
 	}
 	readBack, err := service.Query(context.Background(), QueryRequest{Mode: "get", ID: receipt.Record.ID})
@@ -234,7 +402,7 @@ func TestHostFactValidationIsSeparateFromOrdinaryMemo(t *testing.T) {
 	}
 	host.Services, host.Paths = nil, nil
 	nullLists, err := service.WriteMemo(context.Background(), MemoRequest{
-		Mode: "create", MemoKind: "host_fact", Host: host, InvalidationCondition: "the host changes",
+		Mode: "create", MemoKind: "host_fact", Host: host, InvalidationCondition: "the host changes", ResponseView: "full",
 	})
 	if err != nil || nullLists.Record.SchemaVersion != "memo.v2" {
 		t.Fatalf("host fact with unknown services and paths=%+v err=%v", nullLists, err)
@@ -281,7 +449,7 @@ func TestMutationStoreErrorClassifiesStorageFailures(t *testing.T) {
 func TestRecordPayloadProjectionAndMutationReceipt(t *testing.T) {
 	service, _ := testService(t)
 	created, err := service.WriteMemo(context.Background(), MemoRequest{
-		Mode: "create", MemoKind: "decision", Scope: "docs", Content: strings.Repeat("detail ", 200), ResponseView: "receipt",
+		Mode: "create", MemoKind: "decision", Scope: "docs", Content: strings.Repeat("detail ", 200),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -290,11 +458,17 @@ func TestRecordPayloadProjectionAndMutationReceipt(t *testing.T) {
 		t.Fatalf("receipt echoed payload: %+v", created.Record)
 	}
 	encoded, _ := json.Marshal(created)
+	var parsed struct {
+		Record map[string]any `json:"record"`
+	}
+	if err := json.Unmarshal(encoded, &parsed); err != nil || len(parsed.Record) != 2 || parsed.Record["id"] == nil || parsed.Record["revision"] == nil {
+		t.Fatalf("default receipt fields=%+v err=%v", parsed.Record, err)
+	}
 	if strings.Contains(string(encoded), `"payload"`) {
 		t.Fatalf("receipt JSON contains payload: %s", encoded)
 	}
 	fullMutation, err := service.WriteMemo(context.Background(), MemoRequest{
-		Mode: "create", MemoKind: "decision", Scope: "docs", Content: strings.Repeat("detail ", 200),
+		Mode: "create", MemoKind: "decision", Scope: "docs", Content: strings.Repeat("detail ", 200), ResponseView: "full",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -383,11 +557,15 @@ func TestRecordSearchReturnsCompactDiscoveryAndSupportsExplicitProjection(t *tes
 	if len(result.Items) != 1 || result.Items[0].ID != created.Record.ID || result.Items[0].PayloadComplete {
 		t.Fatalf("compact search=%+v", result)
 	}
-	payload := result.Items[0].Payload
-	if payload["scope"] != "release/windows" || payload["preview"] == "" {
-		t.Fatalf("discovery payload=%+v", payload)
+	item := result.Items[0]
+	if item.Scope != "release/windows" || item.Summary == "" || item.Payload != nil || item.SchemaVersion != "" {
+		t.Fatalf("brief result=%+v", item)
 	}
-	if _, exists := payload["content"]; exists {
+	legacy, err := service.Query(context.Background(), QueryRequest{Mode: "search", Kind: "memo", Query: "windows executable", ResponseView: "discovery"})
+	if err != nil || len(legacy.Items) != 1 || legacy.Items[0].Payload["preview"] == "" {
+		t.Fatalf("legacy discovery=%+v err=%v", legacy, err)
+	}
+	if _, exists := legacy.Items[0].Payload["content"]; exists {
 		t.Fatal("default search returned full memo content")
 	}
 	encoded, _ := json.Marshal(result)
@@ -467,7 +645,7 @@ func TestImportReportIsIdempotentAndBecomesStale(t *testing.T) {
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	first, err := service.ImportReport(context.Background(), ImportRequest{Path: ".tmp/verify.json", ChecklistPath: checklistPath, Configuration: "default"})
+	first, err := service.ImportReport(context.Background(), ImportRequest{Path: ".tmp/verify.json", ChecklistPath: checklistPath, Configuration: "default", ResponseView: "full"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -507,7 +685,7 @@ func TestImportReportIsIdempotentAndBecomesStale(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(reportDir, "dirty.json"), dirtyData, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	dirtyImport, err := service.ImportReport(context.Background(), ImportRequest{Path: ".tmp/dirty.json", ChecklistPath: checklistPath, Configuration: "default"})
+	dirtyImport, err := service.ImportReport(context.Background(), ImportRequest{Path: ".tmp/dirty.json", ChecklistPath: checklistPath, Configuration: "default", ResponseView: "full"})
 	if err != nil {
 		t.Fatal(err)
 	}

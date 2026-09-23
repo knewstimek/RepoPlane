@@ -159,7 +159,7 @@ func TestCommonInputChoicesAreExposed(t *testing.T) {
 			"match_kind": {"all", "commit", "path", "diff"}, "pattern_syntax": {"exact", "regex"},
 		},
 		"data_query":          {"mode": {"text_range", "jsonl", "json", "delimited", "log"}},
-		"project_records":     {"mode": {"search", "list", "get"}},
+		"project_records":     {"mode": {"search", "list", "get", "get_topic", "resume"}, "match_mode": {"any", "all"}, "response_view": {"brief", "discovery", "full"}},
 		"checkpoint_write":    {"mode": {"create", "update", "supersede"}, "response_view": {"full", "receipt"}},
 		"memo_write":          {"mode": {"create", "update", "supersede"}, "source": {"user_asserted", "llm_proposed"}, "response_view": {"full", "receipt"}},
 		"check_report_import": {"response_view": {"full", "receipt"}},
@@ -205,7 +205,7 @@ func TestCompactToolSchemaFootprintStaysBounded(t *testing.T) {
 	if err := json.Unmarshal(generated, &parsed); err != nil {
 		t.Fatal(err)
 	}
-	const maximumAllTools = 35 * 1024
+	const maximumAllTools = 40 * 1024
 	const maximumRunnerTools = 5500
 	total, runner := 0, 0
 	for _, tool := range parsed.Tools {

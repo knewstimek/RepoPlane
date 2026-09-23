@@ -58,33 +58,53 @@ func (e *ValidationError) Error() string { return e.Field + " " + e.Reason }
 
 type QueryRequest struct {
 	Mode          string   `json:"mode,omitempty" jsonschema:"omit with cursor; inferred as search when query is set"`
-	Query         string   `json:"query,omitempty" jsonschema:"space-separated lexical terms; any term may match; infers search when mode is omitted"`
+	Query         string   `json:"query,omitempty" jsonschema:"space-separated lexical terms; results matching more terms rank first"`
 	ID            string   `json:"id,omitempty" jsonschema:"opaque record ID; required for get"`
 	Kind          string   `json:"kind,omitempty" jsonschema:"record kind filter: verification, checkpoint, memo, environment, run, or artifact"`
 	Validity      string   `json:"validity,omitempty" jsonschema:"validity filter: current, stale, unknown, or superseded"`
 	Source        string   `json:"source,omitempty" jsonschema:"source filter: observed, imported, user_asserted, or llm_proposed"`
-	UpdatedAfter  string   `json:"updated_after,omitempty" jsonschema:"RFC3339 lower bound for record update time"`
+	UpdatedAfter  string   `json:"updated_after,omitempty" jsonschema:"inclusive RFC3339 lower bound for update time"`
+	UpdatedBefore string   `json:"updated_before,omitempty" jsonschema:"exclusive RFC3339 upper bound for update time"`
+	TopicKey      string   `json:"topic_key,omitempty" jsonschema:"exact memo topic key; get_topic returns a current memo"`
+	Scope         string   `json:"scope,omitempty" jsonschema:"exact memo scope filter"`
+	Configuration string   `json:"configuration,omitempty" jsonschema:"exact memo configuration filter"`
+	MatchMode     string   `json:"match_mode,omitempty" jsonschema:"any (default) or all lexical terms"`
+	ResponseView  string   `json:"response_view,omitempty" jsonschema:"brief, discovery (legacy search), or full; search defaults brief"`
 	Cursor        string   `json:"cursor,omitempty" jsonschema:"opaque cursor from an earlier project_records query"`
-	ItemLimit     uint64   `json:"item_limit,omitempty" jsonschema:"item limit; default 50, max 500"`
-	ByteLimit     uint64   `json:"byte_limit,omitempty" jsonschema:"response bytes; default 65536, max 1048576"`
+	ItemLimit     uint64   `json:"item_limit,omitempty" jsonschema:"item limit; search default 8, otherwise 50; max 500"`
+	ByteLimit     uint64   `json:"byte_limit,omitempty" jsonschema:"structured bytes; search/resume default 8192, get/get_topic default 1048576, others 65536"`
 	TimeLimitMS   int64    `json:"time_limit_ms,omitempty" jsonschema:"deadline ms; default 5000, max 30000"`
 	PayloadFields []string `json:"payload_fields,omitempty" jsonschema:"exact top-level payload fields to return; empty returns the full payload"`
 }
 
 type RecordResult struct {
 	ID              string         `json:"id"`
-	Kind            string         `json:"kind"`
-	SchemaVersion   string         `json:"schema_version"`
-	Revision        uint64         `json:"revision"`
-	Source          string         `json:"source"`
-	WriterClass     string         `json:"writer_class"`
-	Validity        string         `json:"validity"`
-	CreatedAt       time.Time      `json:"created_at"`
-	UpdatedAt       time.Time      `json:"updated_at"`
+	Kind            string         `json:"kind,omitempty"`
+	SchemaVersion   string         `json:"schema_version,omitempty"`
+	Revision        uint64         `json:"revision,omitempty"`
+	Source          string         `json:"source,omitempty"`
+	WriterClass     string         `json:"writer_class,omitempty"`
+	Validity        string         `json:"validity,omitempty"`
+	CreatedAt       time.Time      `json:"created_at,omitzero"`
+	UpdatedAt       time.Time      `json:"updated_at,omitzero"`
+	Title           string         `json:"title,omitempty"`
+	Summary         string         `json:"summary,omitempty"`
+	NextAction      string         `json:"next_action,omitempty"`
+	ChangeSummary   string         `json:"change_summary,omitempty"`
+	ChangeState     string         `json:"change_state,omitempty"`
+	BackgroundRefs  []string       `json:"background_refs,omitempty"`
+	RemainingChecks []string       `json:"remaining_checks,omitempty"`
+	TopicKey        string         `json:"topic_key,omitempty"`
+	Scope           string         `json:"scope,omitempty"`
+	Configuration   string         `json:"configuration,omitempty"`
+	TemporalKind    string         `json:"temporal_kind,omitempty"`
+	AsOf            string         `json:"as_of,omitempty"`
+	SearchAsOf      time.Time      `json:"search_as_of,omitzero"`
 	Payload         map[string]any `json:"payload,omitempty"`
-	PayloadComplete bool           `json:"payload_complete"`
-	EvidenceRefs    []string       `json:"evidence_refs"`
+	PayloadComplete bool           `json:"payload_complete,omitempty"`
+	EvidenceRefs    []string       `json:"evidence_refs,omitempty"`
 	Supersedes      string         `json:"supersedes,omitempty"`
+	SupersededBy    string         `json:"superseded_by,omitempty"`
 }
 
 type QueryResponse = contracts.Response[RecordResult]
@@ -99,25 +119,32 @@ type CheckpointRequest struct {
 	RunRefs          []string `json:"run_refs,omitempty" jsonschema:"related run or report refs"`
 	RemainingChecks  []string `json:"remaining_checks,omitempty" jsonschema:"remaining checks"`
 	NextAction       string   `json:"next_action,omitempty" jsonschema:"next intended action"`
+	ChangeSummary    string   `json:"change_summary,omitempty" jsonschema:"completed or changed work since the previous handoff; not inferred from Git"`
+	BackgroundRefs   []string `json:"background_refs,omitempty" jsonschema:"current memo or other background record refs for task recovery"`
 	Risks            []string `json:"risks,omitempty" jsonschema:"unverified risks"`
 	EvidenceRefs     []string `json:"evidence_refs,omitempty" jsonschema:"evidence refs"`
-	ResponseView     string   `json:"response_view,omitempty" jsonschema:"receipt omits payload; default full"`
+	ResponseView     string   `json:"response_view,omitempty" jsonschema:"receipt returns ID and revision by default; full includes payload"`
 }
 
 type MemoRequest struct {
 	Mode                  string    `json:"mode" jsonschema:"mutation action"`
 	ID                    string    `json:"id,omitempty" jsonschema:"ID for update/supersede"`
 	ExpectedRevision      uint64    `json:"expected_revision,omitempty" jsonschema:"revision for update/supersede"`
+	Supersedes            string    `json:"supersedes,omitempty" jsonschema:"current memo ID to replace atomically on create; requires expected_revision"`
 	MemoKind              string    `json:"memo_kind,omitempty" jsonschema:"decision | failed_attempt | resolved_failure | limitation | host_fact"`
 	Scope                 string    `json:"scope,omitempty" jsonschema:"logical scope"`
 	Configuration         string    `json:"configuration,omitempty" jsonschema:"configuration"`
 	TopicKey              string    `json:"topic_key,omitempty" jsonschema:"stable topic key"`
+	Title                 string    `json:"title,omitempty" jsonschema:"short human-readable title for discovery"`
+	Summary               string    `json:"summary,omitempty" jsonschema:"one-line summary for discovery"`
+	TemporalKind          string    `json:"temporal_kind,omitempty" jsonschema:"historical_observation or current_guidance; omitted means unknown"`
+	AsOf                  string    `json:"as_of,omitempty" jsonschema:"RFC3339 time when the observation or guidance was asserted"`
 	Content               string    `json:"content,omitempty" jsonschema:"memo text"`
 	Host                  *HostFact `json:"host,omitempty" jsonschema:"typed host details for host_fact memos"`
 	InvalidationCondition string    `json:"invalidation_condition,omitempty" jsonschema:"staleness condition"`
 	Source                string    `json:"source" jsonschema:"memo provenance"`
 	EvidenceRefs          []string  `json:"evidence_refs,omitempty" jsonschema:"evidence refs"`
-	ResponseView          string    `json:"response_view,omitempty" jsonschema:"receipt omits payload; default full"`
+	ResponseView          string    `json:"response_view,omitempty" jsonschema:"receipt returns ID and revision by default; full includes payload"`
 }
 
 type HostFact struct {
@@ -136,7 +163,7 @@ type ImportRequest struct {
 	Configuration string `json:"configuration" jsonschema:"declared checklist configuration being imported"`
 	ByteLimit     uint64 `json:"byte_limit,omitempty" jsonschema:"maximum report bytes; default and maximum 1048576"`
 	TimeLimitMS   int64  `json:"time_limit_ms,omitempty" jsonschema:"deadline ms; default 5000, max 30000"`
-	ResponseView  string `json:"response_view,omitempty" jsonschema:"receipt omits payload; default full"`
+	ResponseView  string `json:"response_view,omitempty" jsonschema:"receipt returns ID and revision by default; full includes payload"`
 }
 
 type MutationResponse struct {
@@ -164,9 +191,22 @@ func (s *Service) Query(ctx context.Context, request QueryRequest) (QueryRespons
 	if request.Mode == "" && request.Cursor == "" {
 		if strings.TrimSpace(request.Query) != "" {
 			request.Mode = "search"
+		} else if request.TopicKey != "" {
+			request.Mode = "get_topic"
 		} else {
 			return QueryResponse{}, errors.New("mode required")
 		}
+	}
+	if request.Mode == "search" || request.Mode == "resume" {
+		if request.ItemLimit == 0 {
+			request.ItemLimit = 8
+		}
+		if request.ByteLimit == 0 {
+			request.ByteLimit = 8 * 1024
+		}
+	}
+	if (request.Mode == "get" || request.Mode == "get_topic") && request.ByteLimit == 0 {
+		request.ByteLimit = contracts.MaximumByteLimit
 	}
 	limits, err := contracts.NormalizeLimits(contracts.LimitRequest{ItemLimit: request.ItemLimit, ByteLimit: request.ByteLimit, TimeLimitMS: request.TimeLimitMS})
 	if err != nil {
@@ -183,7 +223,8 @@ func (s *Service) Query(ctx context.Context, request QueryRequest) (QueryRespons
 	if err := validateFilters(request); err != nil {
 		return QueryResponse{}, err
 	}
-	current := s.observeSubject(ctx)
+	request.TopicKey = strings.ToLower(request.TopicKey)
+	var current subjectObservation
 	switch request.Mode {
 	case "get":
 		if request.ID == "" {
@@ -193,12 +234,110 @@ func (s *Service) Query(ctx context.Context, request QueryRequest) (QueryRespons
 		if err != nil {
 			return QueryResponse{}, err
 		}
-		result, err := s.result(record, &current, request.PayloadFields, false)
+		if record.Kind == "verification" {
+			current = s.observeSubject(ctx)
+		}
+		result, err := s.result(record, &current, request.PayloadFields, "full")
 		if err != nil {
 			return QueryResponse{}, err
 		}
-		return singleResponse(result, limits.ByteLimit)
+		if record.Kind == "memo" && record.Validity == "superseded" {
+			successors, err := s.records.QueryRecords(ctx, store.RecordQuery{ProjectID: s.projectID, WorkspaceID: s.workspaceID,
+				Kind: "memo", Supersedes: record.ID, Limit: 1})
+			if err != nil {
+				return QueryResponse{}, err
+			}
+			if len(successors.Records) == 1 {
+				result.SupersededBy = "record:" + successors.Records[0].ID
+			}
+		}
+		response, err := singleResponse(result, limits.ByteLimit)
+		if err != nil {
+			return QueryResponse{}, err
+		}
+		if result.SupersededBy != "" {
+			ref := result.SupersededBy
+			response.Warnings = append(response.Warnings, contracts.Warning{
+				Code: "memo_superseded", Message: "a successor memo exists; inspect it before applying this record", Ref: &ref,
+			})
+			encoded, _ := json.Marshal(response)
+			if uint64(len(encoded)) > limits.ByteLimit {
+				return QueryResponse{}, ErrResponseTooLarge
+			}
+		}
+		return response, nil
+	case "get_topic":
+		if request.TopicKey == "" {
+			return QueryResponse{}, errors.New("topic_key is required for get_topic")
+		}
+		page, err := s.records.QueryRecords(ctx, store.RecordQuery{ProjectID: s.projectID, WorkspaceID: s.workspaceID,
+			Kind: "memo", Validity: "current", TopicKey: request.TopicKey, Scope: request.Scope,
+			Configuration: request.Configuration, Limit: maximumRecordQuery})
+		if err != nil {
+			return QueryResponse{}, err
+		}
+		if page.Matched == 0 {
+			return QueryResponse{}, store.ErrNotFound
+		}
+		if page.Matched == 1 {
+			result, err := s.result(page.Records[0], &current, request.PayloadFields, "full")
+			if err != nil {
+				return QueryResponse{}, err
+			}
+			return singleResponse(result, limits.ByteLimit)
+		}
+		items := make([]RecordResult, 0, min(len(page.Records), 8))
+		for _, record := range page.Records[:min(len(page.Records), 8)] {
+			result, err := s.result(record, &current, nil, "brief")
+			if err != nil {
+				return QueryResponse{}, err
+			}
+			items = append(items, result)
+		}
+		return ambiguousResponse(items, page.Matched, "memo_topic_ambiguous",
+			"topic_key matches multiple current memos; provide scope and configuration", limits.ByteLimit)
+	case "resume":
+		var page store.RecordPage
+		if request.ID != "" {
+			record, err := s.records.GetRecord(ctx, s.projectID, s.workspaceID, request.ID)
+			if err != nil {
+				return QueryResponse{}, err
+			}
+			if record.Kind != "checkpoint" {
+				return QueryResponse{}, errors.New("resume id must name a checkpoint")
+			}
+			page = store.RecordPage{Records: []store.Record{record}, Matched: 1, Complete: true}
+		} else {
+			page, err = s.records.QueryRecords(ctx, store.RecordQuery{ProjectID: s.projectID, WorkspaceID: s.workspaceID,
+				Kind: "checkpoint", Validity: "current", Terms: normalizeRecordTerms(request.Query), Limit: maximumRecordQuery})
+			if err != nil {
+				return QueryResponse{}, err
+			}
+		}
+		if page.Matched == 0 {
+			return QueryResponse{}, store.ErrNotFound
+		}
+		if page.Matched == 1 {
+			item, err := resumeRecord(page.Records[0])
+			if err != nil {
+				return QueryResponse{}, err
+			}
+			return singleResponse(item, limits.ByteLimit)
+		}
+		items := make([]RecordResult, 0, min(len(page.Records), 5))
+		for _, record := range page.Records[:min(len(page.Records), 5)] {
+			item, err := s.result(record, &current, nil, "brief")
+			if err != nil {
+				return QueryResponse{}, err
+			}
+			items = append(items, item)
+		}
+		return ambiguousResponse(items, page.Matched, "checkpoint_ambiguous",
+			"multiple current checkpoints match; provide a more specific query or checkpoint id", limits.ByteLimit)
 	case "list", "search":
+		if request.Kind == "" || request.Kind == "verification" {
+			current = s.observeSubject(ctx)
+		}
 		var updatedAfter time.Time
 		if request.UpdatedAfter != "" {
 			updatedAfter, err = time.Parse(time.RFC3339, request.UpdatedAfter)
@@ -206,19 +345,47 @@ func (s *Service) Query(ctx context.Context, request QueryRequest) (QueryRespons
 				return QueryResponse{}, errors.New("updated_after must be RFC3339")
 			}
 		}
+		var updatedBefore time.Time
+		if request.UpdatedBefore != "" {
+			updatedBefore, err = time.Parse(time.RFC3339, request.UpdatedBefore)
+			if err != nil {
+				return QueryResponse{}, errors.New("updated_before must be RFC3339")
+			}
+		}
+		if !updatedBefore.IsZero() && !updatedAfter.IsZero() && !updatedAfter.Before(updatedBefore) {
+			return QueryResponse{}, errors.New("updated_after must precede updated_before")
+		}
 		terms := []string(nil)
 		if request.Mode == "search" {
 			terms = normalizeRecordTerms(request.Query)
 		}
-		page, err := s.records.QueryRecords(ctx, store.RecordQuery{ProjectID: s.projectID, WorkspaceID: s.workspaceID, Kind: request.Kind, Source: request.Source, UpdatedAfter: updatedAfter, Terms: terms, Limit: maximumRecordQuery})
+		storedValidity := request.Validity
+		if request.Kind == "" || request.Kind == "verification" {
+			storedValidity = ""
+		}
+		page, err := s.records.QueryRecords(ctx, store.RecordQuery{ProjectID: s.projectID, WorkspaceID: s.workspaceID,
+			Kind: request.Kind, Validity: storedValidity, Source: request.Source, UpdatedAfter: updatedAfter,
+			UpdatedBefore: updatedBefore, TopicKey: request.TopicKey, Scope: request.Scope,
+			Configuration: request.Configuration, Terms: terms, MatchAll: request.MatchMode == "all", Limit: maximumRecordQuery})
 		if err != nil {
 			return QueryResponse{}, err
 		}
 		items := make([]RecordResult, 0, len(page.Records))
+		searchAsOf := s.now().UTC()
+		view := request.ResponseView
+		if view == "" {
+			view = "full"
+			if request.Mode == "search" && len(request.PayloadFields) == 0 {
+				view = "brief"
+			}
+		}
 		for _, record := range page.Records {
-			result, err := s.result(record, &current, request.PayloadFields, request.Mode == "search" && len(request.PayloadFields) == 0)
+			result, err := s.result(record, &current, request.PayloadFields, view)
 			if err != nil {
 				return QueryResponse{}, err
+			}
+			if request.Mode == "search" && view == "brief" {
+				result.SearchAsOf = searchAsOf
 			}
 			// Dynamic verification validity may differ from the stored filter.
 			if request.Validity == "" || result.Validity == request.Validity {
@@ -294,7 +461,7 @@ func (s *Service) WriteCheckpoint(ctx context.Context, request CheckpointRequest
 	if err := validateCheckpoint(request); err != nil {
 		return MutationResponse{}, invalidArgument(err)
 	}
-	payload, _ := json.Marshal(map[string]any{"goal": request.Goal, "baseline_commit": request.BaselineCommit, "dirty": request.Dirty, "run_refs": nonNil(request.RunRefs), "remaining_checks": nonNil(request.RemainingChecks), "next_action": request.NextAction, "risks": nonNil(request.Risks)})
+	payload, _ := json.Marshal(map[string]any{"goal": request.Goal, "baseline_commit": request.BaselineCommit, "dirty": request.Dirty, "run_refs": nonNil(request.RunRefs), "remaining_checks": nonNil(request.RemainingChecks), "next_action": request.NextAction, "change_summary": request.ChangeSummary, "background_refs": nonNil(request.BackgroundRefs), "risks": nonNil(request.Risks)})
 	if len(payload) > maximumRecordPayload {
 		return MutationResponse{}, contracts.ErrLimitExceeded
 	}
@@ -315,9 +482,20 @@ func (s *Service) WriteMemo(ctx context.Context, request MemoRequest) (MutationR
 		confirmedAt, _ := time.Parse(time.RFC3339, request.Host.ConfirmedAt)
 		request.Host.ConfirmedAt = confirmedAt.UTC().Format(time.RFC3339)
 	}
+	if request.AsOf != "" {
+		asOf, _ := time.Parse(time.RFC3339, request.AsOf)
+		request.AsOf = asOf.UTC().Format(time.RFC3339)
+	}
 	payloadFields := map[string]any{"memo_kind": request.MemoKind, "scope": request.Scope, "configuration": request.Configuration, "content": request.Content, "invalidation_condition": request.InvalidationCondition}
 	if request.TopicKey != "" {
 		payloadFields["topic_key"] = request.TopicKey
+	}
+	for _, field := range []struct{ name, value string }{
+		{"title", request.Title}, {"summary", request.Summary}, {"temporal_kind", request.TemporalKind}, {"as_of", request.AsOf},
+	} {
+		if field.value != "" {
+			payloadFields[field.name] = field.value
+		}
 	}
 	if request.Host != nil {
 		payloadFields["host"] = request.Host
@@ -352,7 +530,7 @@ func (s *Service) WriteMemo(ctx context.Context, request MemoRequest) (MutationR
 		}
 	}
 	warnings := s.hostFactWarnings(ctx, request)
-	if request.Mode == "create" && request.TopicKey != "" {
+	if request.Mode == "create" && request.TopicKey != "" && request.Supersedes == "" {
 		if existing, ok, err := s.currentTopicMemo(ctx, request.Scope, request.Configuration, request.TopicKey); err != nil {
 			warnings = append(warnings, contracts.Warning{Code: "memo_topic_check_unknown", Message: "current memo topics could not be checked"})
 		} else if ok {
@@ -361,8 +539,27 @@ func (s *Service) WriteMemo(ctx context.Context, request MemoRequest) (MutationR
 			warnings = append(warnings, s.relatedTopicWarnings(ctx, request)...)
 		}
 	}
-	record, err := s.mutate(ctx, "memo", schemaVersion, request.Source, request.Mode, request.ID, request.ExpectedRevision, payload, request.EvidenceRefs)
-	if request.Mode == "create" && request.TopicKey != "" && errors.Is(err, store.ErrConflict) {
+	var record store.Record
+	var err error
+	if request.Mode == "create" && request.Supersedes != "" {
+		newID, idErr := randomID("memo_")
+		if idErr != nil {
+			return MutationResponse{}, idErr
+		}
+		now := s.now().UTC()
+		record, err = s.records.ReplaceMemo(ctx, store.RecordReplace{
+			ProjectID: s.projectID, WorkspaceID: s.workspaceID, OldID: request.Supersedes,
+			ExpectedRevision: request.ExpectedRevision,
+			New: store.Record{ID: newID, Kind: "memo", SchemaVersion: schemaVersion, ProjectID: s.projectID,
+				WorkspaceID: s.workspaceID, Revision: 1, Source: request.Source, WriterClass: "intention",
+				Validity: "current", CreatedAt: now, UpdatedAt: now, Payload: payload,
+				EvidenceRefs: nonNil(request.EvidenceRefs), Supersedes: request.Supersedes},
+		})
+		err = mutationStoreError(err)
+	} else {
+		record, err = s.mutate(ctx, "memo", schemaVersion, request.Source, request.Mode, request.ID, request.ExpectedRevision, payload, request.EvidenceRefs)
+	}
+	if request.Mode == "create" && request.TopicKey != "" && request.Supersedes == "" && errors.Is(err, store.ErrConflict) {
 		if existing, ok, lookupErr := s.currentTopicMemo(ctx, request.Scope, request.Configuration, request.TopicKey); lookupErr == nil && ok {
 			return s.existingTopicResponse(existing, request.ResponseView)
 		}
@@ -388,20 +585,13 @@ func (s *Service) existingTopicResponse(record store.Record, view string) (Mutat
 func (s *Service) currentTopicMemo(ctx context.Context, scope, configuration, topicKey string) (store.Record, bool, error) {
 	page, err := s.records.QueryRecords(ctx, store.RecordQuery{
 		ProjectID: s.projectID, WorkspaceID: s.workspaceID, Kind: "memo", Validity: "current",
-		Terms: []string{topicKey}, Limit: maximumRecordQuery,
+		TopicKey: topicKey, Scope: scope, Configuration: configuration, Limit: 1,
 	})
 	if err != nil {
 		return store.Record{}, false, err
 	}
-	for _, record := range page.Records {
-		var payload struct {
-			Scope         string `json:"scope"`
-			Configuration string `json:"configuration"`
-			TopicKey      string `json:"topic_key"`
-		}
-		if json.Unmarshal(record.Payload, &payload) == nil && payload.Scope == scope && payload.Configuration == configuration && payload.TopicKey == topicKey {
-			return record, true, nil
-		}
+	if len(page.Records) == 1 {
+		return page.Records[0], true, nil
 	}
 	return store.Record{}, false, nil
 }
@@ -580,6 +770,18 @@ func (s *Service) mutate(ctx context.Context, kind, schemaVersion, source, mode,
 			validity = "superseded"
 		}
 		update := store.RecordUpdate{ProjectID: s.projectID, WorkspaceID: s.workspaceID, ID: id, ExpectedRevision: expected, Payload: payload, EvidenceRefs: nonNil(evidence), Validity: validity}
+		if mode == "supersede" {
+			current, err := s.records.GetRecord(ctx, s.projectID, s.workspaceID, id)
+			if err != nil {
+				return store.Record{}, mutationStoreError(err)
+			}
+			if current.Kind != kind || current.Revision != expected {
+				return store.Record{}, store.ErrConflict
+			}
+			update.Payload = current.Payload
+			update.EvidenceRefs = current.EvidenceRefs
+			update.Supersedes = current.Supersedes
+		}
 		if kind == "checkpoint" {
 			updated, err := s.records.UpdateCheckpoint(ctx, update)
 			return updated, mutationStoreError(err)
@@ -609,18 +811,18 @@ func (s *Service) mutationResponse(record store.Record, duplicate bool, view str
 	if err != nil {
 		return MutationResponse{}, err
 	}
-	result, err := s.result(record, nil, nil, false)
+	if view == "" || view == "receipt" {
+		return MutationResponse{Status: contracts.StatusOK, Record: RecordResult{ID: record.ID, Revision: record.Revision},
+			Duplicate: duplicate, Warnings: contracts.EmptyWarnings()}, nil
+	}
+	result, err := s.result(record, nil, nil, "full")
 	if err != nil {
 		return MutationResponse{}, err
-	}
-	if view == "receipt" {
-		result.Payload = nil
-		result.PayloadComplete = false
 	}
 	return MutationResponse{Status: contracts.StatusOK, Record: result, Duplicate: duplicate, Warnings: contracts.EmptyWarnings()}, nil
 }
 
-func (s *Service) result(record store.Record, current *subjectObservation, payloadFields []string, discovery bool) (RecordResult, error) {
+func (s *Service) result(record store.Record, current *subjectObservation, payloadFields []string, view string) (RecordResult, error) {
 	var payload map[string]any
 	decoder := json.NewDecoder(bytes.NewReader(record.Payload))
 	decoder.UseNumber()
@@ -631,8 +833,11 @@ func (s *Service) result(record store.Record, current *subjectObservation, paylo
 	if record.Kind == "verification" && validity != "superseded" && current != nil {
 		validity = validityFromPayload(payload, *current)
 	}
-	complete := len(payloadFields) == 0 && !discovery
-	if discovery {
+	if view == "brief" {
+		return briefRecord(record, payload, validity), nil
+	}
+	complete := len(payloadFields) == 0 && view != "discovery"
+	if view == "discovery" {
 		payload = discoveryPayload(record.Kind, payload)
 	} else if !complete {
 		projected := make(map[string]any, len(payloadFields))
@@ -646,6 +851,100 @@ func (s *Service) result(record store.Record, current *subjectObservation, paylo
 	return RecordResult{ID: record.ID, Kind: record.Kind, SchemaVersion: record.SchemaVersion, Revision: record.Revision, Source: record.Source, WriterClass: record.WriterClass, Validity: validity, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt, Payload: payload, PayloadComplete: complete, EvidenceRefs: nonNil(record.EvidenceRefs), Supersedes: record.Supersedes}, nil
 }
 
+func resumeRecord(record store.Record) (RecordResult, error) {
+	var payload struct {
+		Goal            string   `json:"goal"`
+		NextAction      string   `json:"next_action"`
+		ChangeSummary   string   `json:"change_summary"`
+		BackgroundRefs  []string `json:"background_refs"`
+		RemainingChecks []string `json:"remaining_checks"`
+	}
+	if err := json.Unmarshal(record.Payload, &payload); err != nil {
+		return RecordResult{}, fmt.Errorf("decode checkpoint: %w", err)
+	}
+	state := "unknown"
+	if strings.TrimSpace(payload.ChangeSummary) != "" {
+		state = "recorded"
+	}
+	checks := make([]string, 0, min(len(payload.RemainingChecks), 5))
+	for _, check := range payload.RemainingChecks[:min(len(payload.RemainingChecks), 5)] {
+		checks = append(checks, compactPreview(check, 160))
+	}
+	refs := append([]string(nil), record.EvidenceRefs[:min(len(record.EvidenceRefs), 5)]...)
+	background := append([]string(nil), payload.BackgroundRefs[:min(len(payload.BackgroundRefs), 5)]...)
+	return RecordResult{ID: record.ID, Kind: record.Kind, Revision: record.Revision, Validity: record.Validity,
+		UpdatedAt: record.UpdatedAt, Title: compactPreview(payload.Goal, 120),
+		NextAction: compactPreview(payload.NextAction, 320), ChangeSummary: compactPreview(payload.ChangeSummary, 240),
+		ChangeState: state, RemainingChecks: checks, EvidenceRefs: refs, BackgroundRefs: background}, nil
+}
+
+func briefRecord(record store.Record, payload map[string]any, validity string) RecordResult {
+	field := func(name string) string {
+		value, _ := payload[name].(string)
+		return strings.TrimSpace(value)
+	}
+	title := field("title")
+	summary := field("summary")
+	if record.Kind == "memo" {
+		if host, ok := payload["host"].(map[string]any); ok {
+			if alias, ok := host["alias"].(string); ok && title == "" {
+				title = alias
+			}
+			if summary == "" {
+				role, _ := host["role"].(string)
+				osName, _ := host["os"].(string)
+				summary = strings.TrimSpace(role + " " + osName)
+			}
+		}
+		if title == "" {
+			title = field("topic_key")
+			if title == "" {
+				title = field("scope")
+			}
+		}
+		if summary == "" {
+			summary = field("content")
+		}
+	} else if record.Kind == "checkpoint" {
+		if title == "" {
+			title = field("goal")
+		}
+		if summary == "" {
+			summary = field("next_action")
+		}
+	} else {
+		if title == "" {
+			for _, name := range []string{"capability_id", "check_id", "path"} {
+				if title = field(name); title != "" {
+					break
+				}
+			}
+		}
+		if summary == "" {
+			for _, name := range []string{"summary", "status", "state", "outcome"} {
+				if summary = field(name); summary != "" {
+					break
+				}
+			}
+		}
+	}
+	if title == "" {
+		title = record.Kind
+	}
+	return RecordResult{ID: record.ID, Kind: record.Kind, Validity: validity,
+		UpdatedAt: record.UpdatedAt, Title: compactPreview(title, 96), Summary: compactPreview(summary, 140),
+		TopicKey: field("topic_key"), Scope: compactPreview(field("scope"), 96),
+		Configuration: compactPreview(field("configuration"), 96), TemporalKind: briefTemporalKind(field("temporal_kind")),
+		AsOf: field("as_of"), Source: record.Source, PayloadComplete: false}
+}
+
+func briefTemporalKind(value string) string {
+	if value == "" {
+		return "unknown"
+	}
+	return value
+}
+
 func validateFilters(request QueryRequest) error {
 	if request.Kind != "" && request.Kind != "verification" && request.Kind != "checkpoint" && request.Kind != "memo" && request.Kind != "environment" && request.Kind != "run" && request.Kind != "artifact" {
 		return errors.New("invalid record kind")
@@ -656,11 +955,32 @@ func validateFilters(request QueryRequest) error {
 	if request.Source != "" && request.Source != "observed" && request.Source != "imported" && request.Source != "user_asserted" && request.Source != "llm_proposed" {
 		return errors.New("invalid record source")
 	}
+	if request.MatchMode != "" && request.MatchMode != "any" && request.MatchMode != "all" {
+		return errors.New("match_mode must be any or all")
+	}
+	if request.ResponseView != "" && request.ResponseView != "brief" && request.ResponseView != "discovery" && request.ResponseView != "full" {
+		return errors.New("response_view must be brief, discovery, or full")
+	}
+	if request.TopicKey != "" && !topicKeyPattern.MatchString(strings.ToLower(request.TopicKey)) {
+		return errors.New("topic_key must use lowercase letters, digits, dot, underscore, slash, or hyphen")
+	}
+	if len(request.Scope) > 4096 || len(request.Configuration) > 4096 {
+		return contracts.ErrLimitExceeded
+	}
 	if request.Mode == "search" && strings.TrimSpace(request.Query) == "" {
 		return errors.New("query is required for search")
 	}
-	if request.Mode != "search" && request.Query != "" {
-		return errors.New("query is only valid for search")
+	if request.Mode != "search" && request.Mode != "resume" && request.Query != "" {
+		return errors.New("query is only valid for search or resume")
+	}
+	if request.Mode == "get_topic" && request.TopicKey == "" {
+		return errors.New("topic_key is required for get_topic")
+	}
+	if request.Mode == "get_topic" && request.Kind != "" && request.Kind != "memo" {
+		return errors.New("kind must be memo for get_topic")
+	}
+	if (request.ResponseView == "brief" || request.ResponseView == "discovery") && len(request.PayloadFields) > 0 {
+		return errors.New("payload_fields require response_view full")
 	}
 	terms := normalizeRecordTerms(request.Query)
 	if len(request.Query) > 512 || len(terms) > 16 {
@@ -763,7 +1083,7 @@ func validateCheckpoint(request CheckpointRequest) error {
 	if request.Mode != "create" && (request.ID == "" || request.ExpectedRevision == 0) {
 		return errors.New("id and expected_revision are required for update or supersede")
 	}
-	return validateTextAndRefs(request.Goal+request.BaselineCommit+request.NextAction, append(append(request.RunRefs, request.RemainingChecks...), append(request.Risks, request.EvidenceRefs...)...))
+	return validateTextAndRefs(request.Goal+request.BaselineCommit+request.NextAction+request.ChangeSummary, append(append(append(request.RunRefs, request.RemainingChecks...), request.BackgroundRefs...), append(request.Risks, request.EvidenceRefs...)...))
 }
 
 func validateMemo(request MemoRequest) error {
@@ -782,6 +1102,9 @@ func validateMemo(request MemoRequest) error {
 			if request.TopicKey != "" {
 				return &ValidationError{Field: "topic_key", Reason: "is not valid for host_fact"}
 			}
+			if request.Title != "" || request.Summary != "" || request.TemporalKind != "" || request.AsOf != "" {
+				return &ValidationError{Field: "title/summary/temporal_kind/as_of", Reason: "are not valid for host_fact"}
+			}
 			if err := validateHostFact(request.Host, request.InvalidationCondition); err != nil {
 				return err
 			}
@@ -792,13 +1115,30 @@ func validateMemo(request MemoRequest) error {
 	if request.TopicKey != "" && (strings.TrimSpace(request.Scope) == "" || !topicKeyPattern.MatchString(request.TopicKey)) {
 		return errors.New("topic_key requires scope and must use lowercase letters, digits, dot, underscore, slash, or hyphen")
 	}
+	if request.Supersedes != "" && (request.Mode != "create" || request.ExpectedRevision == 0 || len(request.Supersedes) > 128) {
+		return errors.New("supersedes requires create mode and expected_revision")
+	}
+	if len(request.Title) > 160 || len(request.Summary) > 240 {
+		return contracts.ErrLimitExceeded
+	}
+	if request.TemporalKind != "" && request.TemporalKind != "historical_observation" && request.TemporalKind != "current_guidance" {
+		return errors.New("temporal_kind must be historical_observation or current_guidance")
+	}
+	if (request.TemporalKind == "") != (request.AsOf == "") {
+		return errors.New("temporal_kind and as_of must be provided together")
+	}
+	if request.AsOf != "" {
+		if _, err := time.Parse(time.RFC3339, request.AsOf); err != nil {
+			return errors.New("as_of must be RFC3339")
+		}
+	}
 	if request.Source != "user_asserted" && request.Source != "llm_proposed" {
 		return errors.New("source must be user_asserted or llm_proposed")
 	}
 	if request.Mode != "create" && (request.ID == "" || request.ExpectedRevision == 0) {
 		return errors.New("id and expected_revision are required for update or supersede")
 	}
-	return validateTextAndRefs(request.MemoKind+request.Scope+request.Configuration+request.Content+request.InvalidationCondition, request.EvidenceRefs)
+	return validateTextAndRefs(request.MemoKind+request.Scope+request.Configuration+request.Title+request.Summary+request.Content+request.InvalidationCondition, request.EvidenceRefs)
 }
 
 func validateHostFact(host *HostFact, invalidation string) error {
@@ -1228,6 +1568,21 @@ func singleResponse(item RecordResult, byteLimit uint64) (QueryResponse, error) 
 		return QueryResponse{}, ErrResponseTooLarge
 	}
 	return response, nil
+}
+
+func ambiguousResponse(items []RecordResult, matched uint64, code, message string, byteLimit uint64) (QueryResponse, error) {
+	for returned := len(items); returned > 0; returned-- {
+		truncated := matched > uint64(returned)
+		response := QueryResponse{Status: contracts.StatusPartial, Items: items[:returned],
+			Counts: contracts.Counts{Matched: &matched, Relation: contracts.CountExact, Returned: uint64(returned)},
+			Scan:   contracts.Scan{State: contracts.ScanComplete}, Truncated: &truncated,
+			Warnings: []contracts.Warning{{Code: code, Message: message}}}
+		encoded, _ := json.Marshal(response)
+		if uint64(len(encoded)) <= byteLimit {
+			return response, nil
+		}
+	}
+	return QueryResponse{}, ErrResponseTooLarge
 }
 
 func randomID(prefix string) (string, error) {

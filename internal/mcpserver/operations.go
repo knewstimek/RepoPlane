@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
@@ -100,7 +101,7 @@ func addInputChoices(name string, schema *jsonschema.Schema) {
 			"pattern_syntax": {"exact", "regex"},
 		},
 		ToolDataQuery:       {"mode": {"text_range", "jsonl", "json", "delimited", "log"}},
-		ToolProjectRecords:  {"mode": {"search", "list", "get"}},
+		ToolProjectRecords:  {"mode": {"search", "list", "get", "get_topic", "resume"}, "match_mode": {"any", "all"}, "response_view": {"brief", "discovery", "full"}},
 		ToolCheckpointWrite: {"mode": {"create", "update", "supersede"}, "response_view": {"full", "receipt"}},
 		ToolMemoWrite: {
 			"mode":   {"create", "update", "supersede"},
@@ -160,7 +161,24 @@ func newOperation[In, Out any](name, toolbox, description, scope, sideEffect, ap
 	return operationSpec{
 		name: name, toolbox: toolbox, description: description, scope: scope,
 		sideEffect: sideEffect, approval: approval, inputSchema: inputSchema, outputSchema: outputSchema,
-		register: func(server *mcp.Server) { mcp.AddTool(server, tool, observed) },
+		register: func(server *mcp.Server) {
+			mcp.AddTool(server, tool, func(ctx context.Context, request *mcp.CallToolRequest, input In) (*mcp.CallToolResult, Out, error) {
+				started := time.Now()
+				result, output, err := observed(ctx, request, input)
+				if err != nil || result != nil {
+					return result, output, err
+				}
+				encoded, _ := json.Marshal(output)
+				fallback := compactToolFallback(name, any(input), any(output))
+				result = &mcp.CallToolResult{Meta: mcp.Meta{"repoplane/usage.v1": map[string]any{
+					"structured_bytes": len(encoded), "server_duration_ms": time.Since(started).Seconds() * 1000,
+				}}}
+				if fallback != "" {
+					result.Content = []mcp.Content{&mcp.TextContent{Text: fallback}}
+				}
+				return result, output, nil
+			})
+		},
 		invoke: func(ctx context.Context, request *mcp.CallToolRequest, raw json.RawMessage) (*mcp.CallToolResult, any, error) {
 			input, err := decodeStrict[In](raw)
 			if err != nil {
@@ -171,6 +189,67 @@ func newOperation[In, Out any](name, toolbox, description, scope, sideEffect, ap
 		},
 		setObserver: func(callback func(context.Context, store.UsageEvent)) { observe = callback },
 	}
+}
+
+func compactToolFallback(name string, input, output any) string {
+	switch name {
+	case ToolProjectRecords:
+		request := input.(records.QueryRequest)
+		response := output.(records.QueryResponse)
+		if request.Mode == "get" || (request.Mode == "list" && request.ResponseView != "brief") ||
+			((request.Mode == "get_topic" || (request.Mode == "" && request.TopicKey != "" && request.Query == "")) && response.Counts.Returned == 1) ||
+			request.ResponseView == "full" || request.ResponseView == "discovery" || len(request.PayloadFields) > 0 {
+			return ""
+		}
+		var lines []string
+		for _, item := range response.Items {
+			line := item.ID
+			if item.Title != "" {
+				line += " " + item.Title
+			}
+			if item.Summary != "" {
+				line += ": " + item.Summary
+			}
+			if item.NextAction != "" {
+				line += "; next: " + item.NextAction
+			}
+			if request.Mode == "resume" && response.Counts.Returned == 1 {
+				if item.ChangeSummary != "" {
+					line += "; changed: " + item.ChangeSummary
+				}
+				if len(item.EvidenceRefs) > 0 {
+					line += "; evidence: " + strings.Join(item.EvidenceRefs, ", ")
+				}
+				if len(item.BackgroundRefs) > 0 {
+					line += "; background: " + strings.Join(item.BackgroundRefs, ", ")
+				}
+			}
+			lines = append(lines, line)
+		}
+		if response.NextCursor != nil {
+			lines = append(lines, "next_cursor: "+*response.NextCursor)
+		}
+		if len(lines) == 0 {
+			return "no records"
+		}
+		return strings.Join(lines, "\n")
+	case ToolCheckpointWrite, ToolMemoWrite, ToolCheckReportImport:
+		view := ""
+		switch request := input.(type) {
+		case records.CheckpointRequest:
+			view = request.ResponseView
+		case records.MemoRequest:
+			view = request.ResponseView
+		case records.ImportRequest:
+			view = request.ResponseView
+		}
+		if view == "full" {
+			return ""
+		}
+		response := output.(records.MutationResponse)
+		return fmt.Sprintf("%s id=%s revision=%d", response.Status, response.Record.ID, response.Record.Revision)
+	}
+	return ""
 }
 
 func decodeStrict[T any](raw json.RawMessage) (T, error) {

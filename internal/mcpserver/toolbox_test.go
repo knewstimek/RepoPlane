@@ -13,6 +13,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"repoplane/internal/catalog"
+	"repoplane/internal/contracts"
 	"repoplane/internal/dataquery"
 	"repoplane/internal/memorybackup"
 	"repoplane/internal/pathfacts"
@@ -29,6 +30,17 @@ type catalogToolboxStub struct {
 }
 
 type memoErrorStub struct{ err error }
+
+type recordBriefStub struct{}
+
+func (recordBriefStub) Query(_ context.Context, _ records.QueryRequest) (records.QueryResponse, error) {
+	matched := uint64(1)
+	truncated := false
+	return records.QueryResponse{Status: contracts.StatusOK,
+		Items:  []records.RecordResult{{ID: "memo_example", Kind: "memo", Title: "Example", Summary: "Short context", Validity: "current"}},
+		Counts: contracts.Counts{Matched: &matched, Relation: contracts.CountExact, Returned: 1},
+		Scan:   contracts.Scan{State: contracts.ScanComplete}, Truncated: &truncated, Warnings: contracts.EmptyWarnings()}, nil
+}
 
 func (s memoErrorStub) WriteMemo(context.Context, records.MemoRequest) (records.MutationResponse, error) {
 	return records.MutationResponse{}, s.err
@@ -77,6 +89,25 @@ func TestUsageObserverCountsTypedAndToolboxOperationCalls(t *testing.T) {
 				t.Fatalf("calls=%d events=%+v", stub.calls, events)
 			}
 		})
+	}
+}
+
+func TestTypedRecordToolKeepsStructuredDataAndCompactText(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	session := connectTestClient(t, ctx, Options{Surface: SurfaceTypedV1, Records: recordBriefStub{}})
+	defer session.Close()
+	result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: ToolProjectRecords,
+		Arguments: map[string]any{"mode": "search", "query": "example"}})
+	if err != nil || result.IsError || len(result.Content) != 1 || result.StructuredContent == nil {
+		t.Fatalf("record result=%+v err=%v", result, err)
+	}
+	text, ok := result.Content[0].(*mcp.TextContent)
+	if !ok || text.Text != "memo_example Example: Short context" {
+		t.Fatalf("compact fallback=%+v", result.Content)
+	}
+	if result.Meta["repoplane/usage.v1"] == nil {
+		t.Fatalf("missing per-call usage metadata=%+v", result.Meta)
 	}
 }
 

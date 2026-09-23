@@ -7,18 +7,18 @@
     {
       "name": "read",
       "tool_count": 6,
-      "complete_contract_bytes": 21238,
-      "name_description_input_bytes": 8096,
-      "input_schema_bytes": 7119,
-      "output_schema_bytes": 13040
+      "complete_contract_bytes": 22294,
+      "name_description_input_bytes": 8771,
+      "input_schema_bytes": 7794,
+      "output_schema_bytes": 13421
     },
     {
       "name": "writes",
       "tool_count": 3,
-      "complete_contract_bytes": 7026,
-      "name_description_input_bytes": 3702,
-      "input_schema_bytes": 3380,
-      "output_schema_bytes": 3273
+      "complete_contract_bytes": 9033,
+      "name_description_input_bytes": 4566,
+      "input_schema_bytes": 4244,
+      "output_schema_bytes": 4416
     },
     {
       "name": "runner",
@@ -39,10 +39,10 @@
     {
       "name": "all",
       "tool_count": 14,
-      "complete_contract_bytes": 35803,
-      "name_description_input_bytes": 15094,
-      "input_schema_bytes": 13052,
-      "output_schema_bytes": 20471
+      "complete_contract_bytes": 38866,
+      "name_description_input_bytes": 16633,
+      "input_schema_bytes": 14591,
+      "output_schema_bytes": 21995
     },
     {
       "name": "toolbox",

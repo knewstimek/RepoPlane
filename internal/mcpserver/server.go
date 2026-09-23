@@ -254,7 +254,10 @@ func publicErrorWithMutationState(err error, mutation bool) error {
 		return err
 	}
 	code := "internal_error"
+	var missingCapability *catalog.MissingCapabilityError
 	switch {
+	case errors.As(err, &missingCapability):
+		code = "capability_not_found"
 	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
 		code = "deadline_exceeded"
 	case errors.Is(err, workspace.ErrEscape), errors.Is(err, workspace.ErrAbsolute):
@@ -343,6 +346,17 @@ func publicErrorWithMutationState(err error, mutation bool) error {
 }
 
 func publicErrorDetails(err error) map[string]any {
+	var missingCapability *catalog.MissingCapabilityError
+	if errors.As(err, &missingCapability) {
+		details := map[string]any{
+			"next_tools":       []string{"catalog_query(mode=status)", "runtime_config(action=status)"},
+			"profile_location": "unknown_unless_configured",
+		}
+		if len(missingCapability.CandidateRoots) > 0 {
+			details["candidate_catalog_roots"] = missingCapability.CandidateRoots
+		}
+		return details
+	}
 	var limit *runner.PatternLimitError
 	if !errors.As(err, &limit) {
 		return nil
@@ -426,6 +440,8 @@ func publicErrorMessage(code string, err error) string {
 		return "durable storage operation failed"
 	case "record_not_found":
 		return "record was not found"
+	case "capability_not_found":
+		return "capability is not registered in configured catalog roots; inspect catalog_query(mode=status) and runtime_config(action=status); an unspecified private profile location requires host configuration"
 	case "internal_error":
 		return "internal operation failed"
 	case "unsupported_script_type":

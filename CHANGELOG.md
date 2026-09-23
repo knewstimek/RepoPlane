@@ -4,6 +4,30 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+### Added
+
+- `project_records(mode=get_topic)` opens a unique current memo by exact `topic_key`, with optional
+  exact `scope` and `configuration`; ambiguous keys return bounded candidates. Search also accepts
+  exact topic, scope, configuration, validity, and update-time filters, plus `match_mode=all`.
+- Memo title, summary, historical-observation/current-guidance marker, assertion time, and atomic
+  successor creation. Superseded memo reads retain their content and point to the successor.
+- `project_records(mode=resume)` returns a checkpoint's next action, recorded change summary,
+  remaining checks, and evidence in one call; checkpoint writes accept `change_summary` without
+  inferring Git changes.
+- Typed MCP call metadata reports serialized structured-result bytes and server duration.
+  Missing registered capabilities now give bounded catalog and runtime-configuration next steps.
+
+### Changed
+
+- Record search defaults to eight brief cards within 8 KiB, ranks current records and multi-term
+  coverage first, and retains cursor paging. Explicit `response_view=discovery` restores the prior
+  preview shape; `full` and `payload_fields` expose content. Record list and ID-based get defaults
+  remain available.
+- Checkpoint, memo, and report-import writes default to ID/revision receipts. Typed MCP text
+  fallback for brief search, resume, and receipts no longer repeats the full structured payload.
+- Pure memo and checkpoint queries avoid an unnecessary Git status probe, so these reads also work
+  in workspaces without Git.
+
 ### Fixed
 
 - `project_records` infers search from a nonempty query. Empty calls and common missing read inputs now return short, actionable errors instead of opaque mode or validation failures.

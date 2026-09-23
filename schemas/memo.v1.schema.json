@@ -8,6 +8,10 @@
     "memo_kind": { "enum": ["decision", "failed_attempt", "resolved_failure", "limitation", ""] },
     "scope": { "type": "string", "maxLength": 4096 },
     "configuration": { "type": "string", "maxLength": 4096 },
+    "title": { "type": "string", "maxLength": 160 },
+    "summary": { "type": "string", "maxLength": 240 },
+    "temporal_kind": { "enum": ["historical_observation", "current_guidance"] },
+    "as_of": { "type": "string", "format": "date-time" },
     "content": { "type": "string", "maxLength": 32768 },
     "invalidation_condition": { "type": "string", "maxLength": 32768 }
   },

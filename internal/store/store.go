@@ -127,6 +127,7 @@ type CheckpointWriter interface {
 type MemoWriter interface {
 	CreateMemo(ctx context.Context, create RecordCreate) (Record, error)
 	UpdateMemo(ctx context.Context, update RecordUpdate) (Record, error)
+	ReplaceMemo(ctx context.Context, replace RecordReplace) (Record, error)
 }
 
 type ReportImporter interface {
@@ -172,15 +173,29 @@ type RecordUpdate struct {
 	Supersedes       string
 }
 
+type RecordReplace struct {
+	ProjectID        string
+	WorkspaceID      string
+	OldID            string
+	ExpectedRevision uint64
+	New              Record
+}
+
 type RecordQuery struct {
-	ProjectID    string
-	WorkspaceID  string
-	Kind         string
-	Validity     string
-	Source       string
-	UpdatedAfter time.Time
-	Terms        []string
-	Limit        uint64
+	ProjectID     string
+	WorkspaceID   string
+	Kind          string
+	Validity      string
+	Source        string
+	UpdatedAfter  time.Time
+	UpdatedBefore time.Time
+	TopicKey      string
+	Scope         string
+	Configuration string
+	Supersedes    string
+	Terms         []string
+	MatchAll      bool
+	Limit         uint64
 }
 
 type RecordPage struct {

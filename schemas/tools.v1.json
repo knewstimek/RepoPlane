@@ -506,7 +506,7 @@
             "type": "string"
           },
           "response_view": {
-            "description": "receipt omits payload; default full",
+            "description": "receipt returns ID and revision by default; full includes payload",
             "enum": [
               "full",
               "receipt"
@@ -534,6 +534,27 @@
           "record": {
             "additionalProperties": false,
             "properties": {
+              "as_of": {
+                "type": "string"
+              },
+              "background_refs": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "change_state": {
+                "type": "string"
+              },
+              "change_summary": {
+                "type": "string"
+              },
+              "configuration": {
+                "type": "string"
+              },
               "created_at": {
                 "type": "string"
               },
@@ -552,12 +573,24 @@
               "kind": {
                 "type": "string"
               },
+              "next_action": {
+                "type": "string"
+              },
               "payload": {
                 "additionalProperties": true,
                 "type": "object"
               },
               "payload_complete": {
                 "type": "boolean"
+              },
+              "remaining_checks": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
               },
               "revision": {
                 "minimum": 0,
@@ -566,10 +599,31 @@
               "schema_version": {
                 "type": "string"
               },
+              "scope": {
+                "type": "string"
+              },
+              "search_as_of": {
+                "type": "string"
+              },
               "source": {
                 "type": "string"
               },
+              "summary": {
+                "type": "string"
+              },
+              "superseded_by": {
+                "type": "string"
+              },
               "supersedes": {
+                "type": "string"
+              },
+              "temporal_kind": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "topic_key": {
                 "type": "string"
               },
               "updated_at": {
@@ -583,17 +637,7 @@
               }
             },
             "required": [
-              "id",
-              "kind",
-              "schema_version",
-              "revision",
-              "source",
-              "writer_class",
-              "validity",
-              "created_at",
-              "updated_at",
-              "payload_complete",
-              "evidence_refs"
+              "id"
             ],
             "type": "object"
           },
@@ -645,8 +689,22 @@
       "input_schema": {
         "additionalProperties": false,
         "properties": {
+          "background_refs": {
+            "description": "current memo or other background record refs for task recovery",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
           "baseline_commit": {
             "description": "baseline Git commit",
+            "type": "string"
+          },
+          "change_summary": {
+            "description": "completed or changed work since the previous handoff; not inferred from Git",
             "type": "string"
           },
           "dirty": {
@@ -703,7 +761,7 @@
             ]
           },
           "response_view": {
-            "description": "receipt omits payload; default full",
+            "description": "receipt returns ID and revision by default; full includes payload",
             "enum": [
               "full",
               "receipt"
@@ -745,6 +803,27 @@
           "record": {
             "additionalProperties": false,
             "properties": {
+              "as_of": {
+                "type": "string"
+              },
+              "background_refs": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "change_state": {
+                "type": "string"
+              },
+              "change_summary": {
+                "type": "string"
+              },
+              "configuration": {
+                "type": "string"
+              },
               "created_at": {
                 "type": "string"
               },
@@ -763,12 +842,24 @@
               "kind": {
                 "type": "string"
               },
+              "next_action": {
+                "type": "string"
+              },
               "payload": {
                 "additionalProperties": true,
                 "type": "object"
               },
               "payload_complete": {
                 "type": "boolean"
+              },
+              "remaining_checks": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
               },
               "revision": {
                 "minimum": 0,
@@ -777,10 +868,31 @@
               "schema_version": {
                 "type": "string"
               },
+              "scope": {
+                "type": "string"
+              },
+              "search_as_of": {
+                "type": "string"
+              },
               "source": {
                 "type": "string"
               },
+              "summary": {
+                "type": "string"
+              },
+              "superseded_by": {
+                "type": "string"
+              },
               "supersedes": {
+                "type": "string"
+              },
+              "temporal_kind": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "topic_key": {
                 "type": "string"
               },
               "updated_at": {
@@ -794,17 +906,7 @@
               }
             },
             "required": [
-              "id",
-              "kind",
-              "schema_version",
-              "revision",
-              "source",
-              "writer_class",
-              "validity",
-              "created_at",
-              "updated_at",
-              "payload_complete",
-              "evidence_refs"
+              "id"
             ],
             "type": "object"
           },
@@ -1175,6 +1277,10 @@
       "input_schema": {
         "additionalProperties": false,
         "properties": {
+          "as_of": {
+            "description": "RFC3339 time when the observation or guidance was asserted",
+            "type": "string"
+          },
           "configuration": {
             "description": "configuration",
             "type": "string"
@@ -1272,7 +1378,7 @@
             "type": "string"
           },
           "response_view": {
-            "description": "receipt omits payload; default full",
+            "description": "receipt returns ID and revision by default; full includes payload",
             "enum": [
               "full",
               "receipt"
@@ -1289,6 +1395,22 @@
               "user_asserted",
               "llm_proposed"
             ],
+            "type": "string"
+          },
+          "summary": {
+            "description": "one-line summary for discovery",
+            "type": "string"
+          },
+          "supersedes": {
+            "description": "current memo ID to replace atomically on create; requires expected_revision",
+            "type": "string"
+          },
+          "temporal_kind": {
+            "description": "historical_observation or current_guidance; omitted means unknown",
+            "type": "string"
+          },
+          "title": {
+            "description": "short human-readable title for discovery",
             "type": "string"
           },
           "topic_key": {
@@ -1311,6 +1433,27 @@
           "record": {
             "additionalProperties": false,
             "properties": {
+              "as_of": {
+                "type": "string"
+              },
+              "background_refs": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "change_state": {
+                "type": "string"
+              },
+              "change_summary": {
+                "type": "string"
+              },
+              "configuration": {
+                "type": "string"
+              },
               "created_at": {
                 "type": "string"
               },
@@ -1329,12 +1472,24 @@
               "kind": {
                 "type": "string"
               },
+              "next_action": {
+                "type": "string"
+              },
               "payload": {
                 "additionalProperties": true,
                 "type": "object"
               },
               "payload_complete": {
                 "type": "boolean"
+              },
+              "remaining_checks": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
               },
               "revision": {
                 "minimum": 0,
@@ -1343,10 +1498,31 @@
               "schema_version": {
                 "type": "string"
               },
+              "scope": {
+                "type": "string"
+              },
+              "search_as_of": {
+                "type": "string"
+              },
               "source": {
                 "type": "string"
               },
+              "summary": {
+                "type": "string"
+              },
+              "superseded_by": {
+                "type": "string"
+              },
               "supersedes": {
+                "type": "string"
+              },
+              "temporal_kind": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "topic_key": {
                 "type": "string"
               },
               "updated_at": {
@@ -1360,17 +1536,7 @@
               }
             },
             "required": [
-              "id",
-              "kind",
-              "schema_version",
-              "revision",
-              "source",
-              "writer_class",
-              "validity",
-              "created_at",
-              "updated_at",
-              "payload_complete",
-              "evidence_refs"
+              "id"
             ],
             "type": "object"
           },
@@ -1892,9 +2058,13 @@
         "additionalProperties": false,
         "properties": {
           "byte_limit": {
-            "description": "response bytes; default 65536, max 1048576",
+            "description": "structured bytes; search/resume default 8192, get/get_topic default 1048576, others 65536",
             "minimum": 0,
             "type": "integer"
+          },
+          "configuration": {
+            "description": "exact memo configuration filter",
+            "type": "string"
           },
           "cursor": {
             "description": "opaque cursor from an earlier project_records query",
@@ -1905,7 +2075,7 @@
             "type": "string"
           },
           "item_limit": {
-            "description": "item limit; default 50, max 500",
+            "description": "item limit; search default 8, otherwise 50; max 500",
             "minimum": 0,
             "type": "integer"
           },
@@ -1913,12 +2083,22 @@
             "description": "record kind filter: verification, checkpoint, memo, environment, run, or artifact",
             "type": "string"
           },
+          "match_mode": {
+            "description": "any (default) or all lexical terms",
+            "enum": [
+              "any",
+              "all"
+            ],
+            "type": "string"
+          },
           "mode": {
             "description": "omit with cursor; inferred as search when query is set",
             "enum": [
               "search",
               "list",
-              "get"
+              "get",
+              "get_topic",
+              "resume"
             ],
             "type": "string"
           },
@@ -1933,7 +2113,20 @@
             ]
           },
           "query": {
-            "description": "space-separated lexical terms; any term may match; infers search when mode is omitted",
+            "description": "space-separated lexical terms; results matching more terms rank first",
+            "type": "string"
+          },
+          "response_view": {
+            "description": "brief, discovery (legacy search), or full; search defaults brief",
+            "enum": [
+              "brief",
+              "discovery",
+              "full"
+            ],
+            "type": "string"
+          },
+          "scope": {
+            "description": "exact memo scope filter",
             "type": "string"
           },
           "source": {
@@ -1944,8 +2137,16 @@
             "description": "deadline ms; default 5000, max 30000",
             "type": "integer"
           },
+          "topic_key": {
+            "description": "exact memo topic key; get_topic returns a current memo",
+            "type": "string"
+          },
           "updated_after": {
-            "description": "RFC3339 lower bound for record update time",
+            "description": "inclusive RFC3339 lower bound for update time",
+            "type": "string"
+          },
+          "updated_before": {
+            "description": "exclusive RFC3339 upper bound for update time",
             "type": "string"
           },
           "validity": {
@@ -1987,6 +2188,27 @@
             "items": {
               "additionalProperties": false,
               "properties": {
+                "as_of": {
+                  "type": "string"
+                },
+                "background_refs": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": [
+                    "null",
+                    "array"
+                  ]
+                },
+                "change_state": {
+                  "type": "string"
+                },
+                "change_summary": {
+                  "type": "string"
+                },
+                "configuration": {
+                  "type": "string"
+                },
                 "created_at": {
                   "type": "string"
                 },
@@ -2005,12 +2227,24 @@
                 "kind": {
                   "type": "string"
                 },
+                "next_action": {
+                  "type": "string"
+                },
                 "payload": {
                   "additionalProperties": true,
                   "type": "object"
                 },
                 "payload_complete": {
                   "type": "boolean"
+                },
+                "remaining_checks": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": [
+                    "null",
+                    "array"
+                  ]
                 },
                 "revision": {
                   "minimum": 0,
@@ -2019,10 +2253,31 @@
                 "schema_version": {
                   "type": "string"
                 },
+                "scope": {
+                  "type": "string"
+                },
+                "search_as_of": {
+                  "type": "string"
+                },
                 "source": {
                   "type": "string"
                 },
+                "summary": {
+                  "type": "string"
+                },
+                "superseded_by": {
+                  "type": "string"
+                },
                 "supersedes": {
+                  "type": "string"
+                },
+                "temporal_kind": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "topic_key": {
                   "type": "string"
                 },
                 "updated_at": {
@@ -2036,17 +2291,7 @@
                 }
               },
               "required": [
-                "id",
-                "kind",
-                "schema_version",
-                "revision",
-                "source",
-                "writer_class",
-                "validity",
-                "created_at",
-                "updated_at",
-                "payload_complete",
-                "evidence_refs"
+                "id"
               ],
               "type": "object"
             },
