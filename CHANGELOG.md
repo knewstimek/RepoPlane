@@ -4,6 +4,8 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+## [1.2.0] - 2026-09-23
+
 ### Added
 
 - `project_records(mode=get_topic)` opens a unique current memo by exact `topic_key`, with optional
