@@ -101,6 +101,7 @@ can replace `mode` on paginated reads. `memo_write` requires a `source` value; u
 
 `project_records(query="terms")` infers `mode=search`. Search now defaults to eight brief cards
 within 8 KiB: ID, title, one-line summary, topic key when present, validity, and time markers.
+Clients that relied on the old implicit preview must request `response_view=discovery` explicitly.
 It ranks current records first, then records matching more search terms; `match_mode=all` requires
 every term. Search supports exact `topic_key`, `scope`, and `configuration` filters,
 `updated_after` (inclusive), `updated_before` (exclusive), and `validity`. Use `next_cursor` for
@@ -142,9 +143,10 @@ on a previous agent's summary.
 
 Checkpoint, memo, and report-import writes now default to `response_view=receipt`, returning the
 record ID and revision without echoing the payload. Request `response_view=full` for the full
-write result. Typed MCP replies include `repoplane/usage.v1` metadata with serialized structured
-result bytes, text-content bytes, and server duration in milliseconds. These are server
-measurements, not model-token counts or end-to-end network time. Compact search, resume, and write
+write result; clients that relied on full write echoes must opt in. Typed MCP replies include
+`repoplane/usage.v1` metadata with serialized structured result bytes, text-content bytes, and
+server duration in milliseconds. These are server measurements, not model-token counts or
+end-to-end network time. Compact search, resume, and write
 replies use a short text fallback rather than duplicating the whole structured result. Detailed
 reads still carry the full JSON in text for text-only client compatibility; compare both byte
 measurements when estimating their cost.
