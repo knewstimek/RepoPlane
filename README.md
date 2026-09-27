@@ -156,12 +156,16 @@ stable `topic_key` to a memo and explicitly update or supersede that identity. A
 its successor with `supersedes` and the old `expected_revision`; that atomically supersedes the
 old record and links the new one. New decision or procedure memos can carry `title`, `summary`,
 `temporal_kind`, and `as_of` for reliable discovery. Host facts retain their separate schema.
+Memo titles and summaries allow at most 160 and 240 Unicode characters, respectively, matching
+the schema's `maxLength` rules. Memo text fields together have a separate 32 KiB UTF-8 byte
+budget. A rejected write identifies the exceeded field or budget and reports the observed limit.
 
 A typed host fact uses `memo_kind=host_fact` and is stored as `memo.v2` (not `memo.v3`). Its
 `host` object requires `alias`, `role`, `os`, `tier`, `services`, `paths`, and an RFC3339
 `confirmed_at`; the memo also requires `invalidation_condition`. `services` and `paths` may be
 `null` when unknown, but when supplied their entries must be bounded, unique, and non-empty. A
-host fact cannot use `topic_key`. For example:
+host fact cannot use `topic_key`. Each list allows 64 entries independently, with at most 1024
+Unicode characters per entry. For example:
 
 ```json
 {

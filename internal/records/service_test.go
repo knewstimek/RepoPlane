@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -59,6 +60,51 @@ func testServiceWithGit(t *testing.T, withGit bool) (*Service, string) {
 	}
 	t.Cleanup(func() { _ = cache.Close(); _ = recordStore.Close() })
 	return NewService(root, recordStore, cache, codec), rootPath
+}
+
+func TestMemoDiscoveryLimitsMatchSchemaAndNameTheField(t *testing.T) {
+	request := MemoRequest{Mode: "create", MemoKind: "decision", Scope: "example", TopicKey: "unicode", Content: "example", Source: "llm_proposed"}
+	request.Title = strings.Repeat("가", 160)
+	request.Summary = strings.Repeat("나", 240)
+	if err := validateMemo(request); err != nil {
+		t.Fatalf("schema-valid Unicode title and summary rejected: %v", err)
+	}
+	service, _ := testServiceWithGit(t, false)
+	if _, err := service.WriteMemo(context.Background(), request); err != nil {
+		t.Fatalf("schema-valid Unicode memo write rejected: %v", err)
+	}
+	request.Title += "가"
+	if err := validateMemo(request); err == nil || err.Error() != "title has 161 characters; maximum is 160" {
+		t.Fatalf("title error = %v", err)
+	}
+	request.Title = ""
+	request.Summary += "나"
+	if err := validateMemo(request); err == nil || err.Error() != "summary has 241 characters; maximum is 240" {
+		t.Fatalf("summary error = %v", err)
+	}
+}
+
+func TestHostFactListLimitsMatchSchemaAndNameTheField(t *testing.T) {
+	host := &HostFact{Alias: "example", Role: strings.Repeat("가", 128), OS: "linux", Tier: "test", ConfirmedAt: "2026-01-01T00:00:00Z"}
+	for i := range 40 {
+		host.Services = append(host.Services, fmt.Sprintf("service-%d", i))
+		host.Paths = append(host.Paths, fmt.Sprintf("/path/%d", i))
+	}
+	if err := validateHostFact(host, "host details change"); err != nil {
+		t.Fatalf("schema-valid host lists rejected: %v", err)
+	}
+	service, _ := testServiceWithGit(t, false)
+	if _, err := service.WriteMemo(context.Background(), MemoRequest{Mode: "create", MemoKind: "host_fact", Scope: "example", Host: host, InvalidationCondition: "host details change"}); err != nil {
+		t.Fatalf("schema-valid host fact write rejected: %v", err)
+	}
+	host.Paths = append(host.Paths, strings.Repeat("나", 1024))
+	if err := validateHostFact(host, "host details change"); err != nil {
+		t.Fatalf("schema-valid Unicode path rejected: %v", err)
+	}
+	host.Paths[len(host.Paths)-1] += "나"
+	if err := validateHostFact(host, "host details change"); err == nil || err.Error() != "host.paths[40] has 1025 characters; maximum is 1024" {
+		t.Fatalf("path error = %v", err)
+	}
 }
 
 func TestMemoDiscoveryAndResumeWithoutGit(t *testing.T) {

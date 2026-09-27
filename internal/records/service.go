@@ -17,6 +17,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"go.yaml.in/yaml/v3"
 
@@ -135,11 +136,11 @@ type MemoRequest struct {
 	Scope                 string    `json:"scope,omitempty" jsonschema:"logical scope"`
 	Configuration         string    `json:"configuration,omitempty" jsonschema:"configuration"`
 	TopicKey              string    `json:"topic_key,omitempty" jsonschema:"stable topic key for exact current lookup; supply for reusable decisions"`
-	Title                 string    `json:"title,omitempty" jsonschema:"short discovery title; supply for reusable decisions"`
-	Summary               string    `json:"summary,omitempty" jsonschema:"one-line discovery summary; supply for reusable decisions"`
+	Title                 string    `json:"title,omitempty" jsonschema:"short discovery title, at most 160 Unicode characters; supply for reusable decisions"`
+	Summary               string    `json:"summary,omitempty" jsonschema:"one-line discovery summary, at most 240 Unicode characters; supply for reusable decisions"`
 	TemporalKind          string    `json:"temporal_kind,omitempty" jsonschema:"historical_observation or current_guidance; omit only when content time is unknown"`
 	AsOf                  string    `json:"as_of,omitempty" jsonschema:"RFC3339 assertion time; provide with temporal_kind"`
-	Content               string    `json:"content,omitempty" jsonschema:"memo text"`
+	Content               string    `json:"content,omitempty" jsonschema:"memo text; all memo text fields combined must fit within 32768 UTF-8 bytes"`
 	Host                  *HostFact `json:"host,omitempty" jsonschema:"typed host details for host_fact memos"`
 	InvalidationCondition string    `json:"invalidation_condition,omitempty" jsonschema:"staleness condition"`
 	Source                string    `json:"source" jsonschema:"memo provenance"`
@@ -490,7 +491,7 @@ func (s *Service) WriteCheckpoint(ctx context.Context, request CheckpointRequest
 	}
 	payload, _ := json.Marshal(map[string]any{"goal": request.Goal, "baseline_commit": request.BaselineCommit, "dirty": request.Dirty, "run_refs": nonNil(request.RunRefs), "remaining_checks": nonNil(request.RemainingChecks), "next_action": request.NextAction, "change_summary": request.ChangeSummary, "background_refs": nonNil(request.BackgroundRefs), "risks": nonNil(request.Risks)})
 	if len(payload) > maximumRecordPayload {
-		return MutationResponse{}, contracts.ErrLimitExceeded
+		return MutationResponse{}, recordLimitError("checkpoint payload", fmt.Sprintf("is %d bytes; maximum is %d bytes", len(payload), maximumRecordPayload))
 	}
 	record, err := s.mutate(ctx, "checkpoint", "checkpoint.v1", "user_asserted", request.Mode, request.ID, request.ExpectedRevision, payload, request.EvidenceRefs)
 	return s.mutationResponse(record, false, request.ResponseView, err)
@@ -529,7 +530,7 @@ func (s *Service) WriteMemo(ctx context.Context, request MemoRequest) (MutationR
 	}
 	payload, _ := json.Marshal(payloadFields)
 	if len(payload) > maximumRecordPayload {
-		return MutationResponse{}, contracts.ErrLimitExceeded
+		return MutationResponse{}, recordLimitError("memo payload", fmt.Sprintf("is %d bytes; maximum is %d bytes", len(payload), maximumRecordPayload))
 	}
 	schemaVersion := "memo.v1"
 	if request.MemoKind == "host_fact" {
@@ -706,11 +707,17 @@ func (s *Service) ImportReport(ctx context.Context, request ImportRequest) (Muta
 	if err := validateResponseView(request.ResponseView); err != nil {
 		return MutationResponse{}, err
 	}
-	if len(request.Path) > 4096 || len(request.ChecklistPath) > 4096 || len(request.Configuration) > 128 {
-		return MutationResponse{}, contracts.ErrLimitExceeded
+	for _, field := range []struct {
+		name    string
+		value   string
+		maximum int
+	}{{"path", request.Path, 4096}, {"checklist_path", request.ChecklistPath, 4096}, {"configuration", request.Configuration, 128}} {
+		if len(field.value) > field.maximum {
+			return MutationResponse{}, recordLimitError(field.name, fmt.Sprintf("is %d UTF-8 bytes; maximum is %d bytes", len(field.value), field.maximum))
+		}
 	}
 	if limits.ByteLimit > maximumReportBytes {
-		return MutationResponse{}, contracts.ErrLimitExceeded
+		return MutationResponse{}, recordLimitError("byte_limit", fmt.Sprintf("is %d bytes; maximum is %d bytes for a report", limits.ByteLimit, maximumReportBytes))
 	}
 	ctx, cancel := context.WithTimeout(ctx, limits.TimeLimit)
 	defer cancel()
@@ -728,7 +735,7 @@ func (s *Service) ImportReport(ctx context.Context, request ImportRequest) (Muta
 		return MutationResponse{}, err
 	}
 	if uint64(len(data)) > limits.ByteLimit {
-		return MutationResponse{}, contracts.ErrLimitExceeded
+		return MutationResponse{}, recordLimitError("report", fmt.Sprintf("is at least %d bytes; byte_limit is %d bytes", len(data), limits.ByteLimit))
 	}
 	report, summary, err := parseReport(data)
 	if err != nil {
@@ -762,7 +769,7 @@ func (s *Service) ImportReport(ctx context.Context, request ImportRequest) (Muta
 		"required": checklist.Required, "capability": checklist.Capability, "outcome": outcome,
 	})
 	if len(payload) > maximumRecordPayload {
-		return MutationResponse{}, contracts.ErrLimitExceeded
+		return MutationResponse{}, recordLimitError("verification payload", fmt.Sprintf("is %d bytes; maximum is %d bytes", len(payload), maximumRecordPayload))
 	}
 	identity := sha256.Sum256([]byte(sourceHash + "\x00" + checklistHash + "\x00" + request.Configuration))
 	importIdentity := "sha256:" + hex.EncodeToString(identity[:])
@@ -836,6 +843,10 @@ func invalidArgument(err error) error {
 		return nil
 	}
 	return fmt.Errorf("%w: %w", ErrInvalidArgument, err)
+}
+
+func recordLimitError(field, reason string) error {
+	return fmt.Errorf("%w: %w", contracts.ErrLimitExceeded, &ValidationError{Field: field, Reason: reason})
 }
 
 func (s *Service) mutationResponse(record store.Record, duplicate bool, view string, err error) (MutationResponse, error) {
@@ -1114,7 +1125,7 @@ func validateCheckpoint(request CheckpointRequest) error {
 	if request.Mode != "create" && (request.ID == "" || request.ExpectedRevision == 0) {
 		return errors.New("id and expected_revision are required for update or supersede")
 	}
-	return validateTextAndRefs(request.Goal+request.BaselineCommit+request.NextAction+request.ChangeSummary, append(append(append(request.RunRefs, request.RemainingChecks...), request.BackgroundRefs...), append(request.Risks, request.EvidenceRefs...)...))
+	return validateTextAndRefs("checkpoint", request.Goal+request.BaselineCommit+request.NextAction+request.ChangeSummary, append(append(append(request.RunRefs, request.RemainingChecks...), request.BackgroundRefs...), append(request.Risks, request.EvidenceRefs...)...))
 }
 
 func validateMemo(request MemoRequest) error {
@@ -1149,8 +1160,11 @@ func validateMemo(request MemoRequest) error {
 	if request.Supersedes != "" && (request.Mode != "create" || request.ExpectedRevision == 0 || len(request.Supersedes) > 128) {
 		return errors.New("supersedes requires create mode and expected_revision")
 	}
-	if len(request.Title) > 160 || len(request.Summary) > 240 {
-		return contracts.ErrLimitExceeded
+	if n := utf8.RuneCountInString(request.Title); n > 160 {
+		return &ValidationError{Field: "title", Reason: fmt.Sprintf("has %d characters; maximum is 160", n)}
+	}
+	if n := utf8.RuneCountInString(request.Summary); n > 240 {
+		return &ValidationError{Field: "summary", Reason: fmt.Sprintf("has %d characters; maximum is 240", n)}
 	}
 	if request.TemporalKind != "" && request.TemporalKind != "historical_observation" && request.TemporalKind != "current_guidance" {
 		return errors.New("temporal_kind must be historical_observation or current_guidance")
@@ -1169,7 +1183,7 @@ func validateMemo(request MemoRequest) error {
 	if request.Mode != "create" && (request.ID == "" || request.ExpectedRevision == 0) {
 		return errors.New("id and expected_revision are required for update or supersede")
 	}
-	return validateTextAndRefs(request.MemoKind+request.Scope+request.Configuration+request.Title+request.Summary+request.Content+request.InvalidationCondition, request.EvidenceRefs)
+	return validateTextAndRefs("memo", request.MemoKind+request.Scope+request.Configuration+request.Title+request.Summary+request.Content+request.InvalidationCondition, request.EvidenceRefs)
 }
 
 func validateHostFact(host *HostFact, invalidation string) error {
@@ -1197,30 +1211,36 @@ func validateHostFact(host *HostFact, invalidation string) error {
 	if _, err := time.Parse(time.RFC3339, host.ConfirmedAt); err != nil {
 		return &ValidationError{Field: "host.confirmed_at", Reason: "must be RFC3339"}
 	}
-	if len(host.Role) > 128 {
-		return &ValidationError{Field: "host.role", Reason: "must contain at most 128 bytes"}
+	if n := utf8.RuneCountInString(host.Role); n > 128 {
+		return &ValidationError{Field: "host.role", Reason: fmt.Sprintf("has %d characters; maximum is 128", n)}
 	}
-	if len(host.OS) > 128 {
-		return &ValidationError{Field: "host.os", Reason: "must contain at most 128 bytes"}
+	if n := utf8.RuneCountInString(host.OS); n > 128 {
+		return &ValidationError{Field: "host.os", Reason: fmt.Sprintf("has %d characters; maximum is 128", n)}
 	}
-	if err := validateStringList(append(append([]string(nil), host.Services...), host.Paths...), 64, 1024); err != nil {
-		return &ValidationError{Field: "host.services/host.paths", Reason: "must contain at most 64 unique, trimmed entries of at most 1024 bytes combined"}
+	if err := validateHostStringList("host.services", host.Services); err != nil {
+		return err
+	}
+	if err := validateHostStringList("host.paths", host.Paths); err != nil {
+		return err
 	}
 	return nil
 }
 
-func validateStringList(values []string, maximumItems, maximumLength int) error {
-	if len(values) > maximumItems {
-		return contracts.ErrLimitExceeded
+func validateHostStringList(field string, values []string) error {
+	if len(values) > 64 {
+		return &ValidationError{Field: field, Reason: fmt.Sprintf("has %d entries; maximum is 64", len(values))}
 	}
 	seen := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		if strings.TrimSpace(value) != value || value == "" || len(value) > maximumLength {
-			return errors.New("host services and paths must be bounded non-empty strings")
+	for i, value := range values {
+		if strings.TrimSpace(value) != value || value == "" {
+			return &ValidationError{Field: fmt.Sprintf("%s[%d]", field, i), Reason: "must be a non-empty string without surrounding whitespace"}
+		}
+		if n := utf8.RuneCountInString(value); n > 1024 {
+			return &ValidationError{Field: fmt.Sprintf("%s[%d]", field, i), Reason: fmt.Sprintf("has %d characters; maximum is 1024", n)}
 		}
 		key := strings.ToLower(value)
 		if _, exists := seen[key]; exists {
-			return errors.New("host services and paths must not contain duplicates")
+			return &ValidationError{Field: field, Reason: "must not contain duplicate entries"}
 		}
 		seen[key] = struct{}{}
 	}
@@ -1251,13 +1271,16 @@ func validatePayloadFields(fields []string) error {
 	return nil
 }
 
-func validateTextAndRefs(text string, refs []string) error {
-	if len(text) > 32*1024 || len(refs) > 128 {
-		return contracts.ErrLimitExceeded
+func validateTextAndRefs(kind, text string, refs []string) error {
+	if len(text) > 32*1024 {
+		return &ValidationError{Field: kind + " text", Reason: fmt.Sprintf("is %d UTF-8 bytes across fields; maximum is %d bytes", len(text), 32*1024)}
 	}
-	for _, ref := range refs {
+	if len(refs) > 128 {
+		return &ValidationError{Field: kind + " references", Reason: fmt.Sprintf("have %d entries; maximum is 128", len(refs))}
+	}
+	for i, ref := range refs {
 		if len(ref) > 1024 {
-			return contracts.ErrLimitExceeded
+			return &ValidationError{Field: fmt.Sprintf("%s references[%d]", kind, i), Reason: fmt.Sprintf("is %d UTF-8 bytes; maximum is 1024 bytes", len(ref))}
 		}
 	}
 	return nil
@@ -1416,8 +1439,11 @@ func (s *Service) readChecklist(ctx context.Context, relative, configuration str
 	}
 	defer file.Close()
 	data, err := io.ReadAll(io.LimitReader(file, 64*1024+1))
-	if err != nil || len(data) > 64*1024 {
-		return verificationChecklist{}, "", contracts.ErrLimitExceeded
+	if err != nil {
+		return verificationChecklist{}, "", err
+	}
+	if len(data) > 64*1024 {
+		return verificationChecklist{}, "", recordLimitError("checklist", fmt.Sprintf("is at least %d bytes; maximum is %d bytes", len(data), 64*1024))
 	}
 	var checklist verificationChecklist
 	switch strings.ToLower(filepath.Ext(path)) {
@@ -1447,8 +1473,15 @@ func (s *Service) readChecklist(ctx context.Context, relative, configuration str
 	if err != nil || checklist.SchemaVersion != "verification-check.v1" || !checklistIDPattern.MatchString(checklist.ID) || checklist.Revision == 0 || checklist.Capability == "" || len(checklist.AppliesTo.Paths) == 0 || len(checklist.Configurations) == 0 || checklist.Success.MinimumExecutedChecks == 0 {
 		return checklist, "", errors.New("invalid verification checklist")
 	}
-	if len(checklist.ID) > 128 || len(checklist.Capability) > 128 || len(checklist.AppliesTo.Paths) > 128 || len(checklist.Configurations) > 64 {
-		return checklist, "", contracts.ErrLimitExceeded
+	for _, field := range []struct {
+		name     string
+		observed int
+		maximum  int
+		unit     string
+	}{{"checklist.id", len(checklist.ID), 128, "UTF-8 bytes"}, {"checklist.capability", len(checklist.Capability), 128, "UTF-8 bytes"}, {"checklist.applies_to.paths", len(checklist.AppliesTo.Paths), 128, "entries"}, {"checklist.configurations", len(checklist.Configurations), 64, "entries"}} {
+		if field.observed > field.maximum {
+			return checklist, "", recordLimitError(field.name, fmt.Sprintf("has %d %s; maximum is %d %s", field.observed, field.unit, field.maximum, field.unit))
+		}
 	}
 	for _, value := range append(append([]string(nil), checklist.AppliesTo.Paths...), checklist.Configurations...) {
 		if value == "" || len(value) > 1024 {

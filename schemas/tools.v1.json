@@ -1286,7 +1286,7 @@
             "type": "string"
           },
           "content": {
-            "description": "memo text",
+            "description": "memo text; all memo text fields combined must fit within 32768 UTF-8 bytes",
             "type": "string"
           },
           "evidence_refs": {
@@ -1398,7 +1398,7 @@
             "type": "string"
           },
           "summary": {
-            "description": "one-line discovery summary; supply for reusable decisions",
+            "description": "one-line discovery summary, at most 240 Unicode characters; supply for reusable decisions",
             "type": "string"
           },
           "supersedes": {
@@ -1410,7 +1410,7 @@
             "type": "string"
           },
           "title": {
-            "description": "short discovery title; supply for reusable decisions",
+            "description": "short discovery title, at most 160 Unicode characters; supply for reusable decisions",
             "type": "string"
           },
           "topic_key": {

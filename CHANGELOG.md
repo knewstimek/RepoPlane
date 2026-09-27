@@ -4,6 +4,15 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+### Fixed
+
+- Memo title and summary validation now counts Unicode characters, matching the published schema.
+  Oversize discovery fields and combined record text/reference budgets report the offending
+  field or budget, observed length, and maximum instead of a generic limit error.
+- Host fact service and path lists now follow their separate schema limits, including Unicode
+  character lengths. Record write and report import size failures identify the relevant input
+  and its limit.
+
 ## [1.2.0] - 2026-09-23
 
 ### Upgrade notes

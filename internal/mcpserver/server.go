@@ -383,9 +383,12 @@ func newErrorCorrelationID() string {
 }
 
 func publicErrorMessage(code string, err error) string {
+	var validation *records.ValidationError
+	if code == "limit_exceeded" && errors.As(err, &validation) {
+		return validation.Error()
+	}
 	switch code {
 	case "invalid_argument":
-		var validation *records.ValidationError
 		if errors.As(err, &validation) {
 			return validation.Error()
 		}

@@ -174,6 +174,15 @@ func TestPublicInputErrorsAreActionable(t *testing.T) {
 	}
 }
 
+func TestPublicRecordLimitErrorNamesBudgetWithoutChangingCode(t *testing.T) {
+	err := fmt.Errorf("%w: %w", contracts.ErrLimitExceeded,
+		&records.ValidationError{Field: "report", Reason: "is at least 1048577 bytes; byte_limit is 1048576 bytes"})
+	got := decodePublicFailure(t, publicMutationError(err))
+	if got.Code != "limit_exceeded" || got.Message != "report is at least 1048577 bytes; byte_limit is 1048576 bytes" || got.MutationState != "not_applied" {
+		t.Fatalf("public failure=%+v", got)
+	}
+}
+
 func TestPublicErrorIncludesBoundedRunnerLimitDetails(t *testing.T) {
 	got := decodePublicFailure(t, publicError(&runner.PatternLimitError{
 		Resource: "inputs", LimitKind: "matched_file_count", Maximum: 256,
