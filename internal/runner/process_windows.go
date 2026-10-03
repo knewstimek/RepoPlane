@@ -50,7 +50,7 @@ func newProcessCommand(ctx context.Context, executable string, argv []string) (*
 
 func validateProcessExecutable(path string) error {
 	extension := strings.ToLower(filepath.Ext(path))
-	if extension == ".ps1" {
+	if extension == ".ps1" || extension == ".py" {
 		return &UnsupportedScriptTypeError{Extension: extension}
 	}
 	return nil

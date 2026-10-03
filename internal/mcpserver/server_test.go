@@ -157,6 +157,30 @@ func TestPublicErrorUsesStableSanitizedCodes(t *testing.T) {
 	}
 }
 
+func TestPublicInterpretedScriptErrorExplainsRegistration(t *testing.T) {
+	for _, test := range []struct {
+		extension   string
+		interpreter string
+	}{
+		{".py", "Python"},
+		{".ps1", "PowerShell"},
+	} {
+		t.Run(test.extension, func(t *testing.T) {
+			// A wrapped host diagnostic must not escape into the public response.
+			err := fmt.Errorf("private-host-detail: %w", &runner.UnsupportedScriptTypeError{Extension: test.extension})
+			got := decodePublicFailure(t, publicError(err))
+			if got.Code != "unsupported_script_type" || !strings.Contains(got.Message, test.interpreter) ||
+				!strings.Contains(got.Message, "executable_ref") || !strings.Contains(got.Message, "argv_template") ||
+				strings.Contains(got.Message, "private-host-detail") {
+				t.Fatalf("script failure=%+v", got)
+			}
+			if test.extension == ".py" && !strings.Contains(got.Message, "cwd") {
+				t.Fatalf("Python failure omits working directory: %+v", got)
+			}
+		})
+	}
+}
+
 func TestPublicInputErrorsAreActionable(t *testing.T) {
 	for input, want := range map[string]string{
 		"mode required":                           "mode required",

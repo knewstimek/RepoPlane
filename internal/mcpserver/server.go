@@ -448,6 +448,10 @@ func publicErrorMessage(code string, err error) string {
 	case "internal_error":
 		return "internal operation failed"
 	case "unsupported_script_type":
+		var script *runner.UnsupportedScriptTypeError
+		if errors.As(err, &script) && script.Extension == ".py" {
+			return "Windows cannot execute a Python .py file directly; set executable_ref to an available Python interpreter (for example python) and put the script path and arguments in argv_template; resolve the script path from cwd"
+		}
 		return "direct PowerShell script execution is unsupported; use a PowerShell executable_ref and pass the workspace-relative script path in argv_template"
 	default:
 		return strings.ReplaceAll(code, "_", " ")

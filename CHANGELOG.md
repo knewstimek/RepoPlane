@@ -6,6 +6,12 @@ Notable changes to RepoPlane are documented here.
 
 ### Fixed
 
+- Windows Runner now rejects direct Python `.py` executable references during preparation,
+  instead of failing later at process start. MCP errors explain the Python interpreter,
+  argument template, and working directory required for correct registration.
+- The `repo-memory` skill now explains registered execution: Python scripts use a verified
+  interpreter in `executable_ref` and the script path/arguments in `argv_template`, with the
+  working directory checked before execution and existing approval gates preserved.
 - The bundled `repo-memory` skill now retains verified reusable changes before completion and
   explains write recovery. It skips already-retained content, merges revision/topic conflicts,
   creates successors for kind/schema or topic identity changes, and reads back uncertain writes

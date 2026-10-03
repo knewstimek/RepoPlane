@@ -14,6 +14,12 @@ Use RepoPlane as the workspace's durable background memory.
 - Treat a memo as context, not proof of current state. Honor its validity and invalidation condition, and verify facts that are volatile, security-sensitive, or essential to the result.
 - If RepoPlane is unavailable or has no relevant record or capability, continue with bounded local discovery and briefly state the fallback reason when it matters.
 
+## Registered execution
+
+- Runner launches `execution.executable_ref` and passes `argv_template` as its arguments from `execution.cwd`; it does not infer a Python interpreter from a `.py` file association.
+- For Python or PowerShell scripts, register an available interpreter as the executable and put the script path in its arguments. For example, with `cwd: .`, use `executable_ref: python` and `argv_template: [tools/example.py, "{message}"]`. Use the interpreter name/path actually verified on the host; a workspace executable path must be relative.
+- Inspect the registered manifest and the prepared executable, arguments, and working directory before execution. Keep the existing trust, approval, and cache qualification gates; registration alone does not authorize a run.
+
 ## Retain reusable knowledge
 
 Retention is part of completing repository or operational work. Before the final completion response, review the actual result for a new or changed feature, supported interface/configuration, durable decision, operational invariant, or consequential reusable failure. When any applies, search for an existing memo, create/update/supersede the appropriate memo, and confirm the write receipt. Do this in the same task without waiting for a user reminder; a commit, push, changelog, or documentation update does not satisfy memory retention.

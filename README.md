@@ -224,10 +224,17 @@ response. A `state:` file reference is relative to the server's local state dire
 from `runtime_config(action=status)`. HTTP clients cannot open that server-local file directly.
 Captured process output is raw and is not automatically redacted.
 
+Runner launches `executable_ref` and passes `argv_template` as arguments from `cwd`; it does
+not infer a Python interpreter from a `.py` file association. For a Python script with `cwd: .`,
+register an available Python interpreter, for example `executable_ref: python` and
+`argv_template: [tools/example.py, "{message}"]`. Verify the interpreter on the host first.
+
 On Windows, register PowerShell explicitly as the executable and put the workspace-relative
 script path in `argv_template`, for example `executable_ref: powershell` with
-`argv_template: [-NoProfile, -File, tools/Example.ps1]`. Direct `.ps1` executable references are
-rejected during `run_prepare` with `unsupported_script_type`. Input and output globs are bounded;
+`argv_template: [-NoProfile, -File, tools/Example.ps1]`. On Windows, direct `.py` and `.ps1`
+executable references are rejected during `run_prepare` with `unsupported_script_type`; the MCP
+error explains which interpreter to register and where to put the script path and arguments.
+Input and output globs are bounded;
 a matched-file limit failure includes the responsible pattern, configured maximum, observed lower
 bound, and a source-only-glob hint. Gitignored and build-output paths are included unless the
 manifest narrows its patterns; RepoPlane only excludes its internal metadata directories.

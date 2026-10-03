@@ -30,20 +30,24 @@ func TestWindowsRegisteredBatchWrapperPreservesArgumentBoundary(t *testing.T) {
 	assertWrapperOutput(t, service, "공백 값 & 안전")
 }
 
-func TestWindowsPrepareRejectsDirectPowerShellScript(t *testing.T) {
-	manifest := catalog.Manifest{
-		ID: "test.powershell", Revision: 1, Summary: "Windows PowerShell script",
-		Execution: &catalog.Execution{Kind: "cli", ExecutableRef: "tools/example.ps1", CWD: ".", TrustedForRun: true, TimeoutSec: 5},
-	}
-	service, _, cleanup := newTestService(t, manifest)
-	defer cleanup()
-	if err := os.WriteFile(filepath.Join(service.root.Resolved(), "tools", "example.ps1"), []byte("Write-Output 'ok'\r\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	_, err := service.Prepare(context.Background(), PrepareRequest{CapabilityID: manifest.ID, CapabilityRevision: "1"})
-	var unsupported *UnsupportedScriptTypeError
-	if !errors.As(err, &unsupported) || unsupported.Extension != ".ps1" {
-		t.Fatalf("Prepare error=%v, want .ps1 UnsupportedScriptTypeError", err)
+func TestWindowsPrepareRejectsDirectInterpretedScript(t *testing.T) {
+	for _, extension := range []string{".ps1", ".py", ".PY"} {
+		t.Run(extension, func(t *testing.T) {
+			manifest := catalog.Manifest{
+				ID: "test.script", Revision: 1, Summary: "Windows interpreted script",
+				Execution: &catalog.Execution{Kind: "cli", ExecutableRef: "tools/example" + extension, CWD: ".", TrustedForRun: true, TimeoutSec: 5},
+			}
+			service, _, cleanup := newTestService(t, manifest)
+			defer cleanup()
+			if err := os.WriteFile(filepath.Join(service.root.Resolved(), "tools", "example"+extension), []byte("# interpreted script\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			_, err := service.Prepare(context.Background(), PrepareRequest{CapabilityID: manifest.ID, CapabilityRevision: "1"})
+			var unsupported *UnsupportedScriptTypeError
+			if !errors.As(err, &unsupported) || unsupported.Extension != strings.ToLower(extension) {
+				t.Fatalf("Prepare error=%v, want %s UnsupportedScriptTypeError", err, strings.ToLower(extension))
+			}
+		})
 	}
 }
 
