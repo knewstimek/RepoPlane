@@ -6,6 +6,10 @@ Notable changes to RepoPlane are documented here.
 
 ### Fixed
 
+- The bundled `repo-memory` skill now retains verified reusable changes before completion and
+  explains write recovery. It skips already-retained content, merges revision/topic conflicts,
+  creates successors for kind/schema or topic identity changes, and reads back uncertain writes
+  before retrying. Time warnings do not trigger retries; permission denials are not bypassed.
 - Memo title and summary validation now counts Unicode characters, matching the published schema.
   Oversize discovery fields and combined record text/reference budgets report the offending
   field or budget, observed length, and maximum instead of a generic limit error.

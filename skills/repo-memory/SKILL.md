@@ -1,6 +1,6 @@
 ---
 name: repo-memory
-description: Use RepoPlane durable memory before repository or operational work, and retain verified reusable workspace knowledge afterward. Applies when RepoPlane is available and prior paths, environment facts, decisions, or known failures could affect the task.
+description: Use RepoPlane before repository or operational work and save verified reusable knowledge before completing feature, interface, configuration, or operational changes. Applies when RepoPlane is available; prior memory need not already exist.
 ---
 
 # RepoPlane Memory
@@ -16,7 +16,9 @@ Use RepoPlane as the workspace's durable background memory.
 
 ## Retain reusable knowledge
 
-When the work reveals consequential knowledge likely to help a later task, search for an existing memo first, then create, update, or supersede the appropriate RepoPlane memo.
+Retention is part of completing repository or operational work. Before the final completion response, review the actual result for a new or changed feature, supported interface/configuration, durable decision, operational invariant, or consequential reusable failure. When any applies, search for an existing memo, create/update/supersede the appropriate memo, and confirm the write receipt. Do this in the same task without waiting for a user reminder; a commit, push, changelog, or documentation update does not satisfy memory retention.
+
+For an implemented feature, retain a compact discovery summary: behavior and usage, important limitations, source/commit or other evidence pointers, and actual verification/deployment status. Distinguish implemented and statically reviewed from built, executed, synchronized, pushed, and deployed; record only statuses supported by evidence.
 
 Good memo subjects include:
 
@@ -26,10 +28,19 @@ Good memo subjects include:
 - reproducible failures with their cause, remedy, and invalidation condition;
 - genuine tool or environment limitations that will affect later work.
 
-Keep each memo concise and scoped. Include evidence references, a stable topic key, and an invalidation condition. Classify user-provided facts as `user_asserted` and inspected facts as `llm_proposed`.
+Keep each memo concise and scoped. Include the evidence references available from RepoPlane, a useful stable topic key, and a concrete invalidation condition. Mark user-provided facts as `user_asserted`; use `llm_proposed` for facts established from inspected evidence.
 
-Do not store secrets, credentials, personal data, speculative conclusions, routine progress, transient output, one-off mistakes, or obvious tracked documentation. Update or supersede an existing memo instead of duplicating it.
+Do not store secrets, credentials, personal data, speculative conclusions, routine task progress, transient command output, one-off mistakes, or copies of facts already obvious from tracked project documentation. A documented new feature still needs a concise memory discovery entry with pointers; avoid duplicating the full documentation. Do not duplicate an existing current memo; update or supersede it when the durable fact changed.
+
+## Write recovery
+
+- `invalid_argument`: check current tool schema; fix the cited field. `limit_exceeded`: shrink the cited input.
+- `memo_time_unknown`: saved; no retry or invented timestamp.
+- `memo_topic_exists`: new content not saved. `revision_conflict`: stale revision. Read the full record and compare the intended content. If already retained, skip the write; otherwise merge and update using its ID/latest `expected_revision`, preserving other fields/evidence.
+- If the memo kind/schema or topic identity (`scope`, `configuration`, `topic_key`) must change, use supersession instead of `update`: create the successor with `supersedes` and the current `expected_revision`.
+- Timeout/storage error or unknown outcome: read back by ID/`topic_key` before retrying.
+- `permission_denied`: report; never bypass. Never repeat an unchanged failed write.
 
 ## Handoff
 
-Mention newly retained or materially updated background knowledge in the final response. Do not claim it was saved unless the write was confirmed.
+Report retained knowledge only after confirmed storage. If unresolved/unavailable, report incomplete retention and continue other authorized work. Skip writes with no reusable result.

@@ -77,7 +77,10 @@ cursor. A stopped scan reports a lower bound or unknown count. Do not treat `par
 The canonical `repo-memory` Codex skill is included at [`skills/repo-memory`](skills/repo-memory).
 Install it by copying that directory to `$CODEX_HOME/skills/repo-memory`, then start a new Codex
 session. Treat the repository copy as the source of truth and resync installed copies after it
-changes.
+changes. The skill retains verified feature and configuration knowledge before completion and
+handles write recovery: correct invalid inputs, accept time warnings as saved, read before retrying
+uncertain writes, and merge conflicts only when content differs. Changes to memo kind/schema or
+topic identity require a successor; permission denials are never bypassed.
 
 ## Tools and common tasks
 
