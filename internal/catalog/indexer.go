@@ -28,6 +28,9 @@ const MaxCandidateFiles = 10_000
 const MaxExecutableFingerprintBytes uint64 = 64 * 1024 * 1024
 const maxUnconfiguredCatalogRoots = 8
 
+const retiredGenerationGrace = time.Hour
+const retiredGenerationBatch = 16
+
 type Indexer struct {
 	root           *workspace.Root
 	repository     store.CatalogRepository
@@ -56,6 +59,13 @@ func (i *Indexer) Refresh(ctx context.Context) (store.CatalogGenerationMeta, err
 	generation, err := i.Build(ctx)
 	if err != nil {
 		return store.CatalogGenerationMeta{}, err
+	}
+	// Run even when the fingerprint is unchanged, so an existing backlog can
+	// drain without requiring further catalog edits. Retirement time protects
+	// readers between resolving a current generation and persisting a snapshot.
+	now := generation.Meta.CreatedAt
+	if _, err := i.repository.DeleteRetiredCatalogGenerations(ctx, i.root.ID(), now.Add(-retiredGenerationGrace), now, retiredGenerationBatch); err != nil {
+		return store.CatalogGenerationMeta{}, fmt.Errorf("prune retired catalog generations: %w", err)
 	}
 	current, err := i.repository.CurrentCatalogGeneration(ctx, i.root.ID())
 	if err == nil && current.SourceFingerprint == generation.Meta.SourceFingerprint {

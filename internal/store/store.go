@@ -265,6 +265,9 @@ type WorkspaceRepository interface {
 // the new complete generation, never an intermediate mix.
 type CatalogRepository interface {
 	PublishCatalogGeneration(ctx context.Context, generation CatalogGeneration) error
+	// DeleteRetiredCatalogGenerations removes a bounded batch retired by before,
+	// excluding current generations and snapshots still valid at now.
+	DeleteRetiredCatalogGenerations(ctx context.Context, workspaceID string, before, now time.Time, limit uint64) (uint64, error)
 	CurrentCatalogGeneration(ctx context.Context, workspaceID string) (CatalogGenerationMeta, error)
 	GetCatalogItem(ctx context.Context, workspaceID, generationID, itemID string) (CatalogItem, error)
 	ListCatalogIssues(ctx context.Context, workspaceID, generationID string) ([]CatalogIssue, error)

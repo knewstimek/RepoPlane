@@ -306,7 +306,19 @@ Each new query snapshot atomically removes up to 64 snapshots that have expired 
 creation time, including their result items. Unexpired pagination snapshots and durable records
 are preserved. Cleanup runs on snapshot writes, not an idle timer; an existing backlog drains
 across subsequent queries. SQLite reuses the freed pages, so the database file need not shrink.
-This does not impose a total disk quota or prune old catalog generations or record revisions.
+This does not impose a total disk quota or prune durable record revisions.
+
+Catalog refreshes also remove up to 16 retired generations in the current workspace, even when
+catalog contents are unchanged. A generation must have been replaced for at least one hour and
+have no unexpired query snapshot references; the current generation is always retained. Retirement
+is tracked separately from creation, and reactivation starts a fresh grace period on the next
+replacement. Runner plans retain execution details and revalidate against the current declaration,
+so they do not depend on retaining an old catalog generation. Durable execution receipts remain.
+
+Upgrading the regenerable index database to schema 4 starts a fresh one-hour grace period for
+existing inactive generations. Restart all MCP sessions to use the new executable; older binaries
+cannot reopen this schema. Cleanup runs during catalog refreshes, not an idle timer, and freed
+pages are reused without automatically compacting the file.
 
 Use `memory_backup` or the CLI to export durable records and retained Runner evidence before a
 machine reset:

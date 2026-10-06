@@ -296,6 +296,10 @@ func TestIndexerFlagsExecutableChangeWithoutRevisionChange(t *testing.T) {
 
 type catalogStoreStub struct{}
 
+func (*catalogStoreStub) DeleteRetiredCatalogGenerations(context.Context, string, time.Time, time.Time, uint64) (uint64, error) {
+	return 0, nil
+}
+
 func (*catalogStoreStub) PublishCatalogGeneration(context.Context, store.CatalogGeneration) error {
 	return nil
 }

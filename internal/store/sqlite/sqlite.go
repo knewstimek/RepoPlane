@@ -38,7 +38,7 @@ func Open(ctx context.Context, path string) (*Repository, error) {
 
 func (r *Repository) Close() error { return r.db.Close() }
 
-const currentSchemaVersion = 3
+const currentSchemaVersion = 4
 
 const expiredResultSetBatch = 64
 
@@ -97,6 +97,15 @@ func (r *Repository) initialize(ctx context.Context) (err error) {
 		}
 		if _, err = tx.ExecContext(ctx, `INSERT INTO schema_migrations(version, applied_at) VALUES (3, ?)`, time.Now().UTC().UnixNano()); err != nil {
 			return fmt.Errorf("record sqlite migration 3: %w", err)
+		}
+	}
+	if version < 4 {
+		now := time.Now().UTC()
+		if err = migrateV4(ctx, tx, now); err != nil {
+			return err
+		}
+		if _, err = tx.ExecContext(ctx, `INSERT INTO schema_migrations(version, applied_at) VALUES (4, ?)`, unixNano(now)); err != nil {
+			return fmt.Errorf("record sqlite migration 4: %w", err)
 		}
 	}
 	if err = tx.Commit(); err != nil {
@@ -330,9 +339,7 @@ func (r *Repository) PublishCatalogGeneration(ctx context.Context, generation st
 		if workspaceID != meta.WorkspaceID || sourceFingerprint != meta.SourceFingerprint {
 			return fmt.Errorf("catalog generation identity mismatch: %w", store.ErrConflict)
 		}
-		if _, err = tx.ExecContext(ctx, `
-			INSERT INTO current_catalog(workspace_id, generation_id) VALUES (?, ?)
-			ON CONFLICT(workspace_id) DO UPDATE SET generation_id=excluded.generation_id`, meta.WorkspaceID, meta.ID); err != nil {
+		if err = activateCatalogGeneration(ctx, tx, meta); err != nil {
 			return fmt.Errorf("reactivate catalog generation: %w", err)
 		}
 		if err = tx.Commit(); err != nil {
@@ -361,9 +368,7 @@ func (r *Repository) PublishCatalogGeneration(ctx context.Context, generation st
 			return fmt.Errorf("insert catalog issue: %w", err)
 		}
 	}
-	if _, err = tx.ExecContext(ctx, `
-        INSERT INTO current_catalog(workspace_id, generation_id) VALUES (?, ?)
-        ON CONFLICT(workspace_id) DO UPDATE SET generation_id=excluded.generation_id`, meta.WorkspaceID, meta.ID); err != nil {
+	if err = activateCatalogGeneration(ctx, tx, meta); err != nil {
 		return fmt.Errorf("publish current catalog: %w", err)
 	}
 	if err = tx.Commit(); err != nil {
