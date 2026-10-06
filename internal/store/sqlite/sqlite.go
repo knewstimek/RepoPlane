@@ -38,7 +38,7 @@ func Open(ctx context.Context, path string) (*Repository, error) {
 
 func (r *Repository) Close() error { return r.db.Close() }
 
-const currentSchemaVersion = 4
+const currentSchemaVersion = 3
 
 const expiredResultSetBatch = 64
 
@@ -73,7 +73,15 @@ func (r *Repository) initialize(ctx context.Context) (err error) {
 		return fmt.Errorf("read sqlite schema version: %w", err)
 	}
 	if version > currentSchemaVersion {
-		return fmt.Errorf("sqlite schema version %d is newer than supported version %d", version, currentSchemaVersion)
+		// Recover only the known pre-release retirement migration. Unknown
+		// future schemas remain rejected instead of being relabeled as v3.
+		known, checkErr := isRetirementSchemaV4(ctx, tx)
+		if checkErr != nil {
+			return checkErr
+		}
+		if version != 4 || !known {
+			return fmt.Errorf("sqlite schema version %d is newer than supported version %d", version, currentSchemaVersion)
+		}
 	}
 	if version < 1 {
 		if err = migrateV1(ctx, tx); err != nil {
@@ -99,14 +107,8 @@ func (r *Repository) initialize(ctx context.Context) (err error) {
 			return fmt.Errorf("record sqlite migration 3: %w", err)
 		}
 	}
-	if version < 4 {
-		now := time.Now().UTC()
-		if err = migrateV4(ctx, tx, now); err != nil {
-			return err
-		}
-		if _, err = tx.ExecContext(ctx, `INSERT INTO schema_migrations(version, applied_at) VALUES (4, ?)`, unixNano(now)); err != nil {
-			return fmt.Errorf("record sqlite migration 4: %w", err)
-		}
+	if err = initializeCatalogRetention(ctx, tx, time.Now().UTC(), version == 4); err != nil {
+		return err
 	}
 	if err = tx.Commit(); err != nil {
 		return fmt.Errorf("commit sqlite migrations: %w", err)

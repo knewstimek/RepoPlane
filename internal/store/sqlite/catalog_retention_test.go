@@ -109,7 +109,7 @@ func TestReactivatedCatalogGenerationGetsFreshRetirementGrace(t *testing.T) {
 		t.Fatal(err)
 	}
 	var retired sql.NullInt64
-	if err := r.db.QueryRowContext(ctx, "SELECT retired_at FROM catalog_generations WHERE id='first'").Scan(&retired); err != nil || retired.Valid {
+	if err := r.db.QueryRowContext(ctx, "SELECT (SELECT retired_at FROM catalog_retirements WHERE generation_id='first')").Scan(&retired); err != nil || retired.Valid {
 		t.Fatalf("reactivated generation retirement=%+v error=%v", retired, err)
 	}
 	if deleted, err := r.DeleteRetiredCatalogGenerations(ctx, w.ID, now.Add(-time.Hour), now, 16); err != nil || deleted != 0 {
@@ -174,14 +174,14 @@ func TestCatalogRetirementMigrationStartsGraceWithoutLosingData(t *testing.T) {
 	defer r.Close()
 	after := time.Now().UTC()
 	var retirement int64
-	if err := r.db.QueryRowContext(ctx, "SELECT retired_at FROM catalog_generations WHERE id='old'").Scan(&retirement); err != nil {
+	if err := r.db.QueryRowContext(ctx, "SELECT retired_at FROM catalog_retirements WHERE generation_id='old'").Scan(&retirement); err != nil {
 		t.Fatal(err)
 	}
 	if retirement < unixNano(before) || retirement > unixNano(after) {
 		t.Fatal("legacy retirement did not start a fresh migration grace period")
 	}
 	var currentRetirement sql.NullInt64
-	if err := r.db.QueryRowContext(ctx, "SELECT retired_at FROM catalog_generations WHERE id='current'").Scan(&currentRetirement); err != nil || currentRetirement.Valid {
+	if err := r.db.QueryRowContext(ctx, "SELECT (SELECT retired_at FROM catalog_retirements WHERE generation_id='current')").Scan(&currentRetirement); err != nil || currentRetirement.Valid {
 		t.Fatalf("legacy current marked retired: %+v error=%v", currentRetirement, err)
 	}
 	if _, err := r.GetCatalogItem(ctx, "ws", "old", "tool"); err != nil {
@@ -194,7 +194,7 @@ func TestCatalogRetirementMigrationStartsGraceWithoutLosingData(t *testing.T) {
 		t.Fatal(err)
 	}
 	var unchanged int64
-	if err := r.db.QueryRowContext(ctx, "SELECT retired_at FROM catalog_generations WHERE id='old'").Scan(&unchanged); err != nil || unchanged != retirement {
+	if err := r.db.QueryRowContext(ctx, "SELECT retired_at FROM catalog_retirements WHERE generation_id='old'").Scan(&unchanged); err != nil || unchanged != retirement {
 		t.Fatalf("reopening reset retirement: before=%d after=%d error=%v", retirement, unchanged, err)
 	}
 }

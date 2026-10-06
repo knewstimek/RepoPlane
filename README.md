@@ -315,10 +315,13 @@ is tracked separately from creation, and reactivation starts a fresh grace perio
 replacement. Runner plans retain execution details and revalidate against the current declaration,
 so they do not depend on retaining an old catalog generation. Durable execution receipts remain.
 
-Upgrading the regenerable index database to schema 4 starts a fresh one-hour grace period for
-existing inactive generations. Restart all MCP sessions to use the new executable; older binaries
-cannot reopen this schema. Cleanup runs during catalog refreshes, not an idle timer, and freed
-pages are reused without automatically compacting the file.
+Retirement metadata uses an additive auxiliary table while preserving the index database's schema
+3 compatibility marker and original catalog columns. Database triggers also track replacements and
+reactivations made by schema-3 publishers. Existing inactive generations start a fresh one-hour
+grace period when first observed. The known pre-release retirement schema 4 is recovered to this
+layout without dropping catalog data; unknown future schemas are still rejected. Running processes
+load the new cleanup code on their next restart. Cleanup runs during catalog refreshes, not an idle
+timer, and freed pages are reused without automatically compacting the file.
 
 Use `memory_backup` or the CLI to export durable records and retained Runner evidence before a
 machine reset:

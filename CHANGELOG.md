@@ -8,8 +8,10 @@ Notable changes to RepoPlane are documented here.
 
 - Catalog refreshes now prune up to 16 retired generations per workspace after a one-hour grace
   period, including unchanged refreshes. Current generations and unexpired query references are
-  protected. Index schema 4 records replacement time, resets retirement on reactivation, and
-  gives existing inactive generations a fresh migration grace period. Durable receipts remain.
+  protected. Auxiliary retirement metadata preserves index schema 3 compatibility, including
+  replacements/reactivations by older publishers through database triggers. Existing inactive
+  generations receive a fresh grace period. The known pre-release schema 4 layout is recovered
+  without dropping catalog data; unknown future schemas remain rejected. Durable receipts remain.
 - Query snapshot writes now atomically prune up to 64 expired result sets and their items across
   catalog, workspace search, data queries, and record pagination. Existing expiry cleanup was
   never invoked in production. Unexpired cursors and durable memory remain intact; freed SQLite
