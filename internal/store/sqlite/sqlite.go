@@ -40,6 +40,13 @@ func (r *Repository) Close() error { return r.db.Close() }
 
 const currentSchemaVersion = 3
 
+const expiredResultSetBatch = 64
+
+const deleteExpiredResultSetsSQL = `
+        DELETE FROM result_sets WHERE id IN (
+            SELECT id FROM result_sets WHERE expires_at<=? ORDER BY expires_at, id LIMIT ?
+        )`
+
 func (r *Repository) initialize(ctx context.Context) (err error) {
 	for _, statement := range []string{`PRAGMA foreign_keys = ON`, `PRAGMA busy_timeout = 5000`} {
 		if _, err := r.db.ExecContext(ctx, statement); err != nil {
@@ -506,6 +513,12 @@ func (r *Repository) CreateResultSet(ctx context.Context, set store.ResultSet) (
 			_ = tx.Rollback()
 		}
 	}()
+	// Reclaim expired snapshots on the shared write path, including search,
+	// catalog, data queries, and record pagination. Keep maintenance bounded and
+	// atomic with creation; snapshots still valid at query time are untouched.
+	if _, err = tx.ExecContext(ctx, deleteExpiredResultSetsSQL, unixNano(set.CreatedAt), expiredResultSetBatch); err != nil {
+		return fmt.Errorf("prune expired result sets: %w", err)
+	}
 	if _, err = tx.ExecContext(ctx, `
         INSERT INTO result_sets(id, workspace_id, query_hash, generation_id, created_at, expires_at, item_count, metadata_json)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, set.ID, set.WorkspaceID, set.QueryHash, set.GenerationID,
@@ -568,10 +581,7 @@ func (r *Repository) DeleteExpiredResultSets(ctx context.Context, now time.Time,
 	if limit == 0 {
 		return 0, nil
 	}
-	result, err := r.db.ExecContext(ctx, `
-        DELETE FROM result_sets WHERE id IN (
-            SELECT id FROM result_sets WHERE expires_at<=? ORDER BY expires_at, id LIMIT ?
-        )`, unixNano(now), limit)
+	result, err := r.db.ExecContext(ctx, deleteExpiredResultSetsSQL, unixNano(now), limit)
 	if err != nil {
 		return 0, fmt.Errorf("delete expired result sets: %w", err)
 	}

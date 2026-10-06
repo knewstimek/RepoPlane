@@ -302,6 +302,12 @@ RepoPlane keeps regenerable search indexes and durable records in separate SQLit
 there under bounded policies. Removing the state directory also removes local memos, checkpoints,
 imported verification, run receipts, streams, artifacts, and cursors.
 
+Each new query snapshot atomically removes up to 64 snapshots that have expired at the query's
+creation time, including their result items. Unexpired pagination snapshots and durable records
+are preserved. Cleanup runs on snapshot writes, not an idle timer; an existing backlog drains
+across subsequent queries. SQLite reuses the freed pages, so the database file need not shrink.
+This does not impose a total disk quota or prune old catalog generations or record revisions.
+
 Use `memory_backup` or the CLI to export durable records and retained Runner evidence before a
 machine reset:
 

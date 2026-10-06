@@ -6,6 +6,10 @@ Notable changes to RepoPlane are documented here.
 
 ### Fixed
 
+- Query snapshot writes now atomically prune up to 64 expired result sets and their items across
+  catalog, workspace search, data queries, and record pagination. Existing expiry cleanup was
+  never invoked in production. Unexpired cursors and durable memory remain intact; freed SQLite
+  pages are reusable without automatically shrinking the database file.
 - Windows Runner now rejects direct Python `.py` executable references during preparation,
   instead of failing later at process start. MCP errors explain the Python interpreter,
   argument template, and working directory required for correct registration.
