@@ -4,6 +4,18 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+## [1.3.0] - 2026-10-29
+
+### Upgrade notes
+
+- Default MCP responses remain in `compatible` mode for text-only clients. Hosts that consume
+  `structuredContent` can add `--result-content=deduplicated` to the existing server arguments,
+  then reconnect MCP. Ordinary tool calls automatically remove duplicate JSON text echoes;
+  agents do not need to run a filter or call another tool. Unique content and structured data
+  remain available, and tool counts stay at 14 typed tools or five toolbox tools.
+- Result size measurements are UTF-8 bytes, not model-token counts. This release does not claim
+  a measured reduction in host token billing.
+
 ### Added
 
 - `--result-content=deduplicated` automatically removes equivalent plain JSON text echoes from
@@ -12,10 +24,9 @@ Notable changes to RepoPlane are documented here.
   metadata, and updates typed text-byte measurements. No extra tool or filter call is needed.
   The default `compatible` mode retains text-only client behavior; structured-aware hosts opt in
   through startup arguments. Initialization reports the active mode. Tool counts are unchanged.
-- `repoplane render-result` filters one captured MCP result from stdin for client wrappers. It
-  removes only equivalent plain JSON text echoes of structured content, preserving unique or
-  annotated content, exact numbers, errors, approvals, and metadata. Input is bounded to 16 MiB;
-  server wire replies and text-only compatibility are unchanged. External hosts must opt in.
+- `repoplane render-result` filters one captured MCP result from stdin for client-wrapper
+  development. It preserves unique or annotated content, exact numbers, errors, approvals, and
+  metadata, with a 16 MiB input limit. Ordinary MCP calls in deduplicated mode do not need it.
 
 ### Changed
 
