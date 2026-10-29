@@ -29,6 +29,7 @@ func TestStdioHelperProcess(t *testing.T) {
 		Workspace:      os.Getenv("REPOPLANE_STDIO_WORKSPACE"),
 		StateDir:       os.Getenv("REPOPLANE_STDIO_STATE"),
 		ToolSurface:    os.Getenv("REPOPLANE_STDIO_TOOL_SURFACE"),
+		ResultContent:  os.Getenv("REPOPLANE_STDIO_RESULT_CONTENT"),
 		CatalogRoots:   []string{"catalog"},
 		CandidateRoots: []string{},
 		RuleFiles:      []string{"AGENTS.md"},

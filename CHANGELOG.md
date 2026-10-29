@@ -6,6 +6,12 @@ Notable changes to RepoPlane are documented here.
 
 ### Added
 
+- `--result-content=deduplicated` automatically removes equivalent plain JSON text echoes from
+  ordinary MCP replies after SDK processing, for typed/toolbox surfaces over stdio or HTTP.
+  It preserves structured values, unique/annotated content, exact numbers, errors, approvals, and
+  metadata, and updates typed text-byte measurements. No extra tool or filter call is needed.
+  The default `compatible` mode retains text-only client behavior; structured-aware hosts opt in
+  through startup arguments. Initialization reports the active mode. Tool counts are unchanged.
 - `repoplane render-result` filters one captured MCP result from stdin for client wrappers. It
   removes only equivalent plain JSON text echoes of structured content, preserving unique or
   annotated content, exact numbers, errors, approvals, and metadata. Input is bounded to 16 MiB;

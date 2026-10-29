@@ -1,5 +1,5 @@
-// Package resultview removes redundant MCP text echoes for client-side display.
-// It does not change the server's wire result or discard nonredundant content.
+// Package resultview identifies equivalent MCP JSON text echoes without
+// discarding nonredundant content or rounding JSON numbers.
 package resultview
 
 import (
@@ -39,25 +39,13 @@ func Render(input []byte) ([]byte, error) {
 	if !hasStructured || bytes.Equal(bytes.TrimSpace(structured), []byte("null")) || !hasContent {
 		return json.Marshal(result)
 	}
-	value, err := comparableJSON(structured)
-	if err != nil {
-		// Ambiguous JSON (for example duplicate object keys) is not deduplicated.
-		return json.Marshal(result)
-	}
+	duplicates := DuplicateTextBlocks(structured, blocks)
 	kept := make([]json.RawMessage, 0, len(blocks))
 	removed := false
-	for _, block := range blocks {
-		var fields map[string]json.RawMessage
-		var kind, text string
-		// Annotations and extension fields may carry information of their own.
-		if json.Unmarshal(block, &fields) == nil && len(fields) == 2 &&
-			json.Unmarshal(fields["type"], &kind) == nil && kind == "text" &&
-			json.Unmarshal(fields["text"], &text) == nil {
-			echo, err := comparableJSON([]byte(text))
-			if err == nil && reflect.DeepEqual(value, echo) {
-				removed = true
-				continue
-			}
+	for i, block := range blocks {
+		if duplicates[i] {
+			removed = true
+			continue
 		}
 		kept = append(kept, block)
 	}
@@ -65,6 +53,37 @@ func Render(input []byte) ([]byte, error) {
 		result["content"], _ = json.Marshal(kept)
 	}
 	return json.Marshal(result)
+}
+
+// DuplicateTextBlocks marks only plain text blocks containing the same JSON as
+// structured. Callers retain the original blocks and envelope, avoiding a typed
+// JSON round trip. Ambiguous JSON and annotated/extended blocks are kept.
+func DuplicateTextBlocks(structured []byte, blocks []json.RawMessage) []bool {
+	duplicates := make([]bool, len(blocks))
+	if !utf8.Valid(structured) || bytes.Equal(bytes.TrimSpace(structured), []byte("null")) {
+		return duplicates
+	}
+	value, err := comparableJSON(structured)
+	if err != nil {
+		return duplicates
+	}
+	for i, block := range blocks {
+		if !utf8.Valid(block) {
+			continue
+		}
+		if _, err := comparableJSON(block); err != nil {
+			continue
+		}
+		var fields map[string]json.RawMessage
+		var kind, text string
+		if json.Unmarshal(block, &fields) == nil && len(fields) == 2 &&
+			json.Unmarshal(fields["type"], &kind) == nil && kind == "text" &&
+			json.Unmarshal(fields["text"], &text) == nil {
+			echo, err := comparableJSON([]byte(text))
+			duplicates[i] = err == nil && reflect.DeepEqual(value, echo)
+		}
+	}
+	return duplicates
 }
 
 // comparableJSON rejects duplicate keys rather than assuming that discarding

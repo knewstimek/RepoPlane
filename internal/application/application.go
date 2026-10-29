@@ -52,6 +52,12 @@ func Open(ctx context.Context, settings config.Settings, version string) (*Appli
 	if settings.ToolSurface != mcpserver.SurfaceTypedV1 && settings.ToolSurface != mcpserver.SurfaceToolboxV1 {
 		return nil, errors.New("unsupported MCP tool surface")
 	}
+	if settings.ResultContent == "" {
+		settings.ResultContent = "compatible"
+	}
+	if settings.ResultContent != "compatible" && settings.ResultContent != "deduplicated" {
+		return nil, errors.New("unsupported MCP result content mode")
+	}
 	if settings.Transport == "http" {
 		profile, err := httptransport.LoadProfile(settings.HTTPProfile)
 		if err != nil {
@@ -219,7 +225,7 @@ func (a *Application) Run(ctx context.Context) error {
 
 func (a *Application) MCPOptions() mcpserver.Options {
 	options := mcpserver.Options{
-		Surface: a.settings.ToolSurface,
+		Surface: a.settings.ToolSurface, ResultContent: a.settings.ResultContent,
 		Catalog: a.router, Search: searchRoute{a.router}, PathFacts: a.router, DataQuery: dataRoute{a.router},
 		Records: recordsRoute{a.router}, CheckpointWriter: a.router, MemoWriter: a.router, ReportImporter: a.router,
 		Runner: a.router, RuntimeAccess: a.runtimeAccess, RuntimeConfig: a, MemoryBackup: a.router,

@@ -57,8 +57,9 @@ func (e *publicClientError) Error() string {
 // feature milestones; constructing the server itself has no workspace side
 // effects.
 type Options struct {
-	Surface string
-	Catalog interface {
+	Surface       string
+	ResultContent string
+	Catalog       interface {
 		Query(context.Context, catalog.QueryRequest) (catalog.QueryResponse, error)
 	}
 	Search interface {
@@ -98,12 +99,19 @@ type Options struct {
 }
 
 func New(version string, provided ...Options) *mcp.Server {
-	server := mcp.NewServer(&mcp.Implementation{Name: serverName, Version: version}, &mcp.ServerOptions{
-		Instructions: "Use project_records for background knowledge, including saved code and design decisions; get_topic for a known memo key, payload_fields for selected detail. Check evidence and invalidation conditions before current-code claims; inspect current source when needed. Client wrappers should emit structuredContent once and preserve unique content, errors, approval fields, and metadata. The optional repoplane render-result stdin filter removes only equivalent plain JSON text echoes; it does not change MCP wire replies or host token accounting.",
-	})
 	var options Options
 	if len(provided) > 0 {
 		options = provided[0]
+	}
+	mode := "compatible"
+	if options.ResultContent == "deduplicated" {
+		mode = "deduplicated"
+	}
+	server := mcp.NewServer(&mcp.Implementation{Name: serverName, Version: version}, &mcp.ServerOptions{
+		Instructions: "Use project_records for background knowledge, including saved code/design; get_topic for a known memo key, payload_fields for selected detail. Check evidence/invalidation before current-code claims; inspect source when needed. Result content mode: " + mode + ". Deduplicated mode automatically removes equivalent JSON text echoes after SDK processing; read structuredContent and retain unique content, errors and metadata. No filter tool call is needed.",
+	})
+	if mode == "deduplicated" {
+		server.AddReceivingMiddleware(deduplicateToolResults)
 	}
 	operations := operationRegistry(options)
 	if options.Surface == SurfaceToolboxV1 {

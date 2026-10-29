@@ -13,6 +13,7 @@ import (
 type Settings struct {
 	Transport             string
 	ToolSurface           string
+	ResultContent         string
 	HTTPProfile           string
 	Workspace             string
 	StateDir              string
@@ -48,9 +49,10 @@ func Parse(args []string, output io.Writer) (Settings, error) {
 		return Settings{}, fmt.Errorf("get user cache directory: %w", err)
 	}
 	settings := Settings{
-		Workspace:   workingDirectory,
-		StateDir:    filepath.Join(cacheDirectory, "repoplane"),
-		ToolSurface: "typed.v1",
+		Workspace:     workingDirectory,
+		StateDir:      filepath.Join(cacheDirectory, "repoplane"),
+		ToolSurface:   "typed.v1",
+		ResultContent: "compatible",
 	}
 	var roots stringList
 	var candidates stringList
@@ -61,6 +63,7 @@ func Parse(args []string, output io.Writer) (Settings, error) {
 	flags.StringVar(&settings.Workspace, "workspace", settings.Workspace, "trusted workspace root")
 	flags.StringVar(&settings.Transport, "transport", "stdio", "MCP transport: stdio or http")
 	flags.StringVar(&settings.ToolSurface, "tool-surface", settings.ToolSurface, "MCP tool surface: typed.v1 or toolbox.v1 (startup only)")
+	flags.StringVar(&settings.ResultContent, "result-content", settings.ResultContent, "MCP result content: compatible or deduplicated; deduplicated requires a client that reads structuredContent (startup only)")
 	flags.StringVar(&settings.HTTPProfile, "http-profile", "", "ignored local HTTP profile path")
 	flags.StringVar(&settings.StateDir, "state-dir", settings.StateDir, "local database and secret directory")
 	flags.Var(&roots, "catalog-root", "workspace-relative catalog file or directory; repeatable")
@@ -85,6 +88,9 @@ func Parse(args []string, output io.Writer) (Settings, error) {
 	}
 	if settings.ToolSurface != "typed.v1" && settings.ToolSurface != "toolbox.v1" {
 		return Settings{}, fmt.Errorf("--tool-surface must be typed.v1 or toolbox.v1")
+	}
+	if settings.ResultContent != "compatible" && settings.ResultContent != "deduplicated" {
+		return Settings{}, fmt.Errorf("--result-content must be compatible or deduplicated")
 	}
 	if settings.Transport == "http" && strings.TrimSpace(settings.HTTPProfile) == "" {
 		return Settings{}, fmt.Errorf("--http-profile is required for HTTP transport")

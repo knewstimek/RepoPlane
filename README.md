@@ -158,10 +158,53 @@ write result; clients that relied on full write echoes must opt in. Typed MCP re
 server duration in milliseconds. These are server measurements, not model-token counts or
 end-to-end network time. Compact search, resume, and write
 replies use a short text fallback rather than duplicating the whole structured result. Detailed
-reads still carry the full JSON in text for text-only client compatibility. This is not proof that
-a host includes both representations in model input or bills both as tokens.
+reads carry the full JSON in text in the default `compatible` mode for text-only clients. This
+is not proof that a host includes both representations in model input or bills both as tokens.
 
-Client wrappers that forward a whole `CallToolResult` can filter it before emitting it:
+### Automatic result deduplication
+
+For a host that consumes `structuredContent`, start RepoPlane with
+`--result-content=deduplicated`. Each ordinary MCP `tools/call` then automatically removes plain
+text blocks containing the same JSON as the structured result, after SDK output processing.
+No LLM decision, extra tool call, shell command, or response file is required. The typed surface
+stays at 14 tools and the toolbox surface at five; both stdio and HTTP use the same middleware.
+
+```json
+{
+  "mcpServers": {
+    "repoplane": {
+      "command": "repoplane",
+      "args": ["--workspace", "WORKSPACE", "--state-dir", "STATE_DIRECTORY", "--result-content=deduplicated"]
+    }
+  }
+}
+```
+
+For a TOML host configuration, add the flag to the existing server arguments (preserving any
+other arguments):
+
+```toml
+[mcp_servers.repoplane]
+command = "repoplane"
+args = ["--result-content=deduplicated"]
+```
+
+Restart the MCP connection after changing startup arguments. The initialization instructions
+report the effective result content mode. Only enable this mode after confirming that the host
+reads `structuredContent`: a text-only consumer would lose the removed copy. Omit the flag or
+use `--result-content=compatible` for the previous wire behavior. Client/protocol version alone
+is not treated as evidence of structured-result consumption.
+
+Structured payloads retain their original types and exact numbers. Unique text, compact search
+cards, annotated/extended content, media, warnings, errors, approval handshakes, and metadata
+remain. An all-duplicate content array becomes `[]`. Typed per-call `text_bytes` reflects retained
+text; the server measurements remain byte counts, not model-token accounting. Ambiguous JSON
+is preserved. The mode is startup-only and does not change authorization or execution gates.
+
+### Captured-result filter
+
+`render-result` remains available for captured responses and client-wrapper development; ordinary
+MCP calls in deduplicated mode do not need it. To filter a captured whole `CallToolResult`:
 
 ```sh
 repoplane render-result < result.json
@@ -184,7 +227,7 @@ partial output. This filter changes wrapper display output, not MCP wire replies
 automatically installed into an external host. Route captured results through the filter;
 do not pipe the live MCP protocol stream through it.
 
-Select payload data before rendering when the full body is unnecessary. For example:
+Select payload data when the full body is unnecessary, independently of result deduplication. For example:
 
 ```json
 {"mode":"get_topic","topic_key":"build-policy","payload_fields":["content","invalidation_condition"]}
