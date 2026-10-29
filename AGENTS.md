@@ -15,6 +15,8 @@
 
 ## Implementation
 
+- Keep the current maintenance release line at 1.2.x and increment PATCH. A move to another
+  minor or major version requires an explicit user decision; do not infer it from feature additions.
 - Finish work by updating README/usage and `Unreleased` as needed, verifying, committing, and
   pushing. Report completion and elapsed time; for goal-tracked work, report aggregate token usage.
 - If the MCP executable changed, rebuild and replace the installed copy found via the ignored

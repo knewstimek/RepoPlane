@@ -4,7 +4,7 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
-## [1.3.0] - 2026-10-29
+## [1.2.2] - 2026-10-29
 
 ### Upgrade notes
 
