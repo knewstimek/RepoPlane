@@ -4,7 +4,7 @@
   "tools": [
     {
       "name": "catalog_query",
-      "description": "Query the workspace catalog by search, get, list, audit, or status.",
+      "description": "Find registered commands/checks or inspect catalog status. For code/design background use project_records; for current source use workspace_search.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -2053,7 +2053,7 @@
     },
     {
       "name": "project_records",
-      "description": "Search records as brief cards; get by ID, get_topic by exact current memo key, or resume a checkpoint with next steps and evidence.",
+      "description": "Recall background knowledge, including code, design, and verification: search brief cards; known memo key -\u003e get_topic; ID -\u003e get; task handoff -\u003e resume. Use payload_fields for needed detail. Memo current means active, not verified against current code; check basis/invalidation and inspect source when needed.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -2103,7 +2103,7 @@
             "type": "string"
           },
           "payload_fields": {
-            "description": "exact top-level payload fields to return; empty returns the full payload",
+            "description": "exact top-level payload fields, e.g. content/invalidation_condition or checks/counts; no selection inside content text; empty returns the full payload",
             "items": {
               "type": "string"
             },
@@ -2982,7 +2982,7 @@
     },
     {
       "name": "workspace_search",
-      "description": "Search names, text, Git history, or configured symbols with bounded evidence; requests session read approval for an external root.",
+      "description": "Inspect current source or Git history with bounded evidence; names, text, and configured symbols supported. For prior code/design knowledge use project_records. External roots require session read approval.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {

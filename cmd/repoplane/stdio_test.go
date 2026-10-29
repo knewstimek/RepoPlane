@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -130,6 +131,21 @@ func TestStdioNegotiationHasNoOutputPollution(t *testing.T) {
 	})
 	if err != nil || result.IsError || result.StructuredContent == nil {
 		t.Fatalf("stdio catalog_query failed: result=%+v error=%v", result, err)
+	}
+	// Exercise the real wire reply through the wrapper without weakening the
+	// server contract for text-only clients.
+	captured, err := json.Marshal(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rendered bytes.Buffer
+	if err := runRenderResult(nil, bytes.NewReader(captured), &rendered, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	var filtered mcp.CallToolResult
+	if err := json.Unmarshal(rendered.Bytes(), &filtered); err != nil || len(filtered.Content) != 0 ||
+		filtered.StructuredContent == nil || len(result.Content) == 0 || rendered.Len() >= len(captured) {
+		t.Fatalf("wire-to-render result=%s err=%v", rendered.Bytes(), err)
 	}
 	if err := session.Close(); err != nil {
 		t.Fatalf("close session: %v", err)

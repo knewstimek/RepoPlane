@@ -7,9 +7,9 @@
     {
       "name": "read",
       "tool_count": 6,
-      "complete_contract_bytes": 22377,
-      "name_description_input_bytes": 8854,
-      "input_schema_bytes": 7831,
+      "complete_contract_bytes": 22806,
+      "name_description_input_bytes": 9283,
+      "input_schema_bytes": 7909,
       "output_schema_bytes": 13421
     },
     {
@@ -39,9 +39,9 @@
     {
       "name": "all",
       "tool_count": 14,
-      "complete_contract_bytes": 39362,
-      "name_description_input_bytes": 17129,
-      "input_schema_bytes": 14861,
+      "complete_contract_bytes": 39791,
+      "name_description_input_bytes": 17558,
+      "input_schema_bytes": 14939,
       "output_schema_bytes": 21995
     },
     {

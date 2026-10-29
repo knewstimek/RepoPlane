@@ -113,6 +113,13 @@ set is explicitly partial. `response_view=discovery` requests the earlier 320-ch
 and `response_view=full` or `payload_fields` requests payload data. `list` keeps its existing
 50-item, 64 KiB default. An empty call returns `mode required`.
 
+Use `project_records` for background knowledge, including saved code, design decisions, and past
+verification. Use `catalog_query` for registered commands/checks, and `workspace_search` or
+`data_query` to inspect present source when a claim depends on its current state. A saved code
+example can answer why an approach was chosen; it does not by itself prove that the current
+implementation still matches. Check record evidence, scope, and invalidation conditions before
+relying on it for that claim. `validity=current` on a memo means active, not freshly verified code.
+
 Find a topic key with a brief search, then open one record with `mode=get` and `id`. If the key is
 already known, `mode=get_topic` with an exact `topic_key` fetches the one current memo directly;
 add exact `scope` and `configuration` when the key names several current memos. Ambiguity returns
@@ -151,8 +158,42 @@ write result; clients that relied on full write echoes must opt in. Typed MCP re
 server duration in milliseconds. These are server measurements, not model-token counts or
 end-to-end network time. Compact search, resume, and write
 replies use a short text fallback rather than duplicating the whole structured result. Detailed
-reads still carry the full JSON in text for text-only client compatibility; compare both byte
-measurements when estimating their cost.
+reads still carry the full JSON in text for text-only client compatibility. This is not proof that
+a host includes both representations in model input or bills both as tokens.
+
+Client wrappers that forward a whole `CallToolResult` can filter it before emitting it:
+
+```sh
+repoplane render-result < result.json
+```
+
+From PowerShell, use native input redirection without re-encoding the captured JSON:
+
+```powershell
+cmd /c "repoplane render-result < result.json"
+```
+
+The command reads one UTF-8 JSON `CallToolResult` object (not a JSON-RPC envelope) from stdin,
+with a fixed 16 MiB input limit. It does not start the server, access a workspace, or open a
+database. The output retains `structuredContent` and removes only plain text blocks containing
+equivalent JSON; object key order and whitespace may differ. Unique text, media/resource blocks,
+annotated or extended text blocks, errors, approval fields, and all envelope metadata remain.
+Numbers are compared without floating-point conversion; ambiguous JSON with duplicate keys is
+kept. An all-duplicate content array becomes `[]`. Invalid or oversized input fails without
+partial output. This filter changes wrapper display output, not MCP wire replies, and is not
+automatically installed into an external host. Route captured results through the filter;
+do not pipe the live MCP protocol stream through it.
+
+Select payload data before rendering when the full body is unnecessary. For example:
+
+```json
+{"mode":"get_topic","topic_key":"build-policy","payload_fields":["content","invalidation_condition"]}
+```
+
+`payload_fields` selects exact top-level fields: `checks`/`counts` for a verification record,
+`content`/`invalidation_condition` for a memo, or `title`/`summary` when recorded. It does not select
+sections inside prose or nested JSON paths. Record metadata, evidence refs, and warnings remain
+available. These are separate savings from eliminating an identical text echo.
 Records do not infer semantic similarity between differently worded memos. A caller can assign a
 stable `topic_key` to a memo and explicitly update or supersede that identity. A topic memo's
 `scope`, `configuration`, and `topic_key` form an immutable identity. To replace a memo, create

@@ -98,7 +98,9 @@ type Options struct {
 }
 
 func New(version string, provided ...Options) *mcp.Server {
-	server := mcp.NewServer(&mcp.Implementation{Name: serverName, Version: version}, nil)
+	server := mcp.NewServer(&mcp.Implementation{Name: serverName, Version: version}, &mcp.ServerOptions{
+		Instructions: "Use project_records for background knowledge, including saved code and design decisions; get_topic for a known memo key, payload_fields for selected detail. Check evidence and invalidation conditions before current-code claims; inspect current source when needed. Client wrappers should emit structuredContent once and preserve unique content, errors, approval fields, and metadata. The optional repoplane render-result stdin filter removes only equivalent plain JSON text echoes; it does not change MCP wire replies or host token accounting.",
+	})
 	var options Options
 	if len(provided) > 0 {
 		options = provided[0]

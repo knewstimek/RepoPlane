@@ -75,7 +75,7 @@ type QueryRequest struct {
 	ItemLimit     uint64   `json:"item_limit,omitempty" jsonschema:"item limit; search default 8, otherwise 50; max 500"`
 	ByteLimit     uint64   `json:"byte_limit,omitempty" jsonschema:"structured bytes; search/resume default 8192, get/get_topic default 1048576, others 65536"`
 	TimeLimitMS   int64    `json:"time_limit_ms,omitempty" jsonschema:"deadline ms; default 5000, max 30000"`
-	PayloadFields []string `json:"payload_fields,omitempty" jsonschema:"exact top-level payload fields to return; empty returns the full payload"`
+	PayloadFields []string `json:"payload_fields,omitempty" jsonschema:"exact top-level payload fields, e.g. content/invalidation_condition or checks/counts; no selection inside content text; empty returns the full payload"`
 }
 
 type RecordResult struct {

@@ -334,7 +334,7 @@ func validateJSONBounds(raw []byte) error {
 func operationRegistry(options Options) []operationSpec {
 	operations := make([]operationSpec, 0, 14)
 	if options.Catalog != nil {
-		operations = append(operations, newOperation(ToolCatalogQuery, ToolboxRead, "Query the workspace catalog by search, get, list, audit, or status.", ScopeRead, "read_only", "none", nil,
+		operations = append(operations, newOperation(ToolCatalogQuery, ToolboxRead, "Find registered commands/checks or inspect catalog status. For code/design background use project_records; for current source use workspace_search.", ScopeRead, "read_only", "none", nil,
 			func(ctx context.Context, _ *mcp.CallToolRequest, input catalog.QueryRequest) (*mcp.CallToolResult, catalog.QueryResponse, error) {
 				if err := authorize(ctx, options, ToolCatalogQuery); err != nil {
 					return nil, catalog.QueryResponse{}, publicError(err)
@@ -344,7 +344,7 @@ func operationRegistry(options Options) []operationSpec {
 			}))
 	}
 	if options.Search != nil {
-		operations = append(operations, newOperation(ToolWorkspaceSearch, ToolboxRead, "Search names, text, Git history, or configured symbols with bounded evidence; requests session read approval for an external root.", ScopeRead, "read_only", "conditional", nil,
+		operations = append(operations, newOperation(ToolWorkspaceSearch, ToolboxRead, "Inspect current source or Git history with bounded evidence; names, text, and configured symbols supported. For prior code/design knowledge use project_records. External roots require session read approval.", ScopeRead, "read_only", "conditional", nil,
 			func(ctx context.Context, request *mcp.CallToolRequest, input search.Request) (*mcp.CallToolResult, search.Response, error) {
 				if err := authorize(ctx, options, ToolWorkspaceSearch); err != nil {
 					return nil, search.Response{}, publicError(err)
@@ -392,7 +392,7 @@ func operationRegistry(options Options) []operationSpec {
 			}))
 	}
 	if options.Records != nil {
-		operations = append(operations, newOperation(ToolProjectRecords, ToolboxRead, "Search records as brief cards; get by ID, get_topic by exact current memo key, or resume a checkpoint with next steps and evidence.", ScopeRead, "read_only", "none", nil,
+		operations = append(operations, newOperation(ToolProjectRecords, ToolboxRead, "Recall background knowledge, including code, design, and verification: search brief cards; known memo key -> get_topic; ID -> get; task handoff -> resume. Use payload_fields for needed detail. Memo current means active, not verified against current code; check basis/invalidation and inspect source when needed.", ScopeRead, "read_only", "none", nil,
 			func(ctx context.Context, _ *mcp.CallToolRequest, input records.QueryRequest) (*mcp.CallToolResult, records.QueryResponse, error) {
 				if err := authorize(ctx, options, ToolProjectRecords); err != nil {
 					return nil, records.QueryResponse{}, publicError(err)

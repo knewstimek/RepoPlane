@@ -4,6 +4,25 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+### Added
+
+- `repoplane render-result` filters one captured MCP result from stdin for client wrappers. It
+  removes only equivalent plain JSON text echoes of structured content, preserving unique or
+  annotated content, exact numbers, errors, approvals, and metadata. Input is bounded to 16 MiB;
+  server wire replies and text-only compatibility are unchanged. External hosts must opt in.
+
+### Changed
+
+- MCP initialization guidance and typed/toolbox operation descriptions now distinguish registered
+  capabilities, background records (including saved code/design), and present source inspection.
+  Memo `current` means active; current-code claims require checking evidence and invalidation.
+  `payload_fields` guidance includes examples and states that it selects top-level fields only.
+
+### Fixed
+
+- The Windows Runner batch test fixture explicitly emits UTF-8, so its Unicode argument check
+  no longer assumes that the host OEM code page is UTF-8. Runner output bytes are unchanged.
+
 ## [1.2.1] - 2026-10-06
 
 ### Fixed

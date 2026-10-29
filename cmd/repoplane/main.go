@@ -29,6 +29,9 @@ func main() {
 
 func run() error {
 	args := os.Args[1:]
+	if len(args) > 0 && args[0] == "render-result" {
+		return renderResultCommand(args[1:])
+	}
 	if len(args) > 0 && args[0] == "usage" {
 		return runUsage(args[1:])
 	}
