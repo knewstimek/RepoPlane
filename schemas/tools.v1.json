@@ -2918,7 +2918,7 @@
     },
     {
       "name": "runtime_config",
-      "description": "Inspect or change live sources, workspace, state, or HTTP without restarting stdio.",
+      "description": "Inspect or change live sources, workspace, state, or HTTP without restarting stdio. Local stdio changes apply directly without server approval prompts; HTTP calls are unavailable.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {

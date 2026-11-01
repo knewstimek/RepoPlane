@@ -331,9 +331,11 @@ external reads require the relevant host setting or user approval. Grants last o
 process and can be inspected or revoked with `runtime_access`.
 
 `runtime_config(action=status)` shows live catalog roots, candidate roots, rule files, symbol
-indexes, workspace, state directory, HTTP transport, and tool surface. Its approved operations can
-change sources or switch the workspace and state directory without restarting stdio. Use startup
-flags for fixed or unattended hosts:
+indexes, workspace, state directory, HTTP transport, and tool surface. Local stdio operations
+apply directly without an additional server approval prompt or enable flag, so unattended clients
+can change sources or switch the workspace and state directory without waiting for a person.
+Input/path validation, atomic service replacement, and active Runner/snapshot checks still apply.
+HTTP clients cannot call this tool. Use startup flags for fixed host defaults:
 
 ```text
 --workspace PATH       primary workspace
@@ -351,7 +353,7 @@ For a private registered deployment capability, check `catalog_query(mode=status
 `catalog_query(mode=search, query="deploy")`. If the ID is absent, inspect the configured and
 candidate roots with `runtime_config(action=status)`. The server cannot discover an external
 private profile whose path was never configured. Supply that path in the host's ignored local
-configuration, restart or update the catalog root through approved runtime configuration, and
+configuration, restart or update the catalog root through local stdio runtime configuration, and
 query the catalog again before calling `run_prepare`. A missing capability error names these next
 tools and reports the profile location as unknown when appropriate. Keep private profile content
 and host paths out of tracked files. A copyable host configuration is:

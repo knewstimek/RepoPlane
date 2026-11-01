@@ -87,12 +87,17 @@ func TestRuntimeConfigurationIsListedButUnavailableOnHTTPAuthority(t *testing.T)
 	if !found {
 		t.Fatal("runtime_config is missing from stable discovery")
 	}
-	result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: ToolRuntimeConfig, Arguments: map[string]any{"action": "status"}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !result.IsError {
-		t.Fatalf("HTTP-authority runtime configuration succeeded: %+v", result)
+	for _, arguments := range []map[string]any{
+		{"action": "status"},
+		{"action": "add", "target": "catalog_root", "values": []string{"catalog"}},
+	} {
+		result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: ToolRuntimeConfig, Arguments: arguments})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !result.IsError {
+			t.Fatalf("HTTP-authority runtime configuration succeeded: %+v", result)
+		}
 	}
 }
 

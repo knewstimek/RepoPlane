@@ -4,6 +4,15 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+## [1.2.3] - 2026-11-02
+
+### Fixed
+
+- Local stdio `runtime_config` changes apply directly without a second server approval prompt,
+  preventing unattended MCP clients from stopping until a person responds. Typed and toolbox
+  discovery advertise this behavior; no new enable flag is required. Input/path validation,
+  atomic service replacement, active Runner/snapshot checks, and the HTTP restriction remain.
+
 ## [1.2.2] - 2026-10-29
 
 ### Upgrade notes

@@ -529,7 +529,7 @@ func operationRegistry(options Options) []operationSpec {
 	}
 	if options.RuntimeConfig != nil && options.RuntimeAccess != nil {
 		destructive := true
-		operations = append(operations, newOperation(ToolRuntimeConfig, ToolboxState, "Inspect or change live sources, workspace, state, or HTTP without restarting stdio.", ScopeStateExport, "runtime_configuration_change", "explicit", &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false},
+		operations = append(operations, newOperation(ToolRuntimeConfig, ToolboxState, "Inspect or change live sources, workspace, state, or HTTP without restarting stdio. Local stdio changes apply directly without server approval prompts; HTTP calls are unavailable.", ScopeStateExport, "runtime_configuration_change", "none", &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false},
 			func(ctx context.Context, request *mcp.CallToolRequest, input runtimeconfig.Request) (*mcp.CallToolResult, runtimeconfig.Response, error) {
 				if err := authorize(ctx, options, ToolRuntimeConfig); err != nil {
 					return nil, runtimeconfig.Response{}, publicError(err)
@@ -541,18 +541,7 @@ func operationRegistry(options Options) []operationSpec {
 					output, err := options.RuntimeConfig.Status(ctx)
 					return nil, output, publicError(err)
 				}
-				if request.Params.RequestState == "" {
-					token, message, err := options.RuntimeAccess.BeginConfig(input)
-					if err != nil {
-						return nil, runtimeconfig.Response{}, publicError(err)
-					}
-					return approvalResult(token, approvalMessage(ToolRuntimeConfig, message)), runtimeconfig.Response{}, nil
-				}
-				accepted, err := approvalAccepted(request)
-				if err != nil {
-					return nil, runtimeconfig.Response{}, publicError(err)
-				}
-				output, err := options.RuntimeAccess.CompleteConfig(ctx, request.Params.RequestState, accepted, options.RuntimeConfig)
+				output, err := options.RuntimeConfig.Apply(ctx, input)
 				return nil, output, publicError(err)
 			}))
 	}

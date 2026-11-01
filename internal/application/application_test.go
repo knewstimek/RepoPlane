@@ -141,12 +141,23 @@ func TestApplicationReconfiguresSourcesWorkspaceStateAndHTTPAtRuntime(t *testing
 	}
 }
 
-func TestRuntimeConfigurationUsesOneShotMCPApproval(t *testing.T) {
+func TestRuntimeConfigurationDoesNotRequestMCPApproval(t *testing.T) {
+	for _, surface := range []string{mcpserver.SurfaceTypedV1, mcpserver.SurfaceToolboxV1} {
+		for _, withHandler := range []bool{false, true} {
+			t.Run(surface+map[bool]string{false: "/no-elicitation", true: "/decline-elicitation"}[withHandler], func(t *testing.T) {
+				testRuntimeConfigurationWithoutApproval(t, surface, withHandler)
+			})
+		}
+	}
+}
+
+func testRuntimeConfigurationWithoutApproval(t *testing.T, surface string, withHandler bool) {
+	t.Helper()
 	workspace := t.TempDir()
 	if err := os.Mkdir(filepath.Join(workspace, "extra"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	app, err := Open(context.Background(), config.Settings{Workspace: workspace, StateDir: t.TempDir(), CatalogRoots: []string{}}, "test")
+	app, err := Open(context.Background(), config.Settings{Workspace: workspace, StateDir: t.TempDir(), CatalogRoots: []string{}, ToolSurface: surface}, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,22 +171,63 @@ func TestRuntimeConfigurationUsesOneShotMCPApproval(t *testing.T) {
 	}
 	defer serverSession.Close()
 	approvals := 0
-	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "test"}, &mcp.ClientOptions{ElicitationHandler: func(context.Context, *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
-		approvals++
-		return &mcp.ElicitResult{Action: "accept"}, nil
-	}})
+	clientOptions := &mcp.ClientOptions{}
+	if withHandler {
+		clientOptions.ElicitationHandler = func(context.Context, *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+			approvals++
+			return &mcp.ElicitResult{Action: "decline"}, nil
+		}
+	}
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "test"}, clientOptions)
 	session, err := client.Connect(ctx, clientTransport, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer session.Close()
-	result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "runtime_config", Arguments: map[string]any{"action": "add", "target": "catalog_root", "values": []string{"extra"}}})
-	if err != nil || result.IsError || result.StructuredContent == nil || approvals != 1 {
-		t.Fatalf("result=%+v approvals=%d err=%v", result, approvals, err)
+	call := func(arguments map[string]any) *mcp.CallToolResult {
+		t.Helper()
+		params := &mcp.CallToolParams{Name: "runtime_config", Arguments: arguments}
+		if surface == mcpserver.SurfaceToolboxV1 {
+			described, err := session.CallTool(ctx, &mcp.CallToolParams{Name: mcpserver.ToolboxState, Arguments: map[string]any{"action": "describe", "operation": "runtime_config"}})
+			if err != nil || described.IsError {
+				t.Fatalf("describe=%+v err=%v", described, err)
+			}
+			encoded, err := json.Marshal(described.StructuredContent)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var contract struct {
+				SchemaHandle string `json:"schema_handle"`
+				Contract     struct {
+					Approval string `json:"approval"`
+				} `json:"contract"`
+			}
+			if err := json.Unmarshal(encoded, &contract); err != nil || contract.Contract.Approval != "none" {
+				t.Fatalf("contract=%+v err=%v", contract, err)
+			}
+			params = &mcp.CallToolParams{Name: mcpserver.ToolboxState, Arguments: map[string]any{"action": "call", "operation": "runtime_config", "schema_handle": contract.SchemaHandle, "arguments": arguments}}
+		}
+		result, err := session.CallTool(ctx, params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
 	}
-	status, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "runtime_config", Arguments: map[string]any{"action": "status"}})
-	if err != nil || status.IsError || approvals != 1 {
-		t.Fatalf("status=%+v approvals=%d err=%v", status, approvals, err)
+	result := call(map[string]any{"action": "add", "target": "catalog_root", "values": []string{"extra"}})
+	if result.IsError || result.StructuredContent == nil || approvals != 0 {
+		t.Fatalf("result=%+v approvals=%d", result, approvals)
+	}
+	status := call(map[string]any{"action": "status"})
+	if status.IsError || approvals != 0 {
+		t.Fatalf("status=%+v approvals=%d", status, approvals)
+	}
+	current, err := app.Status(ctx)
+	if err != nil || len(current.Configuration["catalog_root"]) != 1 || current.Configuration["catalog_root"][0] != "extra" {
+		t.Fatalf("configuration=%+v err=%v", current, err)
+	}
+	invalid := call(map[string]any{"action": "add", "target": "catalog_root", "values": []string{"../outside"}})
+	if !invalid.IsError || approvals != 0 {
+		t.Fatalf("invalid=%+v approvals=%d", invalid, approvals)
 	}
 }
 
