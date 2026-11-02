@@ -4,6 +4,14 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+### Fixed
+
+- Local stdio now keeps MCP connected when private state overlaps the workspace. Tools report
+  `workspace_state_overlap` with recovery instructions instead of failing the handshake;
+  `runtime_config` exposes blocked status and can activate tools on the same connection by
+  selecting a safe workspace or state directory. No database or repository service opens while
+  blocked. HTTP startup and rejection of unsafe changes to an active server remain unchanged.
+
 ## [1.2.3] - 2026-11-02
 
 ### Fixed

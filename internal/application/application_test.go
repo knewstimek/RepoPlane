@@ -594,11 +594,11 @@ func TestEmptyCatalogAndSearchReturnExactEmptyResults(t *testing.T) {
 	}
 }
 
-func TestApplicationRejectsStateInsideWorkspace(t *testing.T) {
+func TestServiceBundleRejectsStateInsideWorkspace(t *testing.T) {
 	workspace := t.TempDir()
-	_, err := Open(context.Background(), config.Settings{
+	_, err := buildBundle(context.Background(), config.Settings{
 		Workspace: workspace, StateDir: filepath.Join(workspace, ".state"), CatalogRoots: []string{"catalog"},
-	}, "test")
+	}, nil)
 	if err == nil || !strings.Contains(err.Error(), "outside the workspace") {
 		t.Fatalf("error=%v, want state boundary rejection", err)
 	}

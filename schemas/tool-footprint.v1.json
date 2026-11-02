@@ -31,18 +31,18 @@
     {
       "name": "state",
       "tool_count": 2,
-      "complete_contract_bytes": 2136,
-      "name_description_input_bytes": 1334,
+      "complete_contract_bytes": 2464,
+      "name_description_input_bytes": 1433,
       "input_schema_bytes": 904,
-      "output_schema_bytes": 768
+      "output_schema_bytes": 997
     },
     {
       "name": "all",
       "tool_count": 14,
-      "complete_contract_bytes": 39887,
-      "name_description_input_bytes": 17654,
+      "complete_contract_bytes": 40215,
+      "name_description_input_bytes": 17753,
       "input_schema_bytes": 14939,
-      "output_schema_bytes": 21995
+      "output_schema_bytes": 22224
     },
     {
       "name": "toolbox",

@@ -266,6 +266,8 @@ func publicErrorWithMutationState(err error, mutation bool) error {
 	code := "internal_error"
 	var missingCapability *catalog.MissingCapabilityError
 	switch {
+	case errors.Is(err, runtimeconfig.ErrStateOverlap):
+		code = "workspace_state_overlap"
 	case errors.As(err, &missingCapability):
 		code = "capability_not_found"
 	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
@@ -356,6 +358,9 @@ func publicErrorWithMutationState(err error, mutation bool) error {
 }
 
 func publicErrorDetails(err error) map[string]any {
+	if errors.Is(err, runtimeconfig.ErrStateOverlap) {
+		return map[string]any{"next_tools": []string{"runtime_config(action=status)", "runtime_config(action=select, target=workspace|state_dir, values=[absolute_path])"}, "retry": "after_configuration_change"}
+	}
 	var missingCapability *catalog.MissingCapabilityError
 	if errors.As(err, &missingCapability) {
 		details := map[string]any{
@@ -398,6 +403,8 @@ func publicErrorMessage(code string, err error) string {
 		return validation.Error()
 	}
 	switch code {
+	case "workspace_state_overlap":
+		return "State directory is inside the workspace; repository operations are disabled. Use runtime_config(action=status), then select a project workspace or a state directory outside the workspace. The MCP connection stays available."
 	case "invalid_argument":
 		if errors.As(err, &validation) {
 			return validation.Error()

@@ -62,6 +62,21 @@ the state directory must be outside the workspace:
 }
 ```
 
+For local stdio, if the state directory is inside the workspace (including a resolved link),
+MCP still connects and lists its tools, but repository operations return `workspace_state_overlap`.
+No repository services or private databases are opened in this blocked mode.
+Call `runtime_config` with `{"action":"status"}` to inspect `status: "blocked"` and its warning,
+then recover on the same connection with either of these requests, using an absolute host path:
+
+```json
+{"action":"select","target":"workspace","values":["ABSOLUTE_PROJECT_DIRECTORY"]}
+{"action":"select","target":"state_dir","values":["ABSOLUTE_STATE_DIRECTORY_OUTSIDE_WORKSPACE"]}
+```
+
+Only status and these recovery selections are available while blocked. Invalid selections leave
+it blocked; a valid selection activates the normal tools without reconnecting. HTTP startup
+continues to reject overlapping paths. No additional enable flag is needed.
+
 Start a new MCP session. Call `catalog_query` with `{"mode":"status"}` to see configured
 catalog sources and whether registered execution is available. Then call `workspace_search`:
 

@@ -529,7 +529,7 @@ func operationRegistry(options Options) []operationSpec {
 	}
 	if options.RuntimeConfig != nil && options.RuntimeAccess != nil {
 		destructive := true
-		operations = append(operations, newOperation(ToolRuntimeConfig, ToolboxState, "Inspect or change live sources, workspace, state, or HTTP without restarting stdio. Local stdio changes apply directly without server approval prompts; HTTP calls are unavailable.", ScopeStateExport, "runtime_configuration_change", "none", &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false},
+		operations = append(operations, newOperation(ToolRuntimeConfig, ToolboxState, "Inspect or change live sources, workspace, state, or HTTP without restarting stdio. Local stdio changes apply directly without server approval prompts. If state overlaps the workspace, status reports blocked; select workspace or state_dir to recover. HTTP calls are unavailable.", ScopeStateExport, "runtime_configuration_change", "none", &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false},
 			func(ctx context.Context, request *mcp.CallToolRequest, input runtimeconfig.Request) (*mcp.CallToolResult, runtimeconfig.Response, error) {
 				if err := authorize(ctx, options, ToolRuntimeConfig); err != nil {
 					return nil, runtimeconfig.Response{}, publicError(err)
@@ -620,7 +620,10 @@ func handleToolbox(ctx context.Context, request *mcp.CallToolRequest, options Op
 		return nil, zero, publicError(errors.New("invalid toolbox operation"))
 	}
 	if err := authorize(ctx, options, operation.name); err != nil {
-		return nil, zero, publicError(err)
+		// Contract discovery stays available during a recoverable path conflict.
+		if input.Action != "describe" || !errors.Is(err, runtimeconfig.ErrStateOverlap) {
+			return nil, zero, publicError(err)
+		}
 	}
 	if options.AuditOperation != nil {
 		if err := options.AuditOperation(ctx, toolbox, operation.name); err != nil {

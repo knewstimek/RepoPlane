@@ -24,6 +24,7 @@ import (
 	"repoplane/internal/records"
 	"repoplane/internal/runner"
 	"repoplane/internal/runtimeaccess"
+	"repoplane/internal/runtimeconfig"
 	"repoplane/internal/search"
 	"repoplane/internal/store"
 	storesqlite "repoplane/internal/store/sqlite"
@@ -72,7 +73,15 @@ func Open(ctx context.Context, settings config.Settings, version string) (*Appli
 		return runtimeAccess != nil && runtimeAccess.Enabled(runtimeaccess.KindCache)
 	})
 	if err != nil {
-		return nil, err
+		if settings.Transport == "http" || !errors.Is(err, runtimeconfig.ErrStateOverlap) {
+			return nil, err
+		}
+		root, rootErr := workspace.Open(settings.Workspace)
+		if rootErr != nil {
+			return nil, rootErr
+		}
+		// Keep stdio discovery and configuration available without opening private state.
+		bundle = &serviceBundle{root: root, blocked: true}
 	}
 	settings.Workspace = bundle.root.Resolved()
 	settings.StateDir, _ = filepath.Abs(settings.StateDir)
@@ -91,7 +100,7 @@ func buildBundle(ctx context.Context, settings config.Settings, cacheEnabled fun
 	if inside, err := pathInside(root.Resolved(), settings.StateDir); err != nil {
 		return nil, fmt.Errorf("validate state directory: %w", err)
 	} else if inside {
-		return nil, errors.New("state directory must be outside the workspace")
+		return nil, runtimeconfig.ErrStateOverlap
 	}
 	if err := os.MkdirAll(settings.StateDir, 0o700); err != nil {
 		return nil, fmt.Errorf("create state directory: %w", err)
@@ -103,7 +112,7 @@ func buildBundle(ctx context.Context, settings config.Settings, cacheEnabled fun
 	if inside, err := pathInside(root.Resolved(), resolvedState); err != nil {
 		return nil, fmt.Errorf("validate resolved state directory: %w", err)
 	} else if inside {
-		return nil, errors.New("resolved state directory must be outside the workspace")
+		return nil, runtimeconfig.ErrStateOverlap
 	}
 	repository, err := storesqlite.Open(ctx, filepath.Join(settings.StateDir, "repoplane.db"))
 	if err != nil {
@@ -230,6 +239,14 @@ func (a *Application) MCPOptions() mcpserver.Options {
 		Records: recordsRoute{a.router}, CheckpointWriter: a.router, MemoWriter: a.router, ReportImporter: a.router,
 		Runner: a.router, RuntimeAccess: a.runtimeAccess, RuntimeConfig: a, MemoryBackup: a.router,
 		ObserveUsage: a.usageObserver(a.settings.Transport),
+		Authorize: func(_ context.Context, tool string) error {
+			switch tool {
+			case mcpserver.ToolRuntimeConfig, mcpserver.ToolboxRead, mcpserver.ToolboxWrite,
+				mcpserver.ToolboxImport, mcpserver.ToolboxRunner, mcpserver.ToolboxState:
+				return nil
+			}
+			return a.router.ready()
+		},
 	}
 	return options
 }

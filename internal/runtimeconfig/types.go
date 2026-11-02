@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"strings"
+
+	"repoplane/internal/contracts"
 )
 
 const (
@@ -28,9 +30,10 @@ const (
 )
 
 var (
-	ErrInvalid     = errors.New("runtime configuration request is invalid")
-	ErrUnavailable = errors.New("runtime configuration is unavailable for this transport")
-	ErrBusy        = errors.New("runtime configuration conflicts with active work")
+	ErrInvalid      = errors.New("runtime configuration request is invalid")
+	ErrUnavailable  = errors.New("runtime configuration is unavailable for this transport")
+	ErrBusy         = errors.New("runtime configuration conflicts with active work")
+	ErrStateOverlap = errors.New("state directory must be outside the workspace")
 )
 
 type Request struct {
@@ -42,10 +45,11 @@ type Request struct {
 type Snapshot map[string][]string
 
 type Response struct {
-	Status        string   `json:"status"`
-	Changed       bool     `json:"changed"`
-	Refreshed     bool     `json:"refreshed"`
-	Configuration Snapshot `json:"configuration"`
+	Status        string              `json:"status"`
+	Changed       bool                `json:"changed"`
+	Refreshed     bool                `json:"refreshed"`
+	Configuration Snapshot            `json:"configuration"`
+	Warnings      []contracts.Warning `json:"warnings,omitempty"`
 }
 
 type Controller interface {

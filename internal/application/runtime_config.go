@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"repoplane/internal/config"
+	"repoplane/internal/contracts"
 	"repoplane/internal/httptransport"
 	"repoplane/internal/runtimeaccess"
 	"repoplane/internal/runtimeconfig"
@@ -20,7 +21,7 @@ import (
 func (a *Application) Status(context.Context) (runtimeconfig.Response, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return runtimeconfig.Response{Status: "ok", Configuration: a.snapshotLocked()}, nil
+	return a.statusLocked(), nil
 }
 
 func (a *Application) Apply(ctx context.Context, request runtimeconfig.Request) (runtimeconfig.Response, error) {
@@ -30,7 +31,10 @@ func (a *Application) Apply(ctx context.Context, request runtimeconfig.Request) 
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if request.Action == runtimeconfig.ActionStatus {
-		return runtimeconfig.Response{Status: "ok", Configuration: a.snapshotLocked()}, nil
+		return a.statusLocked(), nil
+	}
+	if a.router.ready() != nil && (request.Action != runtimeconfig.ActionSelect || (request.Target != runtimeconfig.TargetWorkspace && request.Target != runtimeconfig.TargetStateDir)) {
+		return runtimeconfig.Response{}, runtimeconfig.ErrStateOverlap
 	}
 	if request.Target == runtimeconfig.TargetHTTPTransport {
 		changed, err := a.configureHTTPLocked(ctx, request)
@@ -46,7 +50,7 @@ func (a *Application) Apply(ctx context.Context, request runtimeconfig.Request) 
 		return runtimeconfig.Response{}, err
 	}
 	if !changed && !refreshed {
-		return runtimeconfig.Response{Status: "ok", Configuration: a.snapshotLocked()}, nil
+		return a.statusLocked(), nil
 	}
 	if err := validateRuntimePaths(next, request); err != nil {
 		return runtimeconfig.Response{}, err
@@ -55,6 +59,15 @@ func (a *Application) Apply(ctx context.Context, request runtimeconfig.Request) 
 		return runtimeconfig.Response{}, err
 	}
 	return runtimeconfig.Response{Status: "ok", Changed: changed, Refreshed: true, Configuration: a.snapshotLocked()}, nil
+}
+
+func (a *Application) statusLocked() runtimeconfig.Response {
+	result := runtimeconfig.Response{Status: "ok", Configuration: a.snapshotLocked()}
+	if a.router.ready() != nil {
+		result.Status = "blocked"
+		result.Warnings = []contracts.Warning{{Code: "workspace_state_overlap", Message: "State directory is inside the workspace; select a project workspace or a state directory outside the workspace with runtime_config(action=select, target=workspace|state_dir, values=[absolute_path])."}}
+	}
+	return result
 }
 
 func (a *Application) snapshotLocked() runtimeconfig.Snapshot {
@@ -202,7 +215,11 @@ func validateRuntimePaths(settings config.Settings, request runtimeconfig.Reques
 func (a *Application) switchBundleLocked(ctx context.Context, nextSettings config.Settings) error {
 	a.router.mu.RLock()
 	current := a.router.current
-	release, err := current.runner.BeginMemorySnapshot()
+	release := func() {}
+	var err error
+	if !current.blocked {
+		release, err = current.runner.BeginMemorySnapshot()
+	}
 	a.router.mu.RUnlock()
 	if err != nil {
 		return runtimeconfig.ErrBusy

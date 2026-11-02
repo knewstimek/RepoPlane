@@ -11,12 +11,14 @@ import (
 	"repoplane/internal/pathfacts"
 	"repoplane/internal/records"
 	"repoplane/internal/runner"
+	"repoplane/internal/runtimeconfig"
 	"repoplane/internal/search"
 	"repoplane/internal/store"
 	"repoplane/internal/workspace"
 )
 
 type serviceBundle struct {
+	blocked          bool
 	root             *workspace.Root
 	repository       store.Repository
 	recordRepository store.RecordRepository
@@ -31,12 +33,28 @@ type serviceBundle struct {
 }
 
 func (b *serviceBundle) close() error {
+	if b.blocked {
+		return nil
+	}
 	return errors.Join(b.runner.Close(), b.repository.Close(), b.recordRepository.Close(), b.usageRepository.Close())
 }
 
 type serviceRouter struct {
 	mu      sync.RWMutex
 	current *serviceBundle
+}
+
+func (r *serviceRouter) ready() error {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.readyLocked()
+}
+
+func (r *serviceRouter) readyLocked() error {
+	if r.current == nil || r.current.blocked {
+		return runtimeconfig.ErrStateOverlap
+	}
+	return nil
 }
 
 func (r *serviceRouter) swap(next *serviceBundle) *serviceBundle {
@@ -50,72 +68,114 @@ func (r *serviceRouter) swap(next *serviceBundle) *serviceBundle {
 func (r *serviceRouter) Query(ctx context.Context, request catalog.QueryRequest) (catalog.QueryResponse, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if err := r.readyLocked(); err != nil {
+		return catalog.QueryResponse{}, err
+	}
 	return r.current.catalog.Query(ctx, request)
 }
 func (r *serviceRouter) SearchQuery(ctx context.Context, request search.Request) (search.Response, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if err := r.readyLocked(); err != nil {
+		return search.Response{}, err
+	}
 	return r.current.search.Query(ctx, request)
 }
 func (r *serviceRouter) Explain(ctx context.Context, request pathfacts.Request) (pathfacts.Response, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if err := r.readyLocked(); err != nil {
+		return pathfacts.Response{}, err
+	}
 	return r.current.pathFacts.Explain(ctx, request)
 }
 func (r *serviceRouter) DataQuery(ctx context.Context, request dataquery.Request) (dataquery.Response, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if err := r.readyLocked(); err != nil {
+		return dataquery.Response{}, err
+	}
 	return r.current.dataQuery.Query(ctx, request)
 }
 func (r *serviceRouter) RecordsQuery(ctx context.Context, request records.QueryRequest) (records.QueryResponse, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if err := r.readyLocked(); err != nil {
+		return records.QueryResponse{}, err
+	}
 	return r.current.records.Query(ctx, request)
 }
 func (r *serviceRouter) WriteCheckpoint(ctx context.Context, request records.CheckpointRequest) (records.MutationResponse, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if err := r.readyLocked(); err != nil {
+		return records.MutationResponse{}, err
+	}
 	return r.current.records.WriteCheckpoint(ctx, request)
 }
 func (r *serviceRouter) WriteMemo(ctx context.Context, request records.MemoRequest) (records.MutationResponse, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if err := r.readyLocked(); err != nil {
+		return records.MutationResponse{}, err
+	}
 	return r.current.records.WriteMemo(ctx, request)
 }
 func (r *serviceRouter) ImportReport(ctx context.Context, request records.ImportRequest) (records.MutationResponse, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if err := r.readyLocked(); err != nil {
+		return records.MutationResponse{}, err
+	}
 	return r.current.records.ImportReport(ctx, request)
 }
 func (r *serviceRouter) Prepare(ctx context.Context, request runner.PrepareRequest) (runner.PrepareResponse, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if err := r.readyLocked(); err != nil {
+		return runner.PrepareResponse{}, err
+	}
 	return r.current.runner.Prepare(ctx, request)
 }
 func (r *serviceRouter) Execute(ctx context.Context, request runner.ExecuteRequest) (runner.ExecuteResponse, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if err := r.readyLocked(); err != nil {
+		return runner.ExecuteResponse{}, err
+	}
 	return r.current.runner.Execute(ctx, request)
 }
 func (r *serviceRouter) Inspect(ctx context.Context, request runner.InspectRequest) (runner.InspectResponse, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if err := r.readyLocked(); err != nil {
+		return runner.InspectResponse{}, err
+	}
 	return r.current.runner.Inspect(ctx, request)
 }
 func (r *serviceRouter) Export(ctx context.Context, request memorybackup.Request) (memorybackup.Response, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if err := r.readyLocked(); err != nil {
+		return memorybackup.Response{}, err
+	}
 	return r.current.memoryBackup.Export(ctx, request)
 }
 func (r *serviceRouter) Restore(ctx context.Context, archive string, byteLimit uint64) (memorybackup.Response, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if err := r.readyLocked(); err != nil {
+		return memorybackup.Response{}, err
+	}
 	return r.current.memoryBackup.Restore(ctx, archive, byteLimit)
 }
 
 func (r *serviceRouter) RecordUsage(ctx context.Context, event store.UsageEvent) error {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.readyLocked() != nil {
+		return nil
+	}
 	event.WorkspaceID = r.current.root.ID()
 	return r.current.usageRepository.RecordUsage(ctx, event)
 }
@@ -123,6 +183,9 @@ func (r *serviceRouter) RecordUsage(ctx context.Context, event store.UsageEvent)
 func (r *serviceRouter) QueryUsage(ctx context.Context, since, until string) ([]store.UsageAggregate, string, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if err := r.readyLocked(); err != nil {
+		return nil, "", err
+	}
 	return r.current.usageRepository.QueryUsage(ctx, r.current.root.ID(), since, until)
 }
 

@@ -2918,7 +2918,7 @@
     },
     {
       "name": "runtime_config",
-      "description": "Inspect or change live sources, workspace, state, or HTTP without restarting stdio. Local stdio changes apply directly without server approval prompts; HTTP calls are unavailable.",
+      "description": "Inspect or change live sources, workspace, state, or HTTP without restarting stdio. Local stdio changes apply directly without server approval prompts. If state overlaps the workspace, status reports blocked; select workspace or state_dir to recover. HTTP calls are unavailable.",
       "input_schema": {
         "additionalProperties": false,
         "properties": {
@@ -2969,6 +2969,35 @@
           },
           "status": {
             "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "required": [
+                "code",
+                "message",
+                "ref"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
           }
         },
         "required": [
