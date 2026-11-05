@@ -279,6 +279,10 @@ type CatalogRepository interface {
 // the mutable query.
 type ResultSetRepository interface {
 	CreateResultSet(ctx context.Context, set ResultSet) error
+	// FindResultSet returns the header (no Items) of the latest set with the
+	// same workspace, generation, and query hash that expires after minExpires,
+	// or ErrNotFound. Only immutable generations may reuse a set this way.
+	FindResultSet(ctx context.Context, workspaceID, generationID, queryHash string, minExpires time.Time) (ResultSet, error)
 	ReadResultPage(ctx context.Context, id string, from uint64, limit uint64) (ResultPage, error)
 	DeleteExpiredResultSets(ctx context.Context, now time.Time, limit uint64) (uint64, error)
 }

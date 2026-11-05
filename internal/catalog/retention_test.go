@@ -11,6 +11,42 @@ import (
 	"repoplane/internal/store"
 )
 
+func TestRepeatedQueryReusesLiveResultSet(t *testing.T) {
+	s, catalogPath := newServiceFixture(t, map[string]string{
+		"a.yaml": "id: a.tool\nrevision: 1\nsummary: first\n",
+		"b.yaml": "id: b.tool\nrevision: 1\nsummary: second\n",
+	})
+	ctx := context.Background()
+	snapshot := func(request QueryRequest) string {
+		t.Helper()
+		response, err := s.Query(ctx, request)
+		if err != nil || response.SnapshotRef == nil {
+			t.Fatalf("query %+v: response=%+v error=%v", request, response, err)
+		}
+		return *response.SnapshotRef
+	}
+	list := snapshot(QueryRequest{Mode: "list", ItemLimit: 1})
+	if again := snapshot(QueryRequest{Mode: "list", ItemLimit: 2}); again != list {
+		t.Fatalf("repeated list wrote a new set: %s != %s", again, list)
+	}
+	search := snapshot(QueryRequest{Mode: "search", Query: "audit"})
+	if search == list || snapshot(QueryRequest{Mode: "audit"}) == search {
+		t.Fatal("distinct modes or queries shared a result set")
+	}
+	base := s.now()
+	s.now = func() time.Time { return base.Add(resultSetTTL - resultSetMinReuse + time.Minute) }
+	if stale := snapshot(QueryRequest{Mode: "list"}); stale == list {
+		t.Fatal("reused a set without enough cursor lifetime left")
+	}
+	s.now = func() time.Time { return base }
+	if err := os.WriteFile(filepath.Join(catalogPath, "b.yaml"), []byte("id: b.tool\nrevision: 2\nsummary: changed\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if changed := snapshot(QueryRequest{Mode: "list"}); changed == list {
+		t.Fatal("reused a set across catalog generations")
+	}
+}
+
 func TestUnchangedRefreshPrunesRetiredGenerationAndPreservesLiveCursor(t *testing.T) {
 	s, catalogPath := newServiceFixture(t, map[string]string{
 		"a.yaml": "id: a.tool\nrevision: 1\nsummary: first\n",

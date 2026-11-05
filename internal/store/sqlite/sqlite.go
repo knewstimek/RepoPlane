@@ -545,6 +545,22 @@ func (r *Repository) CreateResultSet(ctx context.Context, set store.ResultSet) (
 	return nil
 }
 
+func (r *Repository) FindResultSet(ctx context.Context, workspaceID, generationID, queryHash string, minExpires time.Time) (store.ResultSet, error) {
+	set := store.ResultSet{WorkspaceID: workspaceID, GenerationID: generationID, QueryHash: queryHash}
+	var created, expires int64
+	err := r.db.QueryRowContext(ctx, `
+        SELECT id, created_at, expires_at FROM result_sets
+        WHERE generation_id=? AND workspace_id=? AND query_hash=? AND expires_at>?
+        ORDER BY expires_at DESC LIMIT 1`, generationID, workspaceID, queryHash, unixNano(minExpires)).Scan(&set.ID, &created, &expires)
+	if errors.Is(err, sql.ErrNoRows) {
+		return store.ResultSet{}, store.ErrNotFound
+	} else if err != nil {
+		return store.ResultSet{}, fmt.Errorf("find result set: %w", err)
+	}
+	set.CreatedAt, set.ExpiresAt = time.Unix(0, created).UTC(), time.Unix(0, expires).UTC()
+	return set, nil
+}
+
 func (r *Repository) ReadResultPage(ctx context.Context, id string, from, limit uint64) (store.ResultPage, error) {
 	if limit == 0 {
 		return store.ResultPage{}, fmt.Errorf("read result page: limit: %w", store.ErrConflict)

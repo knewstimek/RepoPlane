@@ -19,6 +19,9 @@ import (
 
 const resultSetTTL = 30 * time.Minute
 
+// resultSetMinReuse keeps cursors from a reused set valid for a useful window.
+const resultSetMinReuse = resultSetTTL / 2
+
 var ErrResponseTooLarge = errors.New("catalog: response cannot fit byte_limit")
 
 // MissingCapabilityError tells an MCP client how to inspect registration without
@@ -166,36 +169,38 @@ func (s *Service) Query(ctx context.Context, request QueryRequest) (QueryRespons
 }
 
 func (s *Service) search(ctx context.Context, meta store.CatalogGenerationMeta, query string, itemLimit, byteLimit uint64) (QueryResponse, error) {
-	page, err := s.repository.SearchCatalog(ctx, store.CatalogQuery{
-		WorkspaceID:  s.workspaceID,
-		GenerationID: meta.ID,
-		ExactID:      strings.TrimSpace(query),
-		Terms:        strings.Fields(query),
-		Limit:        MaxManifestFiles,
+	response, err := s.firstPage(ctx, meta, "search\x00"+query, itemLimit, byteLimit, func() ([]QueryResult, error) {
+		page, err := s.repository.SearchCatalog(ctx, store.CatalogQuery{
+			WorkspaceID:  s.workspaceID,
+			GenerationID: meta.ID,
+			ExactID:      strings.TrimSpace(query),
+			Terms:        strings.Fields(query),
+			Limit:        MaxManifestFiles,
+		})
+		if err != nil {
+			return nil, err
+		}
+		results := make([]QueryResult, 0, len(page.Matches))
+		for _, match := range page.Matches {
+			result, err := queryResult(match.Item, false, s.executionEnabled)
+			if err != nil {
+				return nil, err
+			}
+			if match.Score >= 1_000_000 {
+				result.MatchReason = "exact_id"
+			} else if query != "" {
+				result.MatchReason = "lexical"
+			} else {
+				result.MatchReason = "list"
+			}
+			results = append(results, result)
+		}
+		return results, nil
 	})
 	if err != nil {
 		return QueryResponse{}, err
 	}
-	results := make([]QueryResult, 0, len(page.Matches))
-	for _, match := range page.Matches {
-		result, err := queryResult(match.Item, false, s.executionEnabled)
-		if err != nil {
-			return QueryResponse{}, err
-		}
-		if match.Score >= 1_000_000 {
-			result.MatchReason = "exact_id"
-		} else if query != "" {
-			result.MatchReason = "lexical"
-		} else {
-			result.MatchReason = "list"
-		}
-		results = append(results, result)
-	}
-	response, err := s.persistAndReadFirstPage(ctx, meta, query, results, itemLimit, byteLimit)
-	if err != nil {
-		return QueryResponse{}, err
-	}
-	if query != "" && len(results) == 0 {
+	if query != "" && response.Counts.Matched != nil && *response.Counts.Matched == 0 {
 		response.Warnings = append(response.Warnings, contracts.Warning{
 			Code: "catalog_no_match", Message: "no match; check catalog_query(mode=status) and runtime_config(action=status)",
 		})
@@ -246,21 +251,23 @@ func (s *Service) catalogRootWarnings() []contracts.Warning {
 }
 
 func (s *Service) audit(ctx context.Context, meta store.CatalogGenerationMeta, itemLimit, byteLimit uint64) (QueryResponse, error) {
-	issues, err := s.repository.ListCatalogIssues(ctx, s.workspaceID, meta.ID)
-	if err != nil {
-		return QueryResponse{}, err
-	}
-	results := make([]QueryResult, 0, len(issues))
-	for _, issue := range issues {
-		var detail map[string]string
-		if err := json.Unmarshal(issue.Detail, &detail); err != nil {
-			return QueryResponse{}, fmt.Errorf("decode catalog issue: %w", err)
+	return s.firstPage(ctx, meta, "audit", itemLimit, byteLimit, func() ([]QueryResult, error) {
+		issues, err := s.repository.ListCatalogIssues(ctx, s.workspaceID, meta.ID)
+		if err != nil {
+			return nil, err
 		}
-		results = append(results, QueryResult{
-			Kind: "issue", SourceRef: issue.SourceRef, IssueCode: issue.Code, Detail: detail,
-		})
-	}
-	return s.persistAndReadFirstPage(ctx, meta, "audit", results, itemLimit, byteLimit)
+		results := make([]QueryResult, 0, len(issues))
+		for _, issue := range issues {
+			var detail map[string]string
+			if err := json.Unmarshal(issue.Detail, &detail); err != nil {
+				return nil, fmt.Errorf("decode catalog issue: %w", err)
+			}
+			results = append(results, QueryResult{
+				Kind: "issue", SourceRef: issue.SourceRef, IssueCode: issue.Code, Detail: detail,
+			})
+		}
+		return results, nil
+	})
 }
 
 func (s *Service) status(ctx context.Context, meta store.CatalogGenerationMeta, byteLimit uint64) (QueryResponse, error) {
@@ -294,15 +301,28 @@ func (s *Service) status(ctx context.Context, meta store.CatalogGenerationMeta, 
 	return response, nil
 }
 
-func (s *Service) persistAndReadFirstPage(ctx context.Context, meta store.CatalogGenerationMeta, query string, results []QueryResult, itemLimit, byteLimit uint64) (QueryResponse, error) {
+// firstPage serves page one of a materialized result set. A catalog generation
+// is immutable, so a live set for the same generation and key is reused instead
+// of rescanning and rewriting every match on each repeated query.
+func (s *Service) firstPage(ctx context.Context, meta store.CatalogGenerationMeta, key string, itemLimit, byteLimit uint64, build func() ([]QueryResult, error)) (QueryResponse, error) {
 	now := s.now().UTC()
+	querySum := sha256.Sum256([]byte(fmt.Sprintf("catalog.v1\x00%s\x00%t\x00%s", meta.ID, s.executionEnabled, key)))
+	queryHash := "sha256:" + hex.EncodeToString(querySum[:])
+	if set, err := s.repository.FindResultSet(ctx, s.workspaceID, meta.ID, queryHash, now.Add(resultSetMinReuse)); err == nil {
+		return s.readPage(ctx, set.ID, 0, itemLimit, byteLimit, set.ExpiresAt)
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return QueryResponse{}, err
+	}
+	results, err := build()
+	if err != nil {
+		return QueryResponse{}, err
+	}
 	setID, err := randomID("results_")
 	if err != nil {
 		return QueryResponse{}, err
 	}
-	querySum := sha256.Sum256([]byte(meta.ID + "\x00" + query))
 	set := store.ResultSet{
-		ID: setID, WorkspaceID: s.workspaceID, QueryHash: "sha256:" + hex.EncodeToString(querySum[:]),
+		ID: setID, WorkspaceID: s.workspaceID, QueryHash: queryHash,
 		GenerationID: meta.ID, CreatedAt: now, ExpiresAt: now.Add(resultSetTTL),
 		Metadata: json.RawMessage(`{}`),
 		Items:    make([]store.ResultItem, 0, len(results)),

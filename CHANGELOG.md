@@ -11,6 +11,10 @@ Notable changes to RepoPlane are documented here.
   `runtime_config` exposes blocked status and can activate tools on the same connection by
   selecting a safe workspace or state directory. No database or repository service opens while
   blocked. HTTP startup and rejection of unsafe changes to an active server remain unchanged.
+- Repeated `catalog_query` `list`, `search`, or `audit` calls against an unchanged catalog now
+  reuse the live result snapshot instead of rescanning and rewriting every match each time. A
+  snapshot is reused only within the same catalog generation and while at least 15 minutes of
+  cursor lifetime remain. Responses, paging, and cursors are unchanged.
 
 ## [1.2.3] - 2026-11-02
 
