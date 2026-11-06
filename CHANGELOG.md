@@ -4,6 +4,13 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+## [1.2.5] - 2026-11-06
+
+### Upgrade notes
+
+- Reconnect MCP after replacing the executable. No configuration or database change is
+  required. Catalog search snapshots created by older versions are not reused.
+
 ### Fixed
 
 - `memo_write` now publishes `memo_kind` as an enum and reports an invalid or missing kind as
