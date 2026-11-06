@@ -82,6 +82,35 @@ jobs:
             exit 1
           fi
 
+      - name: Require tests on the latest tested commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for sha in $(git rev-list --first-parent --max-count=50 "$GITHUB_SHA"); do
+            run_id="$(gh run list --workflow ci.yml --commit "$sha" --event push --limit 10 \
+              --json databaseId,headBranch,headSha \
+              --jq "[.[] | select(.headBranch == \"main\" and .headSha == \"$sha\")][0].databaseId // empty")"
+            [[ -z "$run_id" ]] && continue
+            gh run watch "$run_id" --exit-status >/dev/null || true
+            tests="$(gh run view "$run_id" --json jobs \
+              --jq '[.jobs[] | select((.name | startswith("test")) or .name == "race") | .conclusion] | unique | join(",")')"
+            case "$tests" in
+              ""|skipped) continue ;;
+              success)
+                echo "Tests passed in CI run $run_id for $sha."
+                exit 0
+                ;;
+              *)
+                echo "CI run $run_id for $sha has test conclusions: $tests" >&2
+                exit 1
+                ;;
+            esac
+          done
+          echo "No main CI run with tests found within 50 first-parent commits." >&2
+          exit 1
+
   publish:
     needs: gate
     runs-on: ubuntu-latest
