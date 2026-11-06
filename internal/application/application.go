@@ -97,7 +97,11 @@ func buildBundle(ctx context.Context, settings config.Settings, cacheEnabled fun
 	if err != nil {
 		return nil, err
 	}
-	if inside, err := pathInside(root.Resolved(), settings.StateDir); err != nil {
+	plannedState, err := workspace.RealPathAllowMissing(settings.StateDir)
+	if err != nil {
+		return nil, fmt.Errorf("resolve planned state directory: %w", err)
+	}
+	if inside, err := pathInside(root.Resolved(), plannedState); err != nil {
 		return nil, fmt.Errorf("validate state directory: %w", err)
 	} else if inside {
 		return nil, runtimeconfig.ErrStateOverlap

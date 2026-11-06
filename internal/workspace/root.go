@@ -152,6 +152,40 @@ func (r *Root) ResolveForLookup(relative string) (resolved string, exists bool, 
 	return resolved, false, nil
 }
 
+// RealPathAllowMissing resolves path the same way Root resolves its boundary,
+// for a path that may not exist yet: the deepest existing ancestor is resolved
+// and the missing components are appended. Callers compare the result with
+// Root.Resolved before creating anything, so aliases such as Windows short
+// names or symlinked parents cannot hide an overlap.
+func RealPathAllowMissing(path string) (string, error) {
+	parent, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	missing := make([]string, 0)
+	for {
+		if _, statErr := os.Lstat(parent); statErr == nil {
+			break
+		} else if !errors.Is(statErr, os.ErrNotExist) {
+			return "", statErr
+		}
+		next := filepath.Dir(parent)
+		if next == parent {
+			return "", fmt.Errorf("no existing ancestor: %w", os.ErrNotExist)
+		}
+		missing = append(missing, filepath.Base(parent))
+		parent = next
+	}
+	resolved, err := realPath(parent)
+	if err != nil {
+		return "", err
+	}
+	for index := len(missing) - 1; index >= 0; index-- {
+		resolved = filepath.Join(resolved, missing[index])
+	}
+	return filepath.Clean(resolved), nil
+}
+
 // ResolvePrimaryExisting resolves an existing path only within the immutable
 // primary workspace. Mutation, catalog execution, and Runner code use this
 // method so runtime read grants never enlarge their authority.

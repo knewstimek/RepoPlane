@@ -30,6 +30,9 @@ Notable changes to RepoPlane are documented here.
 - `deadline_exceeded` failures are now logged on stderr with their correlation ID and the step
   that ran out of time, like `storage_failure` and `internal_error`. Client responses are
   unchanged.
+- A state directory inside the workspace is now rejected before it is created when it is spelled
+  through a path alias, such as a Windows 8.3 short name. Previously the overlap was still
+  rejected, but an empty state directory could be left inside the workspace.
 
 ## [1.2.3] - 2026-11-02
 
