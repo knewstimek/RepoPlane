@@ -355,6 +355,7 @@ HTTP clients cannot call this tool. Use startup flags for fixed host defaults:
 
 ```text
 --workspace PATH       primary workspace
+--workspace-origin PATH former canonical absolute path; one-time legacy adoption after a move
 --state-dir PATH       private local state outside the workspace
 --catalog-root PATH    workspace-relative catalog source; repeatable
 --candidate-root PATH  executable candidate directory; repeatable
@@ -416,7 +417,11 @@ The new directory remains the filesystem trust boundary; read grants do not trav
 Fresh Git clones without this ignored file remain separate projects. A full directory copy
 including the file intentionally shares record identity; omit the file for an independent copy.
 Keep only one active server per identity/state directory. The workspace must be writable for
-initial pinning. A damaged file is rejected rather than silently creating a new identity.
+initial pinning. The marker is published only after service initialization, using complete synced
+bytes without replacing a competing opener's marker. Failed state initialization leaves no pinned
+ID, so legacy adoption can still be retried. Oversized, non-regular, or damaged files are rejected
+rather than silently creating a new identity. Only the small identity file is created inside the
+workspace; databases and process output stay in the external state directory.
 
 If a legacy workspace was already moved before upgrading, start once with the old canonical
 absolute path, even if that path no longer exists. Use the same original state directory:
@@ -431,7 +436,10 @@ Copyable MCP host configuration for this one-time adoption:
 {"mcpServers":{"repoplane":{"command":"repoplane","args":["--workspace","NEW_WORKSPACE","--state-dir","ORIGINAL_STATE_DIRECTORY","--workspace-origin","FORMER_CANONICAL_ABSOLUTE_PATH"]}}}
 ```
 
-Remove `--workspace-origin` after the first successful startup. It cannot replace a conflicting
+Normal moves need no origin option or agent intervention: move the whole directory, including
+`.repoplane/` even when a copy tool skips dot directories, and keep using the existing state.
+Agents must not add `--workspace-origin` on every move. Remove it after the first successful
+legacy adoption. It cannot replace a conflicting
 saved ID or merge separately created histories. The former path must match the old resolved
 path (including the original drive/platform); Git remotes and folder names are not used to guess
 identity. Retain the state databases: the small identity file does not contain the records.

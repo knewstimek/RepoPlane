@@ -10,6 +10,29 @@ import (
 	"testing"
 )
 
+func TestRuntimeConfigExplainsWorkspaceContinuity(t *testing.T) {
+	generated, err := Generate(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var schema document
+	if err := json.Unmarshal(generated, &schema); err != nil {
+		t.Fatal(err)
+	}
+	for _, tool := range schema.Tools {
+		if tool.Name != "runtime_config" {
+			continue
+		}
+		for _, phrase := range []string{".repoplane/workspace-id", "state directory", "--workspace-origin", "ignored", "conflicting"} {
+			if !strings.Contains(tool.Description, phrase) {
+				t.Fatalf("runtime_config omits %q", phrase)
+			}
+		}
+		return
+	}
+	t.Fatal("runtime_config is absent")
+}
+
 func TestRunInspectSchemaExplainsStoredReferencesWithoutREADME(t *testing.T) {
 	generated, err := Generate(context.Background())
 	if err != nil {

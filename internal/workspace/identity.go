@@ -26,26 +26,32 @@ func (r *Root) savedIdentity() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", err
+	}
+	if !info.Mode().IsRegular() || info.Size() > 128 {
+		return "", errors.New("workspace: private workspace-id must be a regular file of at most 128 bytes; restore the original identity file")
+	}
 	f, err := os.Open(path)
 	if err != nil {
 		return "", err
 	}
 	defer f.Close()
-	data, err := io.ReadAll(io.LimitReader(f, 128))
+	data, err := io.ReadAll(io.LimitReader(f, 129))
 	if err != nil {
 		return "", err
 	}
 	id := strings.TrimSpace(string(data))
-	if !identityPattern.MatchString(id) {
+	if len(data) > 128 || !identityPattern.MatchString(id) {
 		return "", errors.New("workspace: invalid private workspace-id; restore the original identity file")
 	}
 	return id, nil
 }
 
-// PinIdentity preserves the old namespace across directory moves. An origin is
-// only needed if a legacy workspace was already moved before its first pin.
-// It is the old canonical absolute path, which need not still exist.
-func (r *Root) PinIdentity(origin string) error {
+// PrepareIdentity binds services to a namespace without publishing a marker.
+// Call PinIdentity only after service initialization succeeds.
+func (r *Root) PrepareIdentity(origin string) error {
 	wanted := r.id
 	if origin != "" {
 		if !filepath.IsAbs(origin) {
@@ -57,11 +63,27 @@ func (r *Root) PinIdentity(origin string) error {
 	if err != nil {
 		return err
 	}
-	if saved != "" {
-		if origin != "" && saved != wanted {
-			return errors.New("workspace: workspace-origin conflicts with saved identity; refusing to replace it")
+	if saved != "" && saved != wanted {
+		return errors.New("workspace: workspace-origin or prepared identity conflicts with saved identity; refusing to replace it")
+	}
+	r.id = wanted
+	return nil
+}
+
+// PinIdentity preserves the old namespace across directory moves. An origin is
+// only needed if a legacy workspace was already moved before its first pin.
+// It is the old canonical absolute path, which need not still exist.
+func (r *Root) PinIdentity(origin string) error {
+	if err := r.PrepareIdentity(origin); err != nil {
+		return err
+	}
+	wanted := r.id
+	if saved, err := r.savedIdentity(); err != nil {
+		return err
+	} else if saved != "" {
+		if saved != wanted {
+			return errors.New("workspace: saved identity changed during initialization")
 		}
-		r.id = saved
 		return nil
 	}
 	parent, _, err := r.ResolveForLookup(".repoplane")
@@ -75,24 +97,29 @@ func (r *Root) PinIdentity(origin string) error {
 		return err
 	}
 	path := filepath.Join(parent, "workspace-id")
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-	if errors.Is(err, os.ErrExist) {
-		// Another opener won. Validate its identity instead of overwriting it.
-		saved, readErr := r.savedIdentity()
-		if readErr != nil || saved != wanted {
-			return errors.New("workspace: concurrent identity initialization; retry after the other opener finishes")
-		}
-		r.id = saved
-		return nil
-	}
+	f, err := os.CreateTemp(parent, ".workspace-id-")
 	if err != nil {
 		return fmt.Errorf("workspace: persist identity: %w", err)
 	}
+	defer os.Remove(f.Name())
 	_, writeErr := io.WriteString(f, wanted+"\n")
+	if writeErr == nil {
+		writeErr = f.Sync()
+	}
 	closeErr := f.Close()
 	if err := errors.Join(writeErr, closeErr); err != nil {
-		_ = os.Remove(path)
 		return err
+	}
+	// Publish complete bytes without replacing another opener's marker. A crash
+	// before publication may leave a private temp file, never a partial marker.
+	if err := publishIdentity(f.Name(), path); err != nil {
+		if !errors.Is(err, os.ErrExist) {
+			return fmt.Errorf("workspace: publish identity: %w", err)
+		}
+		saved, readErr := r.savedIdentity()
+		if readErr != nil || saved != wanted {
+			return errors.New("workspace: concurrent identity initialization selected another identity; refusing to replace it")
+		}
 	}
 	r.id = wanted
 	return nil

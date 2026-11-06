@@ -31,16 +31,16 @@
     {
       "name": "state",
       "tool_count": 2,
-      "complete_contract_bytes": 2747,
-      "name_description_input_bytes": 1716,
+      "complete_contract_bytes": 2892,
+      "name_description_input_bytes": 1861,
       "input_schema_bytes": 904,
       "output_schema_bytes": 997
     },
     {
       "name": "all",
       "tool_count": 14,
-      "complete_contract_bytes": 40584,
-      "name_description_input_bytes": 18122,
+      "complete_contract_bytes": 40729,
+      "name_description_input_bytes": 18267,
       "input_schema_bytes": 15025,
       "output_schema_bytes": 22224
     },

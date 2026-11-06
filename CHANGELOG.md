@@ -4,6 +4,17 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+## [1.2.7] - 2026-11-07
+
+### Fixed
+
+- Failed service initialization no longer pins a workspace ID before legacy adoption can be
+  retried. Publish a complete, synced ID without overwriting another opener's identity.
+- Reject oversized and non-regular private identity files instead of accepting a truncated
+  valid prefix. Preserve the primary workspace boundary for identity reads and writes.
+- Align the README option summary, CLI help, and MCP discovery with workspace continuity,
+  ignored identity files, original state reuse, one-time adoption, and conflicting-ID behavior.
+
 ## [1.2.6] - 2026-11-07
 
 ### Added

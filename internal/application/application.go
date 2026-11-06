@@ -118,7 +118,7 @@ func buildBundle(ctx context.Context, settings config.Settings, cacheEnabled fun
 	} else if inside {
 		return nil, runtimeconfig.ErrStateOverlap
 	}
-	if err := root.PinIdentity(settings.WorkspaceOrigin); err != nil {
+	if err := root.PrepareIdentity(settings.WorkspaceOrigin); err != nil {
 		return nil, err
 	}
 	repository, err := storesqlite.Open(ctx, filepath.Join(settings.StateDir, "repoplane.db"))
@@ -185,6 +185,9 @@ func buildBundle(ctx context.Context, settings config.Settings, cacheEnabled fun
 	}
 	runnerService.SetCacheEnabled(cacheEnabled)
 	if err := runnerService.Recover(ctx); err != nil {
+		return fail(err)
+	}
+	if err := root.PinIdentity(""); err != nil {
 		return fail(err)
 	}
 	memoryService := memorybackup.New(root, recordRepository, runnerService, settings.StateDir)

@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,6 +11,34 @@ import (
 	"repoplane/internal/records"
 	"repoplane/internal/workspace"
 )
+
+func TestFailedStartupDoesNotPinWrongLegacyNamespace(t *testing.T) {
+	ctx := context.Background()
+	base := t.TempDir()
+	settings := config.Settings{Workspace: t.TempDir(), StateDir: base}
+	// Reproduce a state initialization failure before any project tools are usable.
+	if err := os.Mkdir(filepath.Join(base, "records.db"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	app, err := Open(ctx, settings, "test")
+	if err == nil {
+		_ = app.Close()
+		t.Fatal("expected state initialization failure")
+	}
+	marker := filepath.Join(settings.Workspace, ".repoplane", "workspace-id")
+	if _, err := os.Stat(marker); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("failed startup pinned a namespace before legacy adoption: %v", err)
+	}
+	if err := os.Remove(filepath.Join(base, "records.db")); err != nil {
+		t.Fatal(err)
+	}
+	settings.WorkspaceOrigin = filepath.Join(base, "former-workspace")
+	app, err = Open(ctx, settings, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+}
 
 func TestLegacyRecordsSurvivePinMoveAndRestart(t *testing.T) {
 	for _, alreadyMoved := range []bool{false, true} {

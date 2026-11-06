@@ -1,11 +1,27 @@
 package config
 
 import (
+	"bytes"
+	"errors"
+	"flag"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestHelpExplainsWorkspaceContinuity(t *testing.T) {
+	var output bytes.Buffer
+	if _, err := Parse([]string{"--help"}, &output); !errors.Is(err, flag.ErrHelp) {
+		t.Fatal(err)
+	}
+	for _, phrase := range []string{"workspace-origin", ".repoplane/workspace-id", "same --state-dir", "may be missing", "remove this flag", "conflicting saved ID", "ignored"} {
+		if !strings.Contains(output.String(), phrase) {
+			t.Fatalf("help omits %q", phrase)
+		}
+	}
+}
 
 func TestParseCatalogRoots(t *testing.T) {
 	got, err := Parse([]string{
