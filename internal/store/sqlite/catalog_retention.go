@@ -14,6 +14,13 @@ import (
 // point conversion of nanoseconds. Legacy publishers have no injected Go clock.
 const catalogRetirementClockSQL = "(CAST(strftime('%s','now') AS INTEGER)*1000 + CAST(substr(strftime('%f','now'),4,3) AS INTEGER))*1000000"
 
+const retiredCatalogGenerationsSQL = `
+	SELECT g.id FROM catalog_generations g JOIN catalog_retirements r ON r.generation_id=g.id
+	WHERE g.workspace_id=? AND r.retired_at<=?
+	  AND NOT EXISTS (SELECT 1 FROM current_catalog c WHERE c.generation_id=g.id)
+	  AND NOT EXISTS (SELECT 1 FROM result_sets s WHERE s.generation_id=g.id AND s.expires_at>?)
+	ORDER BY r.retired_at, g.id LIMIT ?`
+
 func isRetirementSchemaV4(ctx context.Context, tx *sql.Tx) (bool, error) {
 	columns, err := tableColumns(ctx, tx, "catalog_generations")
 	if err != nil {
@@ -114,13 +121,17 @@ func (r *Repository) DeleteRetiredCatalogGenerations(ctx context.Context, worksp
 	if limit == 0 {
 		return 0, nil
 	}
-	result, err := r.db.ExecContext(ctx, `DELETE FROM catalog_generations WHERE id IN (
-		SELECT g.id FROM catalog_generations g JOIN catalog_retirements r ON r.generation_id=g.id
-		WHERE g.workspace_id=? AND r.retired_at<=?
-		  AND NOT EXISTS (SELECT 1 FROM current_catalog c WHERE c.generation_id=g.id)
-		  AND NOT EXISTS (SELECT 1 FROM result_sets s WHERE s.generation_id=g.id AND s.expires_at>?)
-		ORDER BY r.retired_at, g.id LIMIT ?
-	)`, workspaceID, unixNano(before), unixNano(now), limit)
+	args := []any{workspaceID, unixNano(before), unixNano(now), limit}
+	// Every refresh calls this, so probe with a read first: a write statement
+	// takes the write lock even when it matches nothing.
+	var candidate string
+	err := r.db.QueryRowContext(ctx, retiredCatalogGenerationsSQL, args...).Scan(&candidate)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	} else if err != nil {
+		return 0, fmt.Errorf("find retired catalog generations: %w", err)
+	}
+	result, err := r.db.ExecContext(ctx, "DELETE FROM catalog_generations WHERE id IN ("+retiredCatalogGenerationsSQL+")", args...)
 	if err != nil {
 		return 0, fmt.Errorf("delete retired catalog generations: %w", err)
 	}

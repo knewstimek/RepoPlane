@@ -293,8 +293,9 @@ Tool failures return a JSON object in the MCP error text with stable `code`, saf
 `correlation_id` fields. Mutation failures also include `mutation_state`: `not_applied` means the
 write was rejected before commit, while `unknown` means a storage, deadline, or unexpected failure
 requires a read-back before retrying. Durable writes distinguish `invalid_argument`,
-`invalid_transition`, `revision_conflict`, and `storage_failure`; server diagnostics retain the
-correlation ID on stderr without exposing database details or host paths to the client.
+`invalid_transition`, `revision_conflict`, and `storage_failure`; for `storage_failure`,
+`internal_error`, and `deadline_exceeded`, server diagnostics log the correlation ID and the failing
+stage on stderr without exposing database details or host paths to the client.
 
 Catalog entries are YAML, JSON, or Markdown with YAML frontmatter under a configured catalog
 root. A minimal discovery-only entry is:

@@ -348,7 +348,9 @@ func publicErrorWithMutationState(err error, mutation bool) error {
 			mutationState = "unknown"
 		}
 	}
-	if code == "storage_failure" || code == "internal_error" {
+	// Deadlines are logged too: the wrapped chain names the stage that ran out
+	// of time (for example a write-lock wait), which the public code cannot.
+	if code == "storage_failure" || code == "internal_error" || code == "deadline_exceeded" {
 		_, _ = fmt.Fprintf(os.Stderr, "repoplane: correlation_id=%s code=%s error=%v\n", correlationID, code, err)
 	}
 	return &publicClientError{failure: publicFailure{

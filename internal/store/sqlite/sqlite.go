@@ -53,6 +53,10 @@ func (r *Repository) initialize(ctx context.Context) (err error) {
 			return fmt.Errorf("configure sqlite: %w", err)
 		}
 	}
+	// WAL lets catalog and snapshot reads proceed while another host process
+	// writes. Switching needs a moment without other connections; if an older
+	// process still holds the file, keep the current mode and retry next open.
+	_, _ = r.db.ExecContext(ctx, `PRAGMA journal_mode = WAL`)
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin sqlite migration: %w", err)

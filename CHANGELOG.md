@@ -15,6 +15,12 @@ Notable changes to RepoPlane are documented here.
   reuse the live result snapshot instead of rescanning and rewriting every match each time. A
   snapshot is reused only within the same catalog generation and while at least 15 minutes of
   cursor lifetime remain. Responses, paging, and cursors are unchanged.
+- `catalog_query` against an unchanged catalog no longer times out while another host process
+  holds the state database write lock. Catalog refresh checks for retired generations with a read
+  before deleting, and the cache database now uses SQLite WAL so reads proceed during writes.
+  If an older process holds the file, the switch is retried on the next open.
+- `deadline_exceeded` failures now log their correlation ID and stage chain on stderr, like
+  `storage_failure` and `internal_error`, so a timeout can be traced to the step that ran out.
 
 ## [1.2.3] - 2026-11-02
 

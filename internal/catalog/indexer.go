@@ -58,7 +58,7 @@ func NewIndexer(root *workspace.Root, repository store.CatalogRepository, catalo
 func (i *Indexer) Refresh(ctx context.Context) (store.CatalogGenerationMeta, error) {
 	generation, err := i.Build(ctx)
 	if err != nil {
-		return store.CatalogGenerationMeta{}, err
+		return store.CatalogGenerationMeta{}, fmt.Errorf("build catalog generation: %w", err)
 	}
 	// Run even when the fingerprint is unchanged, so an existing backlog can
 	// drain without requiring further catalog edits. Retirement time protects
@@ -72,7 +72,7 @@ func (i *Indexer) Refresh(ctx context.Context) (store.CatalogGenerationMeta, err
 		return current, nil
 	}
 	if err != nil && !errors.Is(err, store.ErrNotFound) {
-		return store.CatalogGenerationMeta{}, err
+		return store.CatalogGenerationMeta{}, fmt.Errorf("read current catalog generation: %w", err)
 	}
 	if err := i.repository.PublishCatalogGeneration(ctx, generation); err != nil {
 		// A concurrent refresher may have published the same deterministic
@@ -83,7 +83,7 @@ func (i *Indexer) Refresh(ctx context.Context) (store.CatalogGenerationMeta, err
 				return current, nil
 			}
 		}
-		return store.CatalogGenerationMeta{}, err
+		return store.CatalogGenerationMeta{}, fmt.Errorf("publish catalog generation: %w", err)
 	}
 	return generation.Meta, nil
 }
