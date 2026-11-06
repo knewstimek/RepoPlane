@@ -4,6 +4,21 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+## [1.2.6] - 2026-11-07
+
+### Added
+
+- Pin legacy workspace IDs in private `.repoplane/workspace-id` files so directory moves keep
+  memos, checkpoints, and other records with the same state directory, without rewriting records.
+- Add one-time `--workspace-origin` adoption for legacy directories moved before upgrading.
+  Conflicting or corrupt saved IDs fail closed; MCP discovery explains continuity and recovery.
+
+### Upgrade notes
+
+- Reconnect MCP after replacing the executable and open existing workspaces before moving them.
+  Move the ignored identity file with the directory and update the configured workspace path.
+  Already moved legacy workspaces need the original canonical absolute path on first startup.
+
 ## [1.2.5] - 2026-11-06
 
 ### Upgrade notes

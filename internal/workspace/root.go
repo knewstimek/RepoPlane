@@ -70,12 +70,18 @@ func Open(path string) (*Root, error) {
 		return nil, fmt.Errorf("%w: absolute resolved path: %v", ErrInvalidRoot, err)
 	}
 	resolved = filepath.Clean(resolved)
-	return &Root{
+	root := &Root{
 		id:       identity(resolved),
 		lexical:  filepath.Clean(abs),
 		resolved: resolved,
 		grants:   make(map[string]readGrant),
-	}, nil
+	}
+	if saved, err := root.savedIdentity(); err != nil {
+		return nil, err
+	} else if saved != "" {
+		root.id = saved
+	}
+	return root, nil
 }
 
 func (r *Root) ID() string       { return r.id }

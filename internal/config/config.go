@@ -16,6 +16,7 @@ type Settings struct {
 	ResultContent         string
 	HTTPProfile           string
 	Workspace             string
+	WorkspaceOrigin       string
 	StateDir              string
 	CatalogRoots          []string
 	CandidateRoots        []string
@@ -61,6 +62,7 @@ func Parse(args []string, output io.Writer) (Settings, error) {
 	flags := flag.NewFlagSet("repoplane", flag.ContinueOnError)
 	flags.SetOutput(output)
 	flags.StringVar(&settings.Workspace, "workspace", settings.Workspace, "trusted workspace root")
+	flags.StringVar(&settings.WorkspaceOrigin, "workspace-origin", "", "former canonical absolute workspace path; adopt legacy records after a move, once before first upgraded startup")
 	flags.StringVar(&settings.Transport, "transport", "stdio", "MCP transport: stdio or http")
 	flags.StringVar(&settings.ToolSurface, "tool-surface", settings.ToolSurface, "MCP tool surface: typed.v1 or toolbox.v1 (startup only)")
 	flags.StringVar(&settings.ResultContent, "result-content", settings.ResultContent, "MCP result content: compatible or deduplicated; deduplicated requires a client that reads structuredContent (startup only)")

@@ -530,7 +530,7 @@ func operationRegistry(options Options) []operationSpec {
 	}
 	if options.RuntimeConfig != nil && options.RuntimeAccess != nil {
 		destructive := true
-		operations = append(operations, newOperation(ToolRuntimeConfig, ToolboxState, "Inspect or change live sources, workspace, state, or HTTP without restarting stdio. Local stdio changes apply directly without server approval prompts. If state overlaps the workspace, status reports blocked; select workspace or state_dir to recover. HTTP calls are unavailable.", ScopeStateExport, "runtime_configuration_change", "none", &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false},
+		operations = append(operations, newOperation(ToolRuntimeConfig, ToolboxState, "Inspect or change live sources, workspace, state, or HTTP without restarting stdio. Workspace identity is pinned in private .repoplane/workspace-id: retain it and the state directory across moves, then select the new workspace. For a legacy workspace already moved, start once with --workspace-origin FORMER_CANONICAL_ABSOLUTE_PATH before its first upgraded startup. Local stdio changes apply directly without server approval prompts. If state overlaps the workspace, status reports blocked; select workspace or state_dir to recover. HTTP calls are unavailable.", ScopeStateExport, "runtime_configuration_change", "none", &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false},
 			func(ctx context.Context, request *mcp.CallToolRequest, input runtimeconfig.Request) (*mcp.CallToolResult, runtimeconfig.Response, error) {
 				if err := authorize(ctx, options, ToolRuntimeConfig); err != nil {
 					return nil, runtimeconfig.Response{}, publicError(err)

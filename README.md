@@ -399,6 +399,45 @@ authorization is separate from local stdio session grants.
 
 ## Local state, backup, and usage
 
+### Moving a workspace
+
+On the first successful upgraded startup, RepoPlane pins the existing path-derived ID in
+the private `.repoplane/workspace-id` file. Existing memos, checkpoints, and other records
+keep their IDs; no database migration is needed. Keep `.repoplane/` ignored by Git in every
+workspace (add `/.repoplane/` to `.gitignore`) and never publish the identity file. Move this
+file with the directory, retain the same `--state-dir`, and update `--workspace` or use:
+
+```json
+{"action":"select","target":"workspace","values":["NEW_ABSOLUTE_WORKSPACE_PATH"]}
+```
+
+`runtime_config(action=status)` reports `workspace_identity: ["pinned", ".repoplane/workspace-id"]`.
+The new directory remains the filesystem trust boundary; read grants do not travel with it.
+Fresh Git clones without this ignored file remain separate projects. A full directory copy
+including the file intentionally shares record identity; omit the file for an independent copy.
+Keep only one active server per identity/state directory. The workspace must be writable for
+initial pinning. A damaged file is rejected rather than silently creating a new identity.
+
+If a legacy workspace was already moved before upgrading, start once with the old canonical
+absolute path, even if that path no longer exists. Use the same original state directory:
+
+```text
+repoplane --workspace NEW_WORKSPACE --state-dir ORIGINAL_STATE_DIRECTORY --workspace-origin FORMER_CANONICAL_ABSOLUTE_PATH
+```
+
+Copyable MCP host configuration for this one-time adoption:
+
+```json
+{"mcpServers":{"repoplane":{"command":"repoplane","args":["--workspace","NEW_WORKSPACE","--state-dir","ORIGINAL_STATE_DIRECTORY","--workspace-origin","FORMER_CANONICAL_ABSOLUTE_PATH"]}}}
+```
+
+Remove `--workspace-origin` after the first successful startup. It cannot replace a conflicting
+saved ID or merge separately created histories. The former path must match the old resolved
+path (including the original drive/platform); Git remotes and folder names are not used to guess
+identity. Retain the state databases: the small identity file does not contain the records.
+If it is lost after a move, restore it or adopt the original pre-pin canonical path, not an
+intermediate location. Machine changes also require transferring state or memory export/restore.
+
 RepoPlane keeps regenerable search indexes and durable records in separate SQLite files under
 `--state-dir`, never inside the workspace. Runner streams and captured artifacts are retained
 there under bounded policies. Removing the state directory also removes local memos, checkpoints,

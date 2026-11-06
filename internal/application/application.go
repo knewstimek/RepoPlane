@@ -118,6 +118,9 @@ func buildBundle(ctx context.Context, settings config.Settings, cacheEnabled fun
 	} else if inside {
 		return nil, runtimeconfig.ErrStateOverlap
 	}
+	if err := root.PinIdentity(settings.WorkspaceOrigin); err != nil {
+		return nil, err
+	}
 	repository, err := storesqlite.Open(ctx, filepath.Join(settings.StateDir, "repoplane.db"))
 	if err != nil {
 		return nil, err

@@ -79,10 +79,14 @@ func (a *Application) snapshotLocked() runtimeconfig.Snapshot {
 		runtimeconfig.TargetRuleFile:      append([]string(nil), a.settings.RuleFiles...),
 		runtimeconfig.TargetSymbolIndex:   append([]string(nil), a.settings.SymbolIndexes...),
 		runtimeconfig.TargetToolSurface:   {a.settings.ToolSurface},
+		"workspace_identity":              {"pinned", ".repoplane/workspace-id"},
 	}
 	result[runtimeconfig.TargetHTTPTransport] = make([]string, 0)
 	if a.httpRunning != nil {
 		result[runtimeconfig.TargetHTTPTransport] = []string{a.httpProfilePath}
+	}
+	if a.router.ready() != nil {
+		result["workspace_identity"] = []string{"unavailable"}
 	}
 	return result
 }
@@ -104,6 +108,8 @@ func mutateSettings(settings *config.Settings, request runtimeconfig.Request) (b
 		if request.Target == runtimeconfig.TargetWorkspace {
 			changed := !samePath(settings.Workspace, value)
 			settings.Workspace = value
+			// A one-time origin belongs only to the startup workspace.
+			settings.WorkspaceOrigin = ""
 			return changed, changed, nil
 		}
 		changed := !samePath(settings.StateDir, value)
