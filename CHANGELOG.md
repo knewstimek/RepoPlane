@@ -4,6 +4,16 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+### Fixed
+
+- `memo_write` now publishes `memo_kind` as an enum and reports an invalid or missing kind as
+  `memo_kind must be decision, failed_attempt, resolved_failure, limitation, or host_fact`;
+  missing content is reported separately as `content is required`. Previously both cases
+  returned `memo_kind, content required`, even when a kind had been supplied.
+- `catalog_query` search treats `-`, `_`, `.`, and `/` in IDs and search text as equivalent, so a
+  file-name spelling such as `example-smoke-check` finds the catalog ID `example.smoke.check`
+  (including as `exact_id`).
+
 ## [1.2.4] - 2026-11-06
 
 ### Upgrade notes

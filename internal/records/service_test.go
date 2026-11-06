@@ -84,6 +84,21 @@ func TestMemoDiscoveryLimitsMatchSchemaAndNameTheField(t *testing.T) {
 	}
 }
 
+func TestMemoKindAndContentErrorsNameTheFailingField(t *testing.T) {
+	request := MemoRequest{Mode: "create", MemoKind: "note", Content: "example", Source: "llm_proposed"}
+	if err := validateMemo(request); err == nil || err.Error() != "memo_kind must be decision, failed_attempt, resolved_failure, limitation, or host_fact" {
+		t.Fatalf("invalid kind error = %v", err)
+	}
+	request.MemoKind = ""
+	if err := validateMemo(request); err == nil || err.Error() != "memo_kind must be decision, failed_attempt, resolved_failure, limitation, or host_fact" {
+		t.Fatalf("missing kind error = %v", err)
+	}
+	request.MemoKind, request.Content = "decision", " "
+	if err := validateMemo(request); err == nil || err.Error() != "content is required" {
+		t.Fatalf("missing content error = %v", err)
+	}
+}
+
 func TestHostFactListLimitsMatchSchemaAndNameTheField(t *testing.T) {
 	host := &HostFact{Alias: "example", Role: strings.Repeat("가", 128), OS: "linux", Tier: "test", ConfirmedAt: "2026-01-01T00:00:00Z"}
 	for i := range 40 {

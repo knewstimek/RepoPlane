@@ -440,8 +440,6 @@ func publicErrorMessage(code string, err error) string {
 			return "goal required"
 		case "id and expected_revision are required for update or supersede":
 			return "id, expected_revision required"
-		case "memo_kind and content are required":
-			return "memo_kind, content required"
 		case "host is only valid for host_fact":
 			return "host: host_fact only"
 		case "source must be user_asserted or llm_proposed":

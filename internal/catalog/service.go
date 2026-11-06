@@ -39,7 +39,7 @@ func (s *Service) missingCapability() error {
 
 type QueryRequest struct {
 	Mode        string `json:"mode,omitempty" jsonschema:"omit with cursor"`
-	Query       string `json:"query,omitempty" jsonschema:"lexical search text; required for search"`
+	Query       string `json:"query,omitempty" jsonschema:"lexical search text; required for search; - _ . / are interchangeable"`
 	ID          string `json:"id,omitempty" jsonschema:"catalog item ID; required for get"`
 	Cursor      string `json:"cursor,omitempty" jsonschema:"opaque cursor returned by an earlier list or search"`
 	ItemLimit   uint64 `json:"item_limit,omitempty" jsonschema:"item limit; default 50, max 500"`
@@ -306,7 +306,7 @@ func (s *Service) status(ctx context.Context, meta store.CatalogGenerationMeta, 
 // of rescanning and rewriting every match on each repeated query.
 func (s *Service) firstPage(ctx context.Context, meta store.CatalogGenerationMeta, key string, itemLimit, byteLimit uint64, build func() ([]QueryResult, error)) (QueryResponse, error) {
 	now := s.now().UTC()
-	querySum := sha256.Sum256([]byte(fmt.Sprintf("catalog.v1\x00%s\x00%t\x00%s", meta.ID, s.executionEnabled, key)))
+	querySum := sha256.Sum256([]byte(fmt.Sprintf("catalog.v2\x00%s\x00%t\x00%s", meta.ID, s.executionEnabled, key)))
 	queryHash := "sha256:" + hex.EncodeToString(querySum[:])
 	if set, err := s.repository.FindResultSet(ctx, s.workspaceID, meta.ID, queryHash, now.Add(resultSetMinReuse)); err == nil {
 		return s.readPage(ctx, set.ID, 0, itemLimit, byteLimit, set.ExpiresAt)

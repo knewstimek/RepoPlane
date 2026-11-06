@@ -38,7 +38,7 @@
             "type": "string"
           },
           "query": {
-            "description": "lexical search text; required for search",
+            "description": "lexical search text; required for search; - _ . / are interchangeable",
             "type": "string"
           },
           "time_limit_ms": {
@@ -1365,7 +1365,14 @@
             "type": "string"
           },
           "memo_kind": {
-            "description": "decision | failed_attempt | resolved_failure | limitation | host_fact",
+            "description": "memo category; required for create and update",
+            "enum": [
+              "decision",
+              "failed_attempt",
+              "resolved_failure",
+              "limitation",
+              "host_fact"
+            ],
             "type": "string"
           },
           "mode": {

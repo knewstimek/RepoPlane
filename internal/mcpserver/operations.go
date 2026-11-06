@@ -104,8 +104,9 @@ func addInputChoices(name string, schema *jsonschema.Schema) {
 		ToolProjectRecords:  {"mode": {"search", "list", "get", "get_topic", "resume"}, "match_mode": {"any", "all"}, "response_view": {"brief", "discovery", "full"}},
 		ToolCheckpointWrite: {"mode": {"create", "update", "supersede"}, "response_view": {"full", "receipt"}},
 		ToolMemoWrite: {
-			"mode":   {"create", "update", "supersede"},
-			"source": {"user_asserted", "llm_proposed"}, "response_view": {"full", "receipt"},
+			"mode":      {"create", "update", "supersede"},
+			"memo_kind": {"decision", "failed_attempt", "resolved_failure", "limitation", "host_fact"},
+			"source":    {"user_asserted", "llm_proposed"}, "response_view": {"full", "receipt"},
 		},
 		ToolCheckReportImport: {"response_view": {"full", "receipt"}},
 		ToolRunPrepare:        {"cache_mode": {"auto", "bypass"}},

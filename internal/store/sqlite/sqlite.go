@@ -489,7 +489,7 @@ func (r *Repository) SearchCatalog(ctx context.Context, query store.CatalogQuery
 		if err != nil {
 			return store.CatalogPage{}, err
 		}
-		exact := query.ExactID != "" && strings.EqualFold(query.ExactID, item.ID)
+		exact := query.ExactID != "" && foldCatalogText(query.ExactID) == foldCatalogText(item.ID)
 		score := score(item.Terms, terms)
 		if exact || score > 0 || len(terms) == 0 {
 			if exact {
@@ -696,7 +696,7 @@ func validateResultSet(set store.ResultSet) error {
 func normalizeTerms(terms []string) []string {
 	result := make([]string, 0, len(terms))
 	for _, term := range terms {
-		term = strings.ToLower(strings.TrimSpace(term))
+		term = foldCatalogText(strings.TrimSpace(term))
 		if term != "" {
 			result = append(result, term)
 		}
@@ -704,11 +704,17 @@ func normalizeTerms(terms []string) []string {
 	return result
 }
 
+var catalogSeparators = strings.NewReplacer("-", ".", "_", ".", "/", ".")
+
+func foldCatalogText(value string) string {
+	return catalogSeparators.Replace(strings.ToLower(value))
+}
+
 func score(itemTerms []store.CatalogTerm, queryTerms []string) int64 {
 	var result int64
 	for _, query := range queryTerms {
 		for _, term := range itemTerms {
-			if strings.Contains(strings.ToLower(term.Term), query) {
+			if strings.Contains(foldCatalogText(term.Term), query) {
 				result += int64(term.Weight)
 			}
 		}

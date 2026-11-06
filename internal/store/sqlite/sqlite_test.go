@@ -180,6 +180,32 @@ func TestCatalogPublishIsAtomicAndSearchIsDeterministic(t *testing.T) {
 	}
 }
 
+func TestCatalogSearchTreatsIDSeparatorsAsEquivalent(t *testing.T) {
+	repository := openTestRepository(t)
+	workspace := seedWorkspace(t, repository)
+	published := generation(workspace.ID, "generation-1",
+		item("example.smoke.check", store.CatalogTerm{Field: "id", Term: "example.smoke.check", Weight: 100}),
+		item("other.tool", store.CatalogTerm{Field: "id", Term: "other.tool", Weight: 100}),
+	)
+	if err := repository.PublishCatalogGeneration(context.Background(), published); err != nil {
+		t.Fatal(err)
+	}
+	for _, query := range []string{"example-smoke-check", "Example_Smoke_Check", "smoke-check"} {
+		page, err := repository.SearchCatalog(context.Background(), store.CatalogQuery{
+			WorkspaceID: workspace.ID, ExactID: query, Terms: []string{query}, Limit: 10,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Matches) != 1 || page.Matches[0].Item.ID != "example.smoke.check" {
+			t.Fatalf("query %q matches=%+v", query, page.Matches)
+		}
+		if exact := page.Matches[0].Score >= 1_000_000; exact != (query != "smoke-check") {
+			t.Fatalf("query %q exact=%t score=%d", query, exact, page.Matches[0].Score)
+		}
+	}
+}
+
 func TestCatalogPublishReactivatesExistingGeneration(t *testing.T) {
 	repository := openTestRepository(t)
 	workspace := seedWorkspace(t, repository)

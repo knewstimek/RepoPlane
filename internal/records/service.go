@@ -132,7 +132,7 @@ type MemoRequest struct {
 	ID                    string    `json:"id,omitempty" jsonschema:"ID for update/supersede"`
 	ExpectedRevision      uint64    `json:"expected_revision,omitempty" jsonschema:"revision for update/supersede"`
 	Supersedes            string    `json:"supersedes,omitempty" jsonschema:"current memo ID to replace atomically on create; requires expected_revision"`
-	MemoKind              string    `json:"memo_kind,omitempty" jsonschema:"decision | failed_attempt | resolved_failure | limitation | host_fact"`
+	MemoKind              string    `json:"memo_kind,omitempty" jsonschema:"memo category; required for create and update"`
 	Scope                 string    `json:"scope,omitempty" jsonschema:"logical scope"`
 	Configuration         string    `json:"configuration,omitempty" jsonschema:"configuration"`
 	TopicKey              string    `json:"topic_key,omitempty" jsonschema:"stable topic key for exact current lookup; supply for reusable decisions"`
@@ -1135,11 +1135,15 @@ func validateMemo(request MemoRequest) error {
 	if request.Mode != "create" && request.Mode != "update" && request.Mode != "supersede" {
 		return errors.New("mode must be create, update, or supersede")
 	}
-	allowedKind := request.MemoKind == "decision" || request.MemoKind == "failed_attempt" || request.MemoKind == "resolved_failure" || request.MemoKind == "limitation" || request.MemoKind == "host_fact"
-	if request.Mode != "supersede" && (!allowedKind || (request.MemoKind != "host_fact" && strings.TrimSpace(request.Content) == "")) {
-		return errors.New("memo_kind and content are required")
-	}
 	if request.Mode != "supersede" {
+		switch request.MemoKind {
+		case "decision", "failed_attempt", "resolved_failure", "limitation", "host_fact":
+		default:
+			return &ValidationError{Field: "memo_kind", Reason: "must be decision, failed_attempt, resolved_failure, limitation, or host_fact"}
+		}
+		if request.MemoKind != "host_fact" && strings.TrimSpace(request.Content) == "" {
+			return &ValidationError{Field: "content", Reason: "is required"}
+		}
 		if request.MemoKind == "host_fact" {
 			if request.TopicKey != "" {
 				return &ValidationError{Field: "topic_key", Reason: "is not valid for host_fact"}
