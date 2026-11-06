@@ -4,6 +4,7 @@ package runtimeconfig
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"repoplane/internal/contracts"
@@ -30,16 +31,17 @@ const (
 )
 
 var (
-	ErrInvalid      = errors.New("runtime configuration request is invalid")
-	ErrUnavailable  = errors.New("runtime configuration is unavailable for this transport")
-	ErrBusy         = errors.New("runtime configuration conflicts with active work")
-	ErrStateOverlap = errors.New("state directory must be outside the workspace")
+	ErrInvalid       = errors.New("runtime configuration request is invalid")
+	ErrUnavailable   = errors.New("runtime configuration is unavailable for this transport")
+	ErrBusy          = errors.New("runtime configuration conflicts with active work")
+	ErrStateOverlap  = errors.New("state directory must be outside the workspace")
+	ErrReplaceValues = fmt.Errorf("%w: replace requires an explicit values array; use [] only to clear the selected list", ErrInvalid)
 )
 
 type Request struct {
 	Action string   `json:"action" jsonschema:"status (read-only); add, remove, replace, refresh for source targets; select for workspace/state_dir; start or stop for http_transport"`
 	Target string   `json:"target,omitempty" jsonschema:"catalog_root, candidate_root, rule_file, symbol_index, workspace, state_dir, or http_transport; omit for status"`
-	Values []string `json:"values,omitempty" jsonschema:"one value for add/remove/select/start; array for replace; omit for status/refresh/stop"`
+	Values []string `json:"values,omitempty" jsonschema:"one value for add/remove/select/start; required array for replace, explicit [] clears; omit for status/refresh/stop"`
 }
 
 type Snapshot map[string][]string
@@ -82,6 +84,9 @@ func Validate(request Request) error {
 				return ErrInvalid
 			}
 		case ActionReplace:
+			if request.Values == nil {
+				return ErrReplaceValues
+			}
 			for _, value := range request.Values {
 				if strings.TrimSpace(value) == "" {
 					return ErrInvalid

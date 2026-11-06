@@ -26,6 +26,17 @@ import (
 
 type testRuntimeConfig struct{}
 
+func TestTransitionErrorKeepsSafeFieldGuidance(t *testing.T) {
+	err := fmt.Errorf("private diagnostic must stay private: %w", &records.TransitionError{Field: "scope", Reason: "is immutable on update; omit it to preserve the existing identity"})
+	failure := decodePublicFailure(t, publicMutationError(err))
+	if failure.Code != "invalid_transition" || failure.MutationState != "not_applied" || !strings.Contains(failure.Message, "scope") || !strings.Contains(failure.Message, "omit") || strings.Contains(failure.Message, "private diagnostic") {
+		t.Fatalf("failure=%+v", failure)
+	}
+	if failure.Details["field"] != "scope" {
+		t.Fatalf("missing field detail: %+v", failure)
+	}
+}
+
 func TestApprovalResultUsesExplicitFormElicitationWireShape(t *testing.T) {
 	result := approvalResult("state", "Approve the operation")
 	request, ok := result.InputRequests[approvalInputID].(*mcp.ElicitParams)

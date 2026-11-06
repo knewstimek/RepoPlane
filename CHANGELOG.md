@@ -4,6 +4,21 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+## [1.2.8] - 2026-11-07
+
+### Fixed
+
+- Memo and checkpoint updates now preserve omitted fields and evidence instead of replacing
+  them with empty values. Content-only memo edits inherit kind and topic identity; explicit
+  empty optional fields and arrays remain distinguishable from omission.
+- Invalid memo transitions expose safe field-specific reasons and recovery guidance instead
+  of a generic denial. Intentional identity changes still require successor creation; ordinary
+  update errors must not be bypassed by retiring or superseding the record.
+- Preserve a successor memo's supersession link during later updates. Source-list replacement
+  now rejects omitted values; an explicit empty array remains the way to clear a list.
+- Align both MCP surfaces, README, generated schemas, and repo-memory recovery instructions
+  with partial updates. Existing databases need no migration; reconnect MCP after replacement.
+
 ## [1.2.7] - 2026-11-07
 
 ### Fixed

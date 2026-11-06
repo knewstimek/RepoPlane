@@ -15,9 +15,9 @@
     {
       "name": "writes",
       "tool_count": 3,
-      "complete_contract_bytes": 9503,
-      "name_description_input_bytes": 5036,
-      "input_schema_bytes": 4534,
+      "complete_contract_bytes": 10340,
+      "name_description_input_bytes": 5873,
+      "input_schema_bytes": 4784,
       "output_schema_bytes": 4416
     },
     {
@@ -31,17 +31,17 @@
     {
       "name": "state",
       "tool_count": 2,
-      "complete_contract_bytes": 2892,
-      "name_description_input_bytes": 1861,
-      "input_schema_bytes": 904,
+      "complete_contract_bytes": 3015,
+      "name_description_input_bytes": 1984,
+      "input_schema_bytes": 933,
       "output_schema_bytes": 997
     },
     {
       "name": "all",
       "tool_count": 14,
-      "complete_contract_bytes": 40729,
-      "name_description_input_bytes": 18267,
-      "input_schema_bytes": 15025,
+      "complete_contract_bytes": 41689,
+      "name_description_input_bytes": 19227,
+      "input_schema_bytes": 15304,
       "output_schema_bytes": 22224
     },
     {

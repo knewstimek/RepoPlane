@@ -111,6 +111,7 @@ type RecordResult struct {
 type QueryResponse = contracts.Response[RecordResult]
 
 type CheckpointRequest struct {
+	presentFields    map[string]json.RawMessage
 	Mode             string   `json:"mode" jsonschema:"mutation action"`
 	ID               string   `json:"id,omitempty" jsonschema:"ID for update/supersede"`
 	ExpectedRevision uint64   `json:"expected_revision,omitempty" jsonschema:"revision for update/supersede"`
@@ -128,11 +129,12 @@ type CheckpointRequest struct {
 }
 
 type MemoRequest struct {
-	Mode                  string    `json:"mode" jsonschema:"mutation action"`
+	presentFields         map[string]json.RawMessage
+	Mode                  string    `json:"mode" jsonschema:"create; update modifies only supplied fields; supersede retires this record without creating a successor"`
 	ID                    string    `json:"id,omitempty" jsonschema:"ID for update/supersede"`
 	ExpectedRevision      uint64    `json:"expected_revision,omitempty" jsonschema:"revision for update/supersede"`
 	Supersedes            string    `json:"supersedes,omitempty" jsonschema:"current memo ID to replace atomically on create; requires expected_revision"`
-	MemoKind              string    `json:"memo_kind,omitempty" jsonschema:"memo category; required for create and update"`
+	MemoKind              string    `json:"memo_kind,omitempty" jsonschema:"memo category; required for create, inherited on update"`
 	Scope                 string    `json:"scope,omitempty" jsonschema:"logical scope"`
 	Configuration         string    `json:"configuration,omitempty" jsonschema:"configuration"`
 	TopicKey              string    `json:"topic_key,omitempty" jsonschema:"stable topic key for exact current lookup; supply for reusable decisions"`
@@ -140,11 +142,11 @@ type MemoRequest struct {
 	Summary               string    `json:"summary,omitempty" jsonschema:"one-line discovery summary, at most 240 Unicode characters; supply for reusable decisions"`
 	TemporalKind          string    `json:"temporal_kind,omitempty" jsonschema:"historical_observation or current_guidance; omit only when content time is unknown"`
 	AsOf                  string    `json:"as_of,omitempty" jsonschema:"RFC3339 assertion time; provide with temporal_kind"`
-	Content               string    `json:"content,omitempty" jsonschema:"memo text; all memo text fields combined must fit within 32768 UTF-8 bytes"`
+	Content               string    `json:"content,omitempty" jsonschema:"memo text; required for create, inherited on update; all memo text fields combined must fit within 32768 UTF-8 bytes"`
 	Host                  *HostFact `json:"host,omitempty" jsonschema:"typed host details for host_fact memos"`
 	InvalidationCondition string    `json:"invalidation_condition,omitempty" jsonschema:"staleness condition"`
-	Source                string    `json:"source" jsonschema:"memo provenance"`
-	EvidenceRefs          []string  `json:"evidence_refs,omitempty" jsonschema:"evidence refs"`
+	Source                string    `json:"source,omitempty" jsonschema:"memo provenance; create defaults user_asserted; update preserves existing provenance"`
+	EvidenceRefs          []string  `json:"evidence_refs,omitempty" jsonschema:"evidence refs; update preserves if omitted, explicit [] clears"`
 	ResponseView          string    `json:"response_view,omitempty" jsonschema:"receipt returns ID and revision by default; full includes payload"`
 }
 
@@ -475,6 +477,21 @@ func (s *Service) ResolveCacheQualifications(ctx context.Context, capabilityID, 
 }
 
 func (s *Service) WriteCheckpoint(ctx context.Context, request CheckpointRequest) (MutationResponse, error) {
+	if request.Mode == "update" {
+		current, err := s.recordForUpdate(ctx, "checkpoint", request.ID, request.ExpectedRevision)
+		if err != nil {
+			return MutationResponse{}, err
+		}
+		type plain CheckpointRequest
+		var merged plain
+		if err := mergeRecordUpdate(current, request, request.presentFields, map[string][]string{
+			"run_refs": request.RunRefs, "remaining_checks": request.RemainingChecks,
+			"background_refs": request.BackgroundRefs, "risks": request.Risks, "evidence_refs": request.EvidenceRefs,
+		}, &merged); err != nil {
+			return MutationResponse{}, err
+		}
+		request = CheckpointRequest(merged)
+	}
 	if request.Mode == "create" && (request.BaselineCommit == "" || request.Dirty == nil) {
 		commit, dirty, observed := currentSubject(ctx, s.root.Resolved())
 		if observed {
@@ -498,6 +515,21 @@ func (s *Service) WriteCheckpoint(ctx context.Context, request CheckpointRequest
 }
 
 func (s *Service) WriteMemo(ctx context.Context, request MemoRequest) (MutationResponse, error) {
+	var current store.Record
+	if request.Mode == "update" {
+		var err error
+		current, err = s.recordForUpdate(ctx, "memo", request.ID, request.ExpectedRevision)
+		if err != nil {
+			return MutationResponse{}, err
+		}
+		type plain MemoRequest
+		var merged plain
+		if err := mergeRecordUpdate(current, request, request.presentFields,
+			map[string][]string{"evidence_refs": request.EvidenceRefs}, &merged); err != nil {
+			return MutationResponse{}, err
+		}
+		request = MemoRequest(merged)
+	}
 	if request.Source == "" {
 		request.Source = "user_asserted"
 	}
@@ -539,21 +571,30 @@ func (s *Service) WriteMemo(ctx context.Context, request MemoRequest) (MutationR
 		schemaVersion = "memo.v3"
 	}
 	if request.Mode == "update" {
-		current, err := s.records.GetRecord(ctx, s.projectID, s.workspaceID, request.ID)
-		if err != nil {
-			return MutationResponse{}, mutationStoreError(err)
-		}
 		if current.Kind != "memo" || current.SchemaVersion != schemaVersion {
-			return MutationResponse{}, fmt.Errorf("%w: update cannot change memo schema; supersede the existing memo and create the new kind", ErrInvalidTransition)
+			return MutationResponse{}, &TransitionError{Field: "memo_kind/topic_key", Reason: "update cannot change memo schema; only for an intentional schema change, create a successor with supersedes and expected_revision"}
+		}
+		var existing map[string]json.RawMessage
+		if err := json.Unmarshal(current.Payload, &existing); err != nil {
+			return MutationResponse{}, ErrStorageFailure
+		}
+		var existingKind string
+		_ = json.Unmarshal(existing["memo_kind"], &existingKind)
+		if existingKind != request.MemoKind {
+			return MutationResponse{}, &TransitionError{Field: "memo_kind", Reason: "is immutable on update; only for an intentional kind change, create a successor with supersedes and expected_revision"}
+		}
+		if current.Source != request.Source {
+			return MutationResponse{}, &TransitionError{Field: "source", Reason: "provenance is immutable on update; retain the existing source"}
 		}
 		if schemaVersion == "memo.v3" {
-			var existing struct {
-				Scope         string `json:"scope"`
-				Configuration string `json:"configuration"`
-				TopicKey      string `json:"topic_key"`
-			}
-			if json.Unmarshal(current.Payload, &existing) != nil || existing.Scope != request.Scope || existing.Configuration != request.Configuration || existing.TopicKey != request.TopicKey {
-				return MutationResponse{}, fmt.Errorf("%w: memo topic identity cannot change; supersede the existing memo and create a new one", ErrInvalidTransition)
+			for _, field := range []struct{ name, value string }{{"scope", request.Scope}, {"configuration", request.Configuration}, {"topic_key", request.TopicKey}} {
+				var old string
+				if err := json.Unmarshal(existing[field.name], &old); err != nil {
+					return MutationResponse{}, ErrStorageFailure
+				}
+				if old != field.value {
+					return MutationResponse{}, &TransitionError{Field: field.name, Reason: "is immutable on update; omit it to preserve the current identity; only for an intentional identity change, create a successor with supersedes and expected_revision"}
+				}
 			}
 		}
 	}
@@ -808,7 +849,8 @@ func (s *Service) mutate(ctx context.Context, kind, schemaVersion, source, mode,
 			validity = "superseded"
 		}
 		update := store.RecordUpdate{ProjectID: s.projectID, WorkspaceID: s.workspaceID, ID: id, ExpectedRevision: expected, Payload: payload, EvidenceRefs: nonNil(evidence), Validity: validity}
-		if mode == "supersede" {
+		// Carry record provenance through ordinary updates as well as retirement.
+		{
 			current, err := s.records.GetRecord(ctx, s.projectID, s.workspaceID, id)
 			if err != nil {
 				return store.Record{}, mutationStoreError(err)
@@ -816,8 +858,10 @@ func (s *Service) mutate(ctx context.Context, kind, schemaVersion, source, mode,
 			if current.Kind != kind || current.Revision != expected {
 				return store.Record{}, store.ErrConflict
 			}
-			update.Payload = current.Payload
-			update.EvidenceRefs = current.EvidenceRefs
+			if mode == "supersede" {
+				update.Payload = current.Payload
+				update.EvidenceRefs = current.EvidenceRefs
+			}
 			update.Supersedes = current.Supersedes
 		}
 		if kind == "checkpoint" {
@@ -1158,8 +1202,13 @@ func validateMemo(request MemoRequest) error {
 			return errors.New("host is only valid for host_fact")
 		}
 	}
-	if request.TopicKey != "" && (strings.TrimSpace(request.Scope) == "" || !topicKeyPattern.MatchString(request.TopicKey)) {
-		return errors.New("topic_key requires scope and must use lowercase letters, digits, dot, underscore, slash, or hyphen")
+	if request.TopicKey != "" {
+		if strings.TrimSpace(request.Scope) == "" {
+			return &ValidationError{Field: "scope", Reason: "is required when topic_key is set; on update omit scope to preserve it"}
+		}
+		if !topicKeyPattern.MatchString(request.TopicKey) {
+			return &ValidationError{Field: "topic_key", Reason: "must use lowercase letters, digits, dot, underscore, slash, or hyphen"}
+		}
 	}
 	if request.Supersedes != "" && (request.Mode != "create" || request.ExpectedRevision == 0 || len(request.Supersedes) > 128) {
 		return errors.New("supersedes requires create mode and expected_revision")
@@ -1171,14 +1220,14 @@ func validateMemo(request MemoRequest) error {
 		return &ValidationError{Field: "summary", Reason: fmt.Sprintf("has %d characters; maximum is 240", n)}
 	}
 	if request.TemporalKind != "" && request.TemporalKind != "historical_observation" && request.TemporalKind != "current_guidance" {
-		return errors.New("temporal_kind must be historical_observation or current_guidance")
+		return &ValidationError{Field: "temporal_kind", Reason: "must be historical_observation or current_guidance"}
 	}
 	if (request.TemporalKind == "") != (request.AsOf == "") {
-		return errors.New("temporal_kind and as_of must be provided together")
+		return &ValidationError{Field: "temporal_kind/as_of", Reason: "must be provided or explicitly cleared together"}
 	}
 	if request.AsOf != "" {
 		if _, err := time.Parse(time.RFC3339, request.AsOf); err != nil {
-			return errors.New("as_of must be RFC3339")
+			return &ValidationError{Field: "as_of", Reason: "must be RFC3339"}
 		}
 	}
 	if request.Source != "user_asserted" && request.Source != "llm_proposed" {

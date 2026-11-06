@@ -253,10 +253,31 @@ Select payload data when the full body is unnecessary, independently of result d
 sections inside prose or nested JSON paths. Record metadata, evidence refs, and warnings remain
 available. These are separate savings from eliminating an identical text echo.
 Records do not infer semantic similarity between differently worded memos. A caller can assign a
-stable `topic_key` to a memo and explicitly update or supersede that identity. A topic memo's
+stable `topic_key` to a memo and explicitly update or supersede that identity.
+`update` is a partial edit: supply `id`, `expected_revision`, and only the fields being changed.
+Omitted memo and checkpoint fields, evidence refs, discovery metadata, and temporal evidence are
+preserved. Explicit empty strings or arrays clear optional mutable fields; required content and
+topic identity cannot be cleared. An explicitly supplied `host` object replaces that whole object
+and must satisfy its complete validation contract. For example, a content-only edit needs no
+repeat of scope, topic key, memo kind, title, or evidence:
+
+```json
+{"mode":"update","id":"MEMO_ID","expected_revision":1,"content":"Revised guidance."}
+```
+
+The same partial-edit rules apply to `checkpoint_write`; stale revisions are rejected rather
+than overwriting newer content. Source provenance, memo kind, and supersession links are preserved.
+A topic memo's
 `scope`, `configuration`, and `topic_key` form an immutable identity. To replace a memo, create
 its successor with `supersedes` and the old `expected_revision`; that atomically supersedes the
-old record and links the new one. New decision or procedure memos can carry `title`, `summary`,
+old record and links the new one.
+
+Do not switch to supersession to work around an update error: inspect its field-specific message
+and read the current record when necessary. `mode=supersede` by itself only retires the record;
+it does not write a successor. Use successor creation only for an intentional identity/kind/schema
+change or replacement. No new tools, flags, or database migration are needed for partial updates.
+
+New decision or procedure memos can carry `title`, `summary`,
 `temporal_kind`, and `as_of` for reliable discovery. Host facts retain their separate schema.
 Memo titles and summaries allow at most 160 and 240 Unicode characters, respectively, matching
 the schema's `maxLength` rules. Memo text fields together have a separate 32 KiB UTF-8 byte
@@ -351,6 +372,8 @@ indexes, workspace, state directory, HTTP transport, and tool surface. Local std
 apply directly without an additional server approval prompt or enable flag, so unattended clients
 can change sources or switch the workspace and state directory without waiting for a person.
 Input/path validation, atomic service replacement, and active Runner/snapshot checks still apply.
+Source-list `action=replace` requires an explicit `values` array: `[]` intentionally clears the
+selected list, while omitting `values` is rejected without changing the configuration.
 HTTP clients cannot call this tool. Use startup flags for fixed host defaults:
 
 ```text

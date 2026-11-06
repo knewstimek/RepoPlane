@@ -403,7 +403,7 @@ func operationRegistry(options Options) []operationSpec {
 			}))
 	}
 	if options.CheckpointWriter != nil {
-		operations = append(operations, newOperation(ToolCheckpointWrite, ToolboxWrite, "Write a task handoff; include change_summary and background_refs for useful one-call resume. May require approval.", ScopeIntentWrite, "write", "conditional", nil,
+		operations = append(operations, newOperation(ToolCheckpointWrite, ToolboxWrite, "Write a task handoff; include change_summary and background_refs for useful one-call resume. Update requires id and expected_revision; send only changed fields. Omitted fields/evidence are preserved; explicit empty strings/arrays clear optional fields. Supersede retires the record. May require approval.", ScopeIntentWrite, "write", "conditional", nil,
 			func(ctx context.Context, request *mcp.CallToolRequest, input records.CheckpointRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
 				if err := authorize(ctx, options, ToolCheckpointWrite); err != nil {
 					return nil, records.MutationResponse{}, publicMutationError(err)
@@ -416,7 +416,7 @@ func operationRegistry(options Options) []operationSpec {
 			}))
 	}
 	if options.MemoWriter != nil {
-		operations = append(operations, newOperation(ToolMemoWrite, ToolboxWrite, "Write a memo or typed host fact. For reusable decisions include topic_key, title, summary, temporal_kind/as_of, and invalidation_condition. May require approval.", ScopeIntentWrite, "write", "conditional", nil,
+		operations = append(operations, newOperation(ToolMemoWrite, ToolboxWrite, "Write a memo or typed host fact. Update requires id and expected_revision; send only changed fields. Omitted fields and evidence are preserved; explicit empty strings/arrays clear optional mutable fields. Memo kind and topic identity cannot change on update. Inspect field-specific errors; do not bypass failed updates with supersede. Create with supersedes makes an intentional successor; mode=supersede only retires the record. For reusable decisions include topic_key, title, summary, temporal_kind/as_of, and invalidation_condition. May require approval.", ScopeIntentWrite, "write", "conditional", nil,
 			func(ctx context.Context, request *mcp.CallToolRequest, input records.MemoRequest) (*mcp.CallToolResult, records.MutationResponse, error) {
 				if err := authorize(ctx, options, ToolMemoWrite); err != nil {
 					return nil, records.MutationResponse{}, publicMutationError(err)
@@ -530,7 +530,7 @@ func operationRegistry(options Options) []operationSpec {
 	}
 	if options.RuntimeConfig != nil && options.RuntimeAccess != nil {
 		destructive := true
-		operations = append(operations, newOperation(ToolRuntimeConfig, ToolboxState, "Inspect or change live sources, workspace, state, or HTTP without restarting stdio. Workspace identity is pinned in private .repoplane/workspace-id: keep .repoplane/ ignored by Git, retain the file and the same state directory across moves, then select the new workspace. For a legacy workspace already moved, start once with --workspace-origin FORMER_CANONICAL_ABSOLUTE_PATH (may be missing) before its first upgraded startup, then remove the flag. A conflicting saved ID is rejected; histories are not merged. Local stdio changes apply directly without server approval prompts. If state overlaps the workspace, status reports blocked; select workspace or state_dir to recover. HTTP calls are unavailable.", ScopeStateExport, "runtime_configuration_change", "none", &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false},
+		operations = append(operations, newOperation(ToolRuntimeConfig, ToolboxState, "Inspect or change live sources, workspace, state, or HTTP without restarting stdio. Workspace identity is pinned in private .repoplane/workspace-id: keep .repoplane/ ignored by Git, retain the file and the same state directory across moves, then select the new workspace. For a legacy workspace already moved, start once with --workspace-origin FORMER_CANONICAL_ABSOLUTE_PATH (may be missing) before its first upgraded startup, then remove the flag. A conflicting saved ID is rejected; histories are not merged. Replace requires an explicit values array; [] clears the selected list, omission is rejected. Local stdio changes apply directly without server approval prompts. If state overlaps the workspace, status reports blocked; select workspace or state_dir to recover. HTTP calls are unavailable.", ScopeStateExport, "runtime_configuration_change", "none", &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &destructive, IdempotentHint: false},
 			func(ctx context.Context, request *mcp.CallToolRequest, input runtimeconfig.Request) (*mcp.CallToolResult, runtimeconfig.Response, error) {
 				if err := authorize(ctx, options, ToolRuntimeConfig); err != nil {
 					return nil, runtimeconfig.Response{}, publicError(err)

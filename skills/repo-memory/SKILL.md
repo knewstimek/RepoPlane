@@ -43,7 +43,9 @@ Do not store secrets, credentials, personal data, speculative conclusions, routi
 - `invalid_argument`: check current tool schema; fix the cited field. `limit_exceeded`: shrink the cited input.
 - `memo_time_unknown`: saved; no retry or invented timestamp.
 - `memo_topic_exists`: new content not saved. `revision_conflict`: stale revision. Read the full record and compare the intended content. If already retained, skip the write; otherwise merge and update using its ID/latest `expected_revision`, preserving other fields/evidence.
-- If the memo kind/schema or topic identity (`scope`, `configuration`, `topic_key`) must change, use supersession instead of `update`: create the successor with `supersedes` and the current `expected_revision`.
+- On a server whose tool contract supports partial updates, send `mode=update`, `id`, `expected_revision`, and only changed fields. Omitted fields and evidence remain intact; explicit empty strings/arrays clear optional mutable values. Read the current revision and any facts needed for the edit; do not copy unrelated metadata just to preserve it.
+- `invalid_transition`: inspect the field-specific error and current record. An omitted field or failed content edit is not an intentional identity change; correct and retry `update`. On an older server requiring full replacements, read the full record and resubmit unchanged identity/metadata with the edit. Never switch to supersession merely to bypass an error.
+- Only for an intentional memo kind/schema or topic identity (`scope`, `configuration`, `topic_key`) change, create the successor with `supersedes` and the current `expected_revision`. `mode=supersede` alone only retires the old record; it does not write a successor.
 - Timeout/storage error or unknown outcome: read back by ID/`topic_key` before retrying.
 - `permission_denied`: report; never bypass. Never repeat an unchanged failed write.
 

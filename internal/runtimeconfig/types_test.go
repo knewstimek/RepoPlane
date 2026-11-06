@@ -20,6 +20,7 @@ func TestValidateRuntimeConfigurationMatrix(t *testing.T) {
 		}
 	}
 	invalid := []Request{
+		{Action: ActionReplace, Target: TargetRuleFile},
 		{Action: ActionStatus, Target: TargetWorkspace},
 		{Action: ActionAdd, Target: TargetCatalogRoot},
 		{Action: ActionRefresh, Target: TargetRuleFile, Values: []string{"x"}},
