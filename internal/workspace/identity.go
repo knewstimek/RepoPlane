@@ -57,7 +57,13 @@ func (r *Root) PrepareIdentity(origin string) error {
 		if !filepath.IsAbs(origin) {
 			return errors.New("workspace: workspace-origin must be an absolute former canonical path")
 		}
-		wanted = identity(filepath.Clean(origin))
+		// A missing old leaf can still have an aliased existing parent (Windows
+		// 8.3 names, junctions, or symlinks). Match Open's canonical namespace.
+		canonical, err := RealPathAllowMissing(origin)
+		if err != nil {
+			return fmt.Errorf("workspace: resolve former workspace path: %w", err)
+		}
+		wanted = identity(canonical)
 	}
 	saved, err := r.savedIdentity()
 	if err != nil {

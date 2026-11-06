@@ -4,33 +4,17 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
-## [1.2.8] - 2026-11-07
-
-### Fixed
-
-- Memo and checkpoint updates now preserve omitted fields and evidence instead of replacing
-  them with empty values. Content-only memo edits inherit kind and topic identity; explicit
-  empty optional fields and arrays remain distinguishable from omission.
-- Invalid memo transitions expose safe field-specific reasons and recovery guidance instead
-  of a generic denial. Intentional identity changes still require successor creation; ordinary
-  update errors must not be bypassed by retiring or superseding the record.
-- Preserve a successor memo's supersession link during later updates. Source-list replacement
-  now rejects omitted values; an explicit empty array remains the way to clear a list.
-- Align both MCP surfaces, README, generated schemas, and repo-memory recovery instructions
-  with partial updates. Existing databases need no migration; reconnect MCP after replacement.
-
-## [1.2.7] - 2026-11-07
-
-### Fixed
-
-- Failed service initialization no longer pins a workspace ID before legacy adoption can be
-  retried. Publish a complete, synced ID without overwriting another opener's identity.
-- Reject oversized and non-regular private identity files instead of accepting a truncated
-  valid prefix. Preserve the primary workspace boundary for identity reads and writes.
-- Align the README option summary, CLI help, and MCP discovery with workspace continuity,
-  ignored identity files, original state reuse, one-time adoption, and conflicting-ID behavior.
-
 ## [1.2.6] - 2026-11-07
+
+### Upgrade notes
+
+- Reconnect MCP after replacing the executable. Existing databases need no migration.
+- Open existing workspaces once before moving them. Move the ignored `.repoplane/workspace-id`
+  with the directory, retain the original state directory, and update the workspace path.
+  Legacy workspaces moved before their first upgraded startup can use `--workspace-origin`
+  once with the former canonical absolute path. Normal later moves need no origin option.
+- Memo and checkpoint updates now preserve omitted fields. Supply `id`, `expected_revision`,
+  and only the changed fields; explicit empty optional strings and arrays clear those values.
 
 ### Added
 
@@ -39,11 +23,22 @@ Notable changes to RepoPlane are documented here.
 - Add one-time `--workspace-origin` adoption for legacy directories moved before upgrading.
   Conflicting or corrupt saved IDs fail closed; MCP discovery explains continuity and recovery.
 
-### Upgrade notes
+### Fixed
 
-- Reconnect MCP after replacing the executable and open existing workspaces before moving them.
-  Move the ignored identity file with the directory and update the configured workspace path.
-  Already moved legacy workspaces need the original canonical absolute path on first startup.
+- Failed service initialization no longer pins a workspace ID before legacy adoption can be
+  retried. Publish complete, synced IDs without overwriting another opener's identity, and
+  reject oversized or damaged files rather than accepting truncated content.
+- Legacy adoption resolves existing parent aliases even when the old workspace has moved,
+  keeping Windows short paths and junctions in the original canonical record namespace.
+- Content-only memo edits inherit memo kind and topic identity. Updates preserve discovery
+  metadata, temporal evidence, evidence refs, and successor links instead of dropping them.
+- Invalid memo transitions name the affected field and explain recovery. Ordinary update errors
+  must not be bypassed by retiring or superseding the record; successor creation remains the
+  explicit path for intentional identity, kind, or schema changes.
+- Source-list replacement rejects omitted values. An explicit empty array remains the way to
+  clear a list.
+- Align README usage, CLI help, both MCP tool surfaces, and repo-memory recovery instructions
+  with workspace continuity and partial updates.
 
 ## [1.2.5] - 2026-11-06
 

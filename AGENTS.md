@@ -17,6 +17,9 @@
 
 - Keep the current maintenance release line at 1.2.x and increment PATCH. A move to another
   minor or major version requires an explicit user decision; do not infer it from feature additions.
+- Accumulate work and review fixes in the same next release. Do not increment the version per
+  task, review, or commit. Keep unreleased work under `Unreleased` until preparing its release;
+  distinguish development builds from published tags and GitHub Releases.
 - Finish work by updating README/usage and `Unreleased` as needed, verifying, committing, and
   pushing. Report completion and elapsed time; for goal-tracked work, report aggregate token usage.
 - If the MCP executable changed, rebuild and replace the installed copy found via the ignored
@@ -42,6 +45,8 @@
 
 - For MCP agent UX, fix what agents see through tools; never treat README or usage edits as the
   solution on the assumption that agents read them.
+- Resolve legacy workspace origins through their existing ancestors before deriving identity;
+  a missing old leaf must not turn Windows short names or parent links into a new namespace.
 
 ## Verification discipline
 
