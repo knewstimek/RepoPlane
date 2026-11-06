@@ -4,6 +4,15 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+## [1.2.4] - 2026-11-06
+
+### Upgrade notes
+
+- Reconnect MCP after replacing the executable. The cache database switches to SQLite WAL on
+  its next open, so `-wal` and `-shm` files appear beside it in the state directory. If an older
+  server process still holds the database, the switch is retried on a later open. No
+  configuration change is required, and the records database is unchanged.
+
 ### Fixed
 
 - Local stdio now keeps MCP connected when private state overlaps the workspace. Tools report
@@ -15,12 +24,12 @@ Notable changes to RepoPlane are documented here.
   reuse the live result snapshot instead of rescanning and rewriting every match each time. A
   snapshot is reused only within the same catalog generation and while at least 15 minutes of
   cursor lifetime remain. Responses, paging, and cursors are unchanged.
-- `catalog_query` against an unchanged catalog no longer times out while another host process
-  holds the state database write lock. Catalog refresh checks for retired generations with a read
-  before deleting, and the cache database now uses SQLite WAL so reads proceed during writes.
-  If an older process holds the file, the switch is retried on the next open.
-- `deadline_exceeded` failures now log their correlation ID and stage chain on stderr, like
-  `storage_failure` and `internal_error`, so a timeout can be traced to the step that ran out.
+- `catalog_query` against an unchanged catalog no longer fails with `deadline_exceeded` while
+  another server process writes to the shared state. Catalog refresh no longer takes the write
+  lock when there is nothing to prune, and WAL lets reads proceed during another process's write.
+- `deadline_exceeded` failures are now logged on stderr with their correlation ID and the step
+  that ran out of time, like `storage_failure` and `internal_error`. Client responses are
+  unchanged.
 
 ## [1.2.3] - 2026-11-02
 
