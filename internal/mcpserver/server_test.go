@@ -238,10 +238,11 @@ func TestPublicErrorIncludesBoundedRunnerLimitDetails(t *testing.T) {
 
 func TestMissingCapabilityErrorGuidesPrivateCatalogDiscovery(t *testing.T) {
 	got := decodePublicFailure(t, publicError(&catalog.MissingCapabilityError{
-		CandidateRoots: []string{".repoplane/catalog"},
+		CandidateRoots: []string{".repoplane/catalog"}, IssueCount: 2,
 	}))
 	if got.Code != "capability_not_found" || !strings.Contains(got.Message, "runtime_config") ||
-		got.Details["profile_location"] != "unknown_unless_configured" || got.Details["candidate_catalog_roots"] == nil {
+		got.Details["profile_location"] != "unknown_unless_configured" || got.Details["candidate_catalog_roots"] == nil ||
+		got.Details["catalog_issue_count"] != float64(2) || !strings.Contains(fmt.Sprint(got.Details["next_tools"]), "catalog_query(mode=audit)") {
 		t.Fatalf("missing capability failure=%+v", got)
 	}
 }

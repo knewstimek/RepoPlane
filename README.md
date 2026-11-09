@@ -395,7 +395,14 @@ candidate roots with `runtime_config(action=status)`. The server cannot discover
 private profile whose path was never configured. Supply that path in the host's ignored local
 configuration, restart or update the catalog root through local stdio runtime configuration, and
 query the catalog again before calling `run_prepare`. A missing capability error names these next
-tools and reports the profile location as unknown when appropriate. Keep private profile content
+tools and reports the profile location as unknown when appropriate. Search/list first pages also
+warn about unconfigured candidate roots and summarize generation-wide audit issues with
+`catalog_issues_present`. These issues can explain unavailable items, but do not prove why a
+particular query missed. Use `catalog_query(mode=audit)` for file references and exact parse or
+validation errors. Missing-ID errors include `catalog_issue_count` when nonzero and recommend
+that audit for both `catalog_query(mode=get)` and Runner capability resolution. Cursor pages
+retain their original result snapshot; diagnostics are reported on the first page. No extra
+opt-in flag is required. Keep private profile content
 and host paths out of tracked files. A copyable host configuration is:
 
 ```json

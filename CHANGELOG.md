@@ -4,6 +4,13 @@ Notable changes to RepoPlane are documented here.
 
 ## Unreleased
 
+### Fixed
+
+- Catalog search/list first pages now report unconfigured candidate roots and summarize audit
+  issues, distinguishing indexed no-match results from possible registration or file failures.
+  Missing capability errors include the catalog issue count and recommend audit for exact file
+  diagnostics, including Runner resolution. Existing parsing and validation rules are unchanged.
+
 ## [1.2.6] - 2026-11-07
 
 ### Upgrade notes

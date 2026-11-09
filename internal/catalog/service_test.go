@@ -2,9 +2,11 @@ package catalog
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -159,10 +161,123 @@ func TestServiceReportsUnconfiguredCatalogCandidates(t *testing.T) {
 	if !errors.Is(err, store.ErrNotFound) || !errors.As(err, &missing) || len(missing.CandidateRoots) != 1 || missing.CandidateRoots[0] != "code/.repoplane/catalog" {
 		t.Fatalf("missing item error=%v", err)
 	}
+	for _, request := range []QueryRequest{
+		{Mode: "search", Query: "missing.tool"},
+		{Mode: "search", Query: "configured.tool"},
+		{Mode: "list"},
+	} {
+		response, err := service.Query(context.Background(), request)
+		if err != nil || len(response.Warnings) == 0 || response.Warnings[0].Code != "catalog_candidate_unconfigured" ||
+			response.Warnings[0].Ref == nil || *response.Warnings[0].Ref != "code/.repoplane/catalog" {
+			t.Fatalf("request=%+v response=%+v err=%v", request, response, err)
+		}
+	}
 	service.indexer.catalogRoots = []string{"catalog", "code"}
 	status, err = service.Query(context.Background(), QueryRequest{Mode: "status"})
 	if err != nil || len(status.Warnings) != 0 {
 		t.Fatalf("configured parent warnings=%+v err=%v", status.Warnings, err)
+	}
+}
+
+func TestServiceLookupReportsCatalogIssues(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		body string
+	}{
+		{"yaml", "id: broken.tool\nrevision: 1\nsummary: [unterminated\n"},
+		{"schema", "id: broken.tool\nrevision: 1\nsummary: broken\narguments:\n  value: {type: number}\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			service, catalogPath := newServiceFixture(t, map[string]string{
+				"valid.yaml":  "id: valid.tool\nrevision: 1\nsummary: valid\n",
+				"broken.yaml": tc.body,
+			})
+			for _, request := range []QueryRequest{
+				{Mode: "search", Query: "broken.tool"},
+				{Mode: "search", Query: "valid.tool"},
+				{Mode: "list"},
+			} {
+				response, err := service.Query(context.Background(), request)
+				if err != nil {
+					t.Fatal(err)
+				}
+				found := false
+				for _, warning := range response.Warnings {
+					if warning.Code == "catalog_issues_present" {
+						found = strings.Contains(warning.Message, "1 audit issues") &&
+							strings.Contains(warning.Message, "catalog_query(mode=audit)")
+					}
+				}
+				if !found {
+					t.Fatalf("request=%+v warnings=%+v", request, response.Warnings)
+				}
+				encoded, err := json.Marshal(response)
+				if err != nil {
+					t.Fatal(err)
+				}
+				request.ByteLimit = uint64(len(encoded) - 1)
+				if _, err := service.Query(context.Background(), request); !errors.Is(err, ErrResponseTooLarge) {
+					t.Fatalf("warning exceeded byte limit: %v", err)
+				}
+			}
+			_, err := service.Query(context.Background(), QueryRequest{Mode: "get", ID: "broken.tool"})
+			var missing *MissingCapabilityError
+			if !errors.Is(err, store.ErrNotFound) || !errors.As(err, &missing) || missing.IssueCount != 1 {
+				t.Fatalf("missing error=%+v", err)
+			}
+			_, err = service.ResolveCapability(context.Background(), "broken.tool")
+			if !errors.As(err, &missing) || missing.IssueCount != 1 {
+				t.Fatalf("resolve error=%+v", err)
+			}
+			audit, err := service.Query(context.Background(), QueryRequest{Mode: "audit"})
+			if err != nil || len(audit.Items) != 1 || len(audit.Items[0].Detail) == 0 {
+				t.Fatalf("audit=%+v err=%v", audit, err)
+			}
+			if err := os.Remove(filepath.Join(catalogPath, "broken.yaml")); err != nil {
+				t.Fatal(err)
+			}
+			clean, err := service.Query(context.Background(), QueryRequest{Mode: "search", Query: "broken.tool"})
+			if err != nil || len(clean.Warnings) != 1 || clean.Warnings[0].Code != "catalog_no_match" {
+				t.Fatalf("clean no-match=%+v err=%v", clean, err)
+			}
+			_, err = service.Query(context.Background(), QueryRequest{Mode: "get", ID: "broken.tool"})
+			if !errors.As(err, &missing) || missing.IssueCount != 0 {
+				t.Fatalf("clean missing error=%+v", err)
+			}
+		})
+	}
+}
+
+func TestServiceWarningBudgetPreservesPagination(t *testing.T) {
+	manifests := map[string]string{"invalid.yaml": "id: INVALID\nrevision: 1\nsummary: invalid\n"}
+	for _, id := range []string{"a.tool", "b.tool", "c.tool"} {
+		manifests[id+".yaml"] = "id: " + id + "\nrevision: 1\nsummary: " + strings.Repeat("x", 600) + "\n"
+	}
+	service, _ := newServiceFixture(t, manifests)
+	full, err := service.Query(context.Background(), QueryRequest{Mode: "list"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(full)
+	if err != nil {
+		t.Fatal(err)
+	}
+	budget := uint64(len(encoded) - 400)
+	page, err := service.Query(context.Background(), QueryRequest{Mode: "list", ByteLimit: budget})
+	if err != nil || len(page.Items) == 0 || len(page.Items) >= 3 || page.NextCursor == nil ||
+		len(page.Warnings) != 1 || page.Warnings[0].Code != "catalog_issues_present" {
+		t.Fatalf("first page=%+v err=%v", page, err)
+	}
+	total := len(page.Items)
+	for page.NextCursor != nil {
+		page, err = service.Query(context.Background(), QueryRequest{Cursor: *page.NextCursor, ByteLimit: budget})
+		if err != nil || len(page.Warnings) != 0 || len(page.Items) == 0 {
+			t.Fatalf("cursor page=%+v err=%v", page, err)
+		}
+		total += len(page.Items)
+	}
+	if total != 3 {
+		t.Fatalf("paginated total=%d, want 3", total)
 	}
 }
 

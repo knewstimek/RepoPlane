@@ -26,15 +26,24 @@ var ErrResponseTooLarge = errors.New("catalog: response cannot fit byte_limit")
 
 // MissingCapabilityError tells an MCP client how to inspect registration without
 // pretending that an unspecified private host profile can be discovered.
-type MissingCapabilityError struct{ CandidateRoots []string }
+type MissingCapabilityError struct {
+	CandidateRoots []string
+	IssueCount     uint64
+}
 
 func (e *MissingCapabilityError) Error() string {
 	return "catalog capability is not registered in configured roots"
 }
 func (e *MissingCapabilityError) Unwrap() error { return store.ErrNotFound }
 
-func (s *Service) missingCapability() error {
-	return &MissingCapabilityError{CandidateRoots: s.indexer.unconfiguredCatalogRoots()}
+func (s *Service) missingCapability(ctx context.Context, meta store.CatalogGenerationMeta) error {
+	issues, err := s.repository.ListCatalogIssues(ctx, s.workspaceID, meta.ID)
+	if err != nil {
+		return err
+	}
+	return &MissingCapabilityError{
+		CandidateRoots: s.indexer.unconfiguredCatalogRoots(), IssueCount: uint64(len(issues)),
+	}
 }
 
 type QueryRequest struct {
@@ -108,7 +117,7 @@ func (s *Service) ResolveCapability(ctx context.Context, id string) (Capability,
 	item, err := s.repository.GetCatalogItem(ctx, s.workspaceID, meta.ID, id)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return Capability{}, s.missingCapability()
+			return Capability{}, s.missingCapability(ctx, meta)
 		}
 		return Capability{}, err
 	}
@@ -169,7 +178,11 @@ func (s *Service) Query(ctx context.Context, request QueryRequest) (QueryRespons
 }
 
 func (s *Service) search(ctx context.Context, meta store.CatalogGenerationMeta, query string, itemLimit, byteLimit uint64) (QueryResponse, error) {
-	response, err := s.firstPage(ctx, meta, "search\x00"+query, itemLimit, byteLimit, func() ([]QueryResult, error) {
+	warnings, err := s.catalogWarnings(ctx, meta)
+	if err != nil {
+		return QueryResponse{}, err
+	}
+	response, err := s.firstPage(ctx, meta, "search\x00"+query, itemLimit, byteLimit, warnings, func() ([]QueryResult, error) {
 		page, err := s.repository.SearchCatalog(ctx, store.CatalogQuery{
 			WorkspaceID:  s.workspaceID,
 			GenerationID: meta.ID,
@@ -202,11 +215,11 @@ func (s *Service) search(ctx context.Context, meta store.CatalogGenerationMeta, 
 	}
 	if query != "" && response.Counts.Matched != nil && *response.Counts.Matched == 0 {
 		response.Warnings = append(response.Warnings, contracts.Warning{
-			Code: "catalog_no_match", Message: "no match; check catalog_query(mode=status) and runtime_config(action=status)",
+			Code: "catalog_no_match", Message: "no match in indexed items; check catalog_query(mode=audit), catalog_query(mode=status), and runtime_config(action=status)",
 		})
-		if !responseFits(response, byteLimit) {
-			return QueryResponse{}, ErrResponseTooLarge
-		}
+	}
+	if !responseFits(response, byteLimit) {
+		return QueryResponse{}, ErrResponseTooLarge
 	}
 	return response, nil
 }
@@ -215,7 +228,7 @@ func (s *Service) get(ctx context.Context, meta store.CatalogGenerationMeta, id 
 	item, err := s.repository.GetCatalogItem(ctx, s.workspaceID, meta.ID, id)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return QueryResponse{}, s.missingCapability()
+			return QueryResponse{}, s.missingCapability(ctx, meta)
 		}
 		return QueryResponse{}, err
 	}
@@ -238,6 +251,23 @@ func (s *Service) get(ctx context.Context, meta store.CatalogGenerationMeta, id 
 	return response, nil
 }
 
+// catalogWarnings summarizes generation-wide issues without attributing them to a query.
+// Detailed file diagnostics remain paginated through audit.
+func (s *Service) catalogWarnings(ctx context.Context, meta store.CatalogGenerationMeta) ([]contracts.Warning, error) {
+	issues, err := s.repository.ListCatalogIssues(ctx, s.workspaceID, meta.ID)
+	if err != nil {
+		return nil, err
+	}
+	warnings := s.catalogRootWarnings()
+	if len(issues) > 0 {
+		warnings = append(warnings, contracts.Warning{
+			Code:    "catalog_issues_present",
+			Message: fmt.Sprintf("catalog has %d audit issues; items may be unavailable; inspect catalog_query(mode=audit) for file diagnostics", len(issues)),
+		})
+	}
+	return warnings, nil
+}
+
 func (s *Service) catalogRootWarnings() []contracts.Warning {
 	candidates := s.indexer.unconfiguredCatalogRoots()
 	warnings := make([]contracts.Warning, 0, len(candidates))
@@ -251,7 +281,7 @@ func (s *Service) catalogRootWarnings() []contracts.Warning {
 }
 
 func (s *Service) audit(ctx context.Context, meta store.CatalogGenerationMeta, itemLimit, byteLimit uint64) (QueryResponse, error) {
-	return s.firstPage(ctx, meta, "audit", itemLimit, byteLimit, func() ([]QueryResult, error) {
+	return s.firstPage(ctx, meta, "audit", itemLimit, byteLimit, nil, func() ([]QueryResult, error) {
 		issues, err := s.repository.ListCatalogIssues(ctx, s.workspaceID, meta.ID)
 		if err != nil {
 			return nil, err
@@ -304,12 +334,12 @@ func (s *Service) status(ctx context.Context, meta store.CatalogGenerationMeta, 
 // firstPage serves page one of a materialized result set. A catalog generation
 // is immutable, so a live set for the same generation and key is reused instead
 // of rescanning and rewriting every match on each repeated query.
-func (s *Service) firstPage(ctx context.Context, meta store.CatalogGenerationMeta, key string, itemLimit, byteLimit uint64, build func() ([]QueryResult, error)) (QueryResponse, error) {
+func (s *Service) firstPage(ctx context.Context, meta store.CatalogGenerationMeta, key string, itemLimit, byteLimit uint64, warnings []contracts.Warning, build func() ([]QueryResult, error)) (QueryResponse, error) {
 	now := s.now().UTC()
 	querySum := sha256.Sum256([]byte(fmt.Sprintf("catalog.v2\x00%s\x00%t\x00%s", meta.ID, s.executionEnabled, key)))
 	queryHash := "sha256:" + hex.EncodeToString(querySum[:])
 	if set, err := s.repository.FindResultSet(ctx, s.workspaceID, meta.ID, queryHash, now.Add(resultSetMinReuse)); err == nil {
-		return s.readPage(ctx, set.ID, 0, itemLimit, byteLimit, set.ExpiresAt)
+		return s.readPage(ctx, set.ID, 0, itemLimit, byteLimit, set.ExpiresAt, warnings)
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return QueryResponse{}, err
 	}
@@ -344,7 +374,7 @@ func (s *Service) firstPage(ctx context.Context, meta store.CatalogGenerationMet
 	if err := s.repository.CreateResultSet(ctx, set); err != nil {
 		return QueryResponse{}, err
 	}
-	return s.readPage(ctx, setID, 0, itemLimit, byteLimit, set.ExpiresAt)
+	return s.readPage(ctx, setID, 0, itemLimit, byteLimit, set.ExpiresAt, warnings)
 }
 
 func (s *Service) pageFromCursor(ctx context.Context, encoded string, itemLimit, byteLimit uint64) (QueryResponse, error) {
@@ -352,13 +382,16 @@ func (s *Service) pageFromCursor(ctx context.Context, encoded string, itemLimit,
 	if err != nil {
 		return QueryResponse{}, err
 	}
-	return s.readPage(ctx, payload.ResultSetID, payload.NextOrdinal, itemLimit, byteLimit, time.Unix(payload.ExpiresUnix, 0))
+	return s.readPage(ctx, payload.ResultSetID, payload.NextOrdinal, itemLimit, byteLimit, time.Unix(payload.ExpiresUnix, 0), nil)
 }
 
-func (s *Service) readPage(ctx context.Context, setID string, from, itemLimit, byteLimit uint64, expires time.Time) (QueryResponse, error) {
+func (s *Service) readPage(ctx context.Context, setID string, from, itemLimit, byteLimit uint64, expires time.Time, warnings []contracts.Warning) (QueryResponse, error) {
 	page, err := s.repository.ReadResultPage(ctx, setID, from, itemLimit)
 	if err != nil {
 		return QueryResponse{}, err
+	}
+	if warnings == nil {
+		warnings = contracts.EmptyWarnings()
 	}
 	items := make([]QueryResult, 0, len(page.Items))
 	for _, stored := range page.Items {
@@ -386,7 +419,7 @@ func (s *Service) readPage(ctx context.Context, setID string, from, itemLimit, b
 			Status: contracts.StatusOK, Items: items[:returned],
 			Counts: contracts.Counts{Matched: &matched, Relation: contracts.CountExact, Returned: uint64(returned)},
 			Scan:   contracts.Scan{State: contracts.ScanComplete}, Truncated: &truncated,
-			NextCursor: nextCursor, SnapshotRef: &snapshot, Warnings: contracts.EmptyWarnings(),
+			NextCursor: nextCursor, SnapshotRef: &snapshot, Warnings: warnings,
 		}
 		if responseFits(response, byteLimit) {
 			if returned == 0 && len(items) > 0 {

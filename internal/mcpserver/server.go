@@ -370,8 +370,11 @@ func publicErrorDetails(err error) map[string]any {
 	var missingCapability *catalog.MissingCapabilityError
 	if errors.As(err, &missingCapability) {
 		details := map[string]any{
-			"next_tools":       []string{"catalog_query(mode=status)", "runtime_config(action=status)"},
+			"next_tools":       []string{"catalog_query(mode=audit)", "catalog_query(mode=status)", "runtime_config(action=status)"},
 			"profile_location": "unknown_unless_configured",
+		}
+		if missingCapability.IssueCount > 0 {
+			details["catalog_issue_count"] = missingCapability.IssueCount
 		}
 		if len(missingCapability.CandidateRoots) > 0 {
 			details["candidate_catalog_roots"] = missingCapability.CandidateRoots
